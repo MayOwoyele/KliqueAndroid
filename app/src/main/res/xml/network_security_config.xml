@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.0.204</domain> <!-- Allow cleartext for this domain -->
+    </domain-config>
+
+    <!-- To allow cleartext for all domains during development, uncomment the next line -->
+    <!-- <base-config cleartextTrafficPermitted="true" /> -->
+</network-security-config>
