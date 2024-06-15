@@ -428,30 +428,6 @@ fun ChatRoom(
 
 
 @Composable
-fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        AndroidView(
-            factory = { context ->
-                EmojiPickerView(context).apply {
-                    setOnEmojiPickedListener { emoji ->
-                        onEmojiSelected(emoji.emoji)
-                    }
-                }
-            },
-            modifier = Modifier.height(300.dp).fillMaxWidth()
-        )
-    }
-}
-
-@Composable
 fun getStatusIcon(status: String): ImageVector {
     return if (status == "sent") {
         Icons.Filled.Done

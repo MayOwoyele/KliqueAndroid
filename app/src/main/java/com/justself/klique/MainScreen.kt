@@ -7,7 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +60,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -230,7 +233,29 @@ fun MainContent(
     }
 }
 
-
+@Composable
+fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AndroidView(
+            factory = { context ->
+                androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
+                    setOnEmojiPickedListener { emoji ->
+                        onEmojiSelected(emoji.emoji)
+                    }
+                }
+            },
+            modifier = Modifier.height(300.dp).fillMaxWidth()
+        )
+    }
+}
 
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
@@ -330,7 +355,6 @@ fun CustomAppBar(
         }
     }
 }
-
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
