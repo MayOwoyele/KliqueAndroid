@@ -175,13 +175,12 @@ fun MarketProductItem(
             colors = CardDefaults.cardColors(containerColor = Color.Transparent)
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                product.shopName.let { shopName -> // Make sure shopName is safely called
-                    // Box wrapping text based on its content length
+                product.shopName.let { shopName ->
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(0.dp, 8.dp, 8.dp, 0.dp)) // Rounded corners on the right side
-                            .background(MaterialTheme.colorScheme.primary) // Background color
-                            .padding(horizontal = 16.dp, vertical = 4.dp) // Padding around the text
+                            .clip(RoundedCornerShape(0.dp, 8.dp, 8.dp, 0.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
                     ) {
                         Text(
                             text = "by $shopName",
@@ -226,22 +225,30 @@ fun MarketProductItem(
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onPrimary)
                     )
                 }
-                if (expanded) {
-                    Text(
-                        text = product.description.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                    TextButton(onClick = { expanded = false }) {
-                        Text("Less", color = MaterialTheme.colorScheme.primary)
+                val description = product.description.orEmpty()
+                if (description.length > 55) {
+                    if (expanded) {
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
+                        )
+                        TextButton(onClick = { expanded = false }) {
+                            Text("Less", color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
+                        Text(
+                            text = description.take(55) + "...",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
+                        )
+                        TextButton(onClick = { expanded = true }) {
+                            Text("More", color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 } else {
                     Text(
-                        text = product.description.orEmpty().take(55) + "...",
+                        text = description,
                         style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
                     )
-                    TextButton(onClick = { expanded = true }) {
-                        Text("More", color = MaterialTheme.colorScheme.primary)
-                    }
                 }
             }
         }
@@ -251,7 +258,9 @@ fun MarketProductItem(
                 viewModel.addToCart(product)
                 Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
             },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 100.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 100.dp)
         ) {
             Text("Add to Cart", color = MaterialTheme.colorScheme.onPrimary)
         }

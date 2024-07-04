@@ -25,12 +25,22 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-DEBUG"
+            // Define test URLs for debug build
+            resValue("string", "base_url", "https://test.example.com/")
+            resValue("string", "websocket_url", "ws://test.example.com/")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Define real URLs for release build
+            resValue("string", "base_url", "https://192.168.0.181:3000/")
+            resValue("string", "websocket_url", "ws://192.168.0.181:8080")
         }
     }
     compileOptions {
@@ -102,6 +112,7 @@ dependencies {
     implementation (libs.emoji2.views)
     implementation (libs.emoji2.views.helper)
     implementation (libs.emoji2.emojipicker)
+    implementation(libs.mobile.ffmpeg)
     implementation("org.jetbrains:annotations:23.0.0") // Ensure correct annotations version
 }
 

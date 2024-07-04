@@ -52,6 +52,18 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.media.AudioAttributes
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.VideoView
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.viewinterop.AndroidView
 
 @Composable
 fun ShopOwnerScreen(shopId: Int, navController: NavHostController, productViewModel: ProductViewModel) {
@@ -220,22 +232,30 @@ fun ProductCard(product: Product, navController: NavHostController, productViewM
                         style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onPrimary)
                     )
                 }
-                if (expanded) {
-                    Text(
-                        text = product.description.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                    TextButton(onClick = { expanded = false }) {
-                        Text("Less", color = MaterialTheme.colorScheme.primary)
+                val description = product.description.orEmpty()
+                if (description.length > 55) {
+                    if (expanded) {
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
+                        )
+                        TextButton(onClick = { expanded = false }) {
+                            Text("Less", color = MaterialTheme.colorScheme.primary)
+                        }
+                    } else {
+                        Text(
+                            text = description.take(55) + "...",
+                            style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
+                        )
+                        TextButton(onClick = { expanded = true }) {
+                            Text("More", color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                 } else {
                     Text(
-                        text = product.description.orEmpty().take(55) + "...",
+                        text = description,
                         style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
                     )
-                    TextButton(onClick = { expanded = true }) {
-                        Text("More", color = MaterialTheme.colorScheme.primary)
-                    }
                 }
             }
         }
@@ -259,6 +279,61 @@ fun ProductCard(product: Product, navController: NavHostController, productViewM
                 .padding(8.dp),
             style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary)
         )
+    }
+}
+@Composable
+fun VideoPlayer(videoUrl: String) {
+    val context = LocalContext.current
+    val baseUrl = stringResource(id = R.string.base_url) // Fetch the base URL from resources
+    val completeVideoUrl = baseUrl + videoUrl
+    val handler = remember { Handler(Looper.getMainLooper()) }
+    val videoView = remember {
+        VideoView(context).apply {
+            setVideoPath(completeVideoUrl)
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
+                    .setFlags(AudioAttributes.FLAG_AUDIBILITY_ENFORCED)
+                    .build()
+            )
+        }
+    }
+    val runnable = remember {
+        object : Runnable {
+            override fun run() {
+                if (videoView.isPlaying) {
+                    videoView.seekTo(0)
+                    videoView.start()
+                }
+                handler.postDelayed(this, 2000) // Reschedule the runnable
+            }
+        }
+    }
 
+    AndroidView(
+        factory = { videoView },
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(16f / 9f), // Example: Setting an aspect ratio of 16:9
+        update = { view ->
+            view.setOnPreparedListener { mediaPlayer ->
+                mediaPlayer.isLooping = false
+                mediaPlayer.setVolume(0f, 0f)  // Muting the video
+                mediaPlayer.start()
+                handler.postDelayed(runnable, 2000) // Start looping every 2 seconds
+            }
+            view.setOnErrorListener { _, what, extra ->
+                Log.e("VideoPlayer", "Error playing video: what=$what, extra=$extra")
+                true
+            }
+        }
+    )
+
+    DisposableEffect(Unit) {
+        onDispose {
+            videoView.stopPlayback()
+            handler.removeCallbacks(runnable)  // Important to avoid memory leaks
+        }
     }
 }

@@ -1,20 +1,28 @@
+// File: WebSocketManager.kt
 package com.justself.klique
 
+import android.util.Base64
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import okio.ByteString
+import org.java_websocket.client.WebSocketClient
+import org.java_websocket.handshake.ServerHandshake
+import org.json.JSONException
+import org.json.JSONObject
+import org.slf4j.MDC.put
 import java.net.URI
+import java.net.URLEncoder
+import java.nio.ByteBuffer
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
-import java.security.cert.X509Certificate
 import java.security.SecureRandom
-import org.java_websocket.client.WebSocketClient
-import org.java_websocket.handshake.ServerHandshake
-import java.net.URLEncoder
-import kotlinx.coroutines.*
-import org.json.JSONException
-import org.json.JSONObject
+import java.security.cert.X509Certificate
 
-class WebSocketManager(private val viewModel: SharedCliqueViewModel) {
+
+object WebSocketManager {
     private var webSocketClient: WebSocketClient? = null
     private val sslContext: SSLContext = SSLContext.getInstance("SSL").apply {
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
@@ -25,6 +33,16 @@ class WebSocketManager(private val viewModel: SharedCliqueViewModel) {
         init(null, trustAllCerts, SecureRandom())
     }
 
+    private val listeners = mutableMapOf<String, WebSocketListener>()
+
+    fun registerListener(listener: WebSocketListener) {
+        listeners[listener.listenerId] = listener
+    }
+
+    fun unregisterListener(listener: WebSocketListener) {
+        listeners.remove(listener.listenerId)
+    }
+
     private fun createWebSocketClient(url: URI): WebSocketClient {
         return object : WebSocketClient(url) {
             override fun onOpen(handshakedata: ServerHandshake?) {
@@ -32,75 +50,49 @@ class WebSocketManager(private val viewModel: SharedCliqueViewModel) {
             }
 
             override fun onMessage(message: String) {
+                Log.d("WebSocket", message)
                 println("Received message: $message")
                 CoroutineScope(Dispatchers.Main).launch {
                     try {
                         val jsonObject = JSONObject(message)
-                        when (jsonObject.getString("type")) {
-                            "status" -> {
-                                val data = jsonObject.getJSONObject("data")
-                                val customerId = data.getInt("customerId")
-                                val fullName = data.getString("fullName")
-                                Log.i("WebSocketManager", "Connected: $customerId, $fullName")
-                            }
-                            "gistCreated" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val topic = jsonObject.getString("topic")
-                                viewModel.setGistCreatedOrJoined(topic, gistId)
-                                Log.i("WebSocketManager", "Gist Created: $gistId, Topic: $topic")
-                            }
-                            "previousMessages" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val messagesJsonArray = jsonObject.getJSONArray("messages")
-                                val messages = (0 until messagesJsonArray.length()).map { i ->
-                                    val msg = messagesJsonArray.getJSONObject(i)
-                                    ChatMessage(
-                                        id = msg.getInt("id"),
-                                        gistId = msg.getInt("gistId"),
-                                        customerId = msg.getInt("customerId"),
-                                        sender = msg.getString("fullName"),
-                                        content = deEscapeContent(msg.getString("content")),
-                                        status = msg.getString("status"),
-                                        messageType = msg.getString("messageType")
-                                    )
-                                }
-                                viewModel.handlePreviousMessages(gistId, messages)
-                            }
-                            "message" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val messageId = jsonObject.getInt("id")
-                                val customerId = jsonObject.getInt("customerId")
-                                val fullName = jsonObject.getString("fullName")
-                                val content = deEscapeContent(jsonObject.getString("content"))
-                                viewModel.addMessage(ChatMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = content, status = "received"))
-                            }
-                            "messageAck" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val messageId = jsonObject.getInt("id")
-                                val ackMessage = jsonObject.getString("message")
-                                Log.i("WebSocketManager", "Message acknowledged: $ackMessage")
-                                viewModel.messageAcknowledged(gistId, messageId)
-                            }
-                            "image" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val messageId = jsonObject.getInt("id")
-                                val customerId = jsonObject.getInt("customerId")
-                                val fullName = jsonObject.getString("fullName")
-                                val base64Image = jsonObject.getString("content")
-                                viewModel.addMessage(ChatMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = base64Image, status = "received", messageType = "image"))
-                                }
-                            "imageAck" -> {
-                                val gistId = jsonObject.getInt("gistId")
-                                val messageId = jsonObject.getInt("id")
-                                val ackMessage = jsonObject.getString("message")
-                                Log.i("WebSocketManager", "Image acknowledged: $ackMessage")
-                                viewModel.messageAcknowledged(gistId, messageId, "image")
-                            }
-                        }
+                        val type = jsonObject.getString("type")
+                        val targetId = jsonObject.optString("targetId", "")
+
+                        println("Routing text message: Type: $type, TargetId: $targetId")
+                        routeMessageToViewModel(type, targetId, jsonObject)
                     } catch (e: JSONException) {
                         e.printStackTrace()
+                        println("JSONException occurred while parsing message: ${e.message}")
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        println("Unexpected error occurred while processing message: ${e.message}")
                     }
+                }
+            }
 
+            override fun onMessage(bytes: ByteBuffer) {
+                println("Received binary message")
+                CoroutineScope(Dispatchers.Main).launch {
+                    try {
+                        val prefixBytes = ByteArray(12) // Adjust the prefix length as needed
+                        bytes.get(prefixBytes)
+                        val prefix = String(prefixBytes, Charsets.UTF_8).trim()
+                        val binaryData = ByteArray(bytes.remaining())
+                        bytes.get(binaryData)
+
+                        val jsonObject = JSONObject()
+                        jsonObject.put("prefix", prefix)
+                        jsonObject.put("binaryData", Base64.encodeToString(binaryData, Base64.DEFAULT))
+
+                        println("Routing binary message: Prefix: $prefix")
+                        routeBinaryMessageToViewModel(prefix, jsonObject)
+                    } catch (e: JSONException) {
+                        e.printStackTrace()
+                        println("JSONException occurred while parsing binary message: ${e.message}")
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        println("Unexpected error occurred while processing binary message: ${e.message}")
+                    }
                 }
             }
 
@@ -117,7 +109,6 @@ class WebSocketManager(private val viewModel: SharedCliqueViewModel) {
             }
         }
     }
-
     fun connect(url: String, customerId: Int, fullName: String) {
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
         val uri = URI("$url?customerId=$customerId&fullName=$encodedFullName")
@@ -132,8 +123,47 @@ class WebSocketManager(private val viewModel: SharedCliqueViewModel) {
         webSocketClient?.send(message)
     }
 
+    fun sendBinary(message: ByteArray) {
+        webSocketClient?.send(message)
+    }
+
     fun close() {
         webSocketClient?.close()
+    }
+
+    private fun routeBinaryMessageToViewModel(prefix: String, jsonObject: JSONObject) {
+        val parts = prefix.split(":")
+        if (parts.size == 2) {
+            val type = parts[0].lowercase()
+            val targetId = parts[1].trim()
+            val listenerId = when (type) {
+                "KImage", "KVideo", "KAudio" -> "SharedCliqueViewModel"
+                else -> targetId
+            }
+
+            listenerId.let {
+                listeners[it]?.onMessageReceived(type, jsonObject)
+                println("Binary message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
+            } ?: println("Unhandled binary data type or target ID: $type, $targetId")
+        } else {
+            println("Invalid prefix format: $prefix")
+        }
+    }
+
+    private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
+        val listenerId = when (type) {
+            "gistCreated", "previousMessages", "message", "messageAck" -> "SharedCliqueViewModel"
+            else -> targetId
+        }
+
+        println("Routing text message to listener: $listenerId, Type: $type, TargetId: $targetId")
+        println("Raw JSON data from server: $jsonObject")
+
+        listenerId.let {
+            listeners[it]?.onMessageReceived(type, jsonObject)?.also {
+                println("Text message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
+            } ?: println("Unhandled message type or target ID: $type, $targetId")
+        }
     }
 }
 

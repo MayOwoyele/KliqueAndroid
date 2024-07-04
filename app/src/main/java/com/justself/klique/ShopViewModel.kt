@@ -15,14 +15,9 @@ class ShopViewModel : ViewModel() {
     fun fetchShopDetails(shopId: Int, page: Int = 1) = viewModelScope.launch {
         _shopDetails.postValue(Resource.Loading())
         try {
-            // Including 'action' and 'page' parameters along with 'shop_id'
-            val params = mapOf(
-                "action" to "fetchShopDetails", // This needs to match your PHP switch case
-                "shop_id" to shopId.toString(),
-                "page" to page.toString()  // Add page number to the parameters
-            )
-            // Using the base endpoint 'api.php' as all actions are routed through it
-            val response = NetworkUtils.makeRequest("api.php", "GET", params)
+            // Constructing the new endpoint URL
+            val url = "fetchShopDetails/$shopId/$page"
+            val response = NetworkUtils.makeRequest(url, "GET", emptyMap())
             val shop = JsonConfig.json.decodeFromString<Shop>(response)
             _shopDetails.postValue(Resource.Success(shop))
         } catch (e: IOException) {
@@ -31,6 +26,4 @@ class ShopViewModel : ViewModel() {
             _shopDetails.postValue(Resource.Error("Failed to load shop details: ${e.message}", 500))
         }
     }
-
 }
-

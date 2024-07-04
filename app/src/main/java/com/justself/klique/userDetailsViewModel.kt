@@ -18,8 +18,8 @@ class UserDetailsViewModel : ViewModel() {
     fun fetchCustomerDetails(customerId: Int) {
         viewModelScope.launch {
             try {
-                val params = mapOf("action" to "getCustomerDetails", "customer_id" to customerId.toString())
-                val response = NetworkUtils.makeRequest("api.php", "POST", params)
+                val endpoint = "getCustomerDetails/$customerId"
+                val response = NetworkUtils.makeRequest(endpoint, "GET", emptyMap())
                 val responseObject = JSONObject(response)
 
                 if (responseObject.has("user")) {

@@ -2,10 +2,37 @@ package com.justself.klique
 
 data class ChatMessage(
     val id: Int,
-    val gistId: Int,
+    val gistId: String,
     val customerId: Int,
     val sender: String,
     val content: String,
     val status: String,
-    val messageType: String = "text" // Default to "text" for regular messages
-)
+    val messageType: String = "text",
+    val binaryData: ByteArray? = null
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is ChatMessage) return false
+
+        return id == other.id &&
+                gistId == other.gistId &&
+                customerId == other.customerId &&
+                sender == other.sender &&
+                content == other.content &&
+                status == other.status &&
+                messageType == other.messageType &&
+                binaryData?.contentEquals(other.binaryData) ?: (other.binaryData == null)
+    }
+
+    override fun hashCode(): Int {
+        var result = id.hashCode()
+        result = 31 * result + gistId.hashCode()
+        result = 31 * result + customerId
+        result = 31 * result + sender.hashCode()
+        result = 31 * result + content.hashCode()
+        result = 31 * result + status.hashCode()
+        result = 31 * result + messageType.hashCode()
+        result = 31 * result + (binaryData?.contentHashCode() ?: 0)
+        return result
+    }
+}

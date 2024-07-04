@@ -21,9 +21,9 @@ class MarketViewModel : ViewModel() {
 
     private fun fetchMarkets() {
         viewModelScope.launch {
-            val endpoint = "api.php?action=fetchMarkets"
+            val endpoint = "fetchMarkets"
             try {
-                val result = NetworkUtils.makeRequest(endpoint, method = "GET", params = emptyMap())
+                val result = NetworkUtils.makeRequest(endpoint, method = "GET", emptyMap())
                 _markets.value = json.decodeFromString(result)
             } catch (e: Exception) {
                 Log.e("MarketViewModel", "Failed to fetch markets: ${e.message}")

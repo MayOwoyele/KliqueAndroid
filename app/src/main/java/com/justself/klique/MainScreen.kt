@@ -23,11 +23,14 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Book
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -177,13 +180,24 @@ fun MainContent(
     val customerId = authViewModel.customerId.collectAsState().value
     val firstName = userDetailsViewModel.firstName.collectAsState().value
     val lastName = userDetailsViewModel.lastName.collectAsState().value
-    val fullName = "$firstName $lastName"
+    val fullName = "$firstName $lastName".trim()
     val commentViewModel: CommentsViewModel = viewModel()
 
+    val context = LocalContext.current
+    val webSocketUrl = context.getString(R.string.websocket_url)
+    Log.d("WebSocketURL", "WebSocket URL: $webSocketUrl")
     LaunchedEffect(key1 = customerId) {
-        userDetailsViewModel.fetchCustomerDetails(customerId)
+        if (customerId != 0) {
+            userDetailsViewModel.fetchCustomerDetails(customerId)
+        }
     }
 
+    LaunchedEffect(key1 = customerId, key2 = firstName, key3 = lastName) {
+        if (customerId != 0 && firstName.isNotEmpty() && lastName.isNotEmpty()) {
+            Log.d("WebSocket", "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId")
+            WebSocketManager.connect(webSocketUrl, customerId, fullName)
+        }
+    }
     val bottomPadding = when {
         imeVisible -> 0.dp
         showEmojiPicker -> 0.dp
@@ -233,29 +247,6 @@ fun MainContent(
     }
 }
 
-@Composable
-fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        AndroidView(
-            factory = { context ->
-                androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
-                    setOnEmojiPickedListener { emoji ->
-                        onEmojiSelected(emoji.emoji)
-                    }
-                }
-            },
-            modifier = Modifier.height(300.dp).fillMaxWidth()
-        )
-    }
-}
 
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
@@ -269,11 +260,11 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
         navController = navController,
         startDestination = if (isLoggedIn) "home" else "login"
     ) {
-        composable("home") { HomeScreen(productViewModel, navController, customerId) }
-        composable("dashboard") { DashboardScreen() }
+        composable("home") { HomeScreen(customerId, fullName, sharedCliqueViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker) }
+        composable("chats") { ChatsScreen(navController) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen() }
-        composable("clique") { Clique(customerId, fullName, sharedCliqueViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker) }
+        composable("orders") { OrdersScreen() }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull() ?: throw IllegalStateException("Product must be provided")
             ProductCommentsScreen(productId, commentViewModel, navController, customerId) }
@@ -293,22 +284,23 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
                 ?: throw IllegalStateException("Owner ID must be provided")
             val shopName = backStackEntry.arguments?.getString("shopName")?.let { Uri.decode(it) }
                 ?: throw IllegalStateException("Shop Name must be provided")
-            DMChatScreen(navController, customerId, shopName, ownerId,)
+            DMChatScreen(navController, customerId, shopName, ownerId)
         }
     }
 }
 
 @Composable
-fun DashboardScreen() {
+fun ChatsScreen(navController: NavHostController) {
     Text("Dashboard boardyboard")
 }
-
+@Composable
+fun OrdersScreen() {
+    Text("Dashboard boardyboard")
+}
 @Composable
 fun BookshelfScreen() {
     Text("The Bookshelf, coming soon")
 }
-
-
 
 @Composable
 fun CustomAppBar(
@@ -373,14 +365,14 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { if (currentRoute != "home") navController.navigate("home") }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.Dashboard, contentDescription = "Dashboard", tint = iconColor) },
-            label = { Text("Dashboard", style = textStyle) },
-            selected = currentRoute == "dashboard",
-            onClick = { if (currentRoute != "dashboard") navController.navigate("dashboard") }
+            icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "Chats", tint = iconColor) },
+            label = { Text("Chats", style = textStyle) },
+            selected = currentRoute == "chats",
+            onClick = { if (currentRoute != "chats") navController.navigate("chats") }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = "Markets", tint = iconColor) },
-            label = { Text("Markets", style = textStyle) },
+            icon = { Icon(Icons.Filled.ShoppingCart, contentDescription = "Market", tint = iconColor) },
+            label = { Text("Market", style = textStyle) },
             selected = currentRoute == "markets",
             onClick = { if (currentRoute != "markets") navController.navigate("markets") }
         )
@@ -391,10 +383,33 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { if (currentRoute != "bookshelf") navController.navigate("bookshelf") }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.People, contentDescription = "Clique", tint = iconColor) },
-            label = { Text("Clique", style = textStyle) },
-            selected = currentRoute == "clique",
-            onClick = { if (currentRoute != "clique") navController.navigate("clique") }
+            icon = { Icon(Icons.Filled.ShoppingBag, contentDescription = "Orders", tint = iconColor) },
+            label = { Text("Orders", style = textStyle) },
+            selected = currentRoute == "orders",
+            onClick = { if (currentRoute != "orders") navController.navigate("orders") }
+        )
+    }
+}
+@Composable
+fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        AndroidView(
+            factory = { context ->
+                androidx.emoji2.emojipicker.EmojiPickerView(context).apply {
+                    setOnEmojiPickedListener { emoji ->
+                        onEmojiSelected(emoji.emoji)
+                    }
+                }
+            },
+            modifier = Modifier.height(300.dp).fillMaxWidth()
         )
     }
 }

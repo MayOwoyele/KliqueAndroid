@@ -1,255 +1,314 @@
 package com.justself.klique
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
-import android.widget.Toast
-import android.widget.VideoView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.navigation.NavHostController
-import androidx.compose.ui.res.stringResource
-
-
-@Composable
-fun HomeScreen(viewModel: ProductViewModel, navController: NavHostController, customerId: Int) {
-    val productsResource by viewModel.products.observeAsState(Resource.Loading())
-    LaunchedEffect(Unit) {
-        viewModel.setGeneralMarketId(1)  // Ensure market ID is set to 1 whenever HomeScreen is shown
-    }
-
-    Column(modifier = Modifier.padding(0.dp)) {
-        Text("Everything Lucii Home Store", style = MaterialTheme.typography.displayLarge)
-        Spacer(modifier = Modifier.height(10.dp))
-
-        when (productsResource) {
-            is Resource.Loading -> {
-                CircularProgressIndicator()
-                Text("Loading products...", style = MaterialTheme.typography.bodyLarge)
-            }
-            is Resource.Success -> {
-                val products = (productsResource as Resource.Success<List<Product>>).data
-                if (products.isNullOrEmpty()) {
-                    Text("No products found", style = MaterialTheme.typography.bodyLarge)
-                } else {
-                    ProductList(products, viewModel, { viewModel.loadMoreProducts(marketId = 1) }, navController, customerId) // Passing NavController here
-                }
-            }
-            is Resource.Error -> {
-                Text("Error: ${(productsResource as Resource.Error<List<Product>>).message}", style = MaterialTheme.typography.bodyLarge)
-                Button(onClick = { viewModel.fetchProducts() }) {
-                    Text("Retry")
-                }
-            }
-
-            else -> {}
-        }
-    }
-}
-
-
+import androidx.compose.ui.zIndex
+import androidx.lifecycle.Observer
+import com.justself.klique.R
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @Composable
-fun ProductList(products: List<Product>, viewModel: ProductViewModel, onLoadMore: () -> Unit, navController: NavHostController, customerId: Int) {
-    val listState = rememberLazyListState()
-
-    LazyColumn(state = listState) {
-        items(products, key = { product -> product.productId }) { product ->
-            ProductItem(
-                product = product,
-                customerId = customerId,
-                onLikeClicked = { productId, customerId ->
-                    viewModel.likeProduct(productId, customerId)
-                },
-                viewModel = viewModel,
-                navController = navController
-            )
-        }
-        item {
-            Button(onClick = onLoadMore) {
-                Text("Load More")
-            }
-        }
-    }
-}
-
-
-@Composable
-fun ProductItem(
-    product: Product,
+fun HomeScreen(
     customerId: Int,
-    onLikeClicked: (Int, Int) -> Unit, // Updated to pass product ID and customer ID
-    viewModel: ProductViewModel,
-    navController: NavHostController
+    fullName: String,
+    viewModel: SharedCliqueViewModel,
+    onEmojiPickerVisibilityChange: (Boolean) -> Unit,
+    selectedEmoji: String,
+    showEmojiPicker: Boolean
 ) {
-    var expanded by remember { mutableStateOf(false) }
-    var isLiked by remember { mutableStateOf(false) }  // Local state to manage like status
-    val context = LocalContext.current  // Get the current context
+    val coroutineScope = rememberCoroutineScope()
+    var showOptions by remember { mutableStateOf(false) }
+    var showForm by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RectangleShape,
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent)
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                if (product.videoUrl != null) {
-                    VideoPlayer(videoUrl = product.videoUrl)
-                }
-                Text(
-                    text = product.name,
-                    style = MaterialTheme.typography.labelLarge.copy(color = MaterialTheme.colorScheme.onPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 0.dp)  // Add padding if necessary
-                        .align(Alignment.CenterHorizontally)
-                )
-                Text(
-                    text = "Price: ₦${product.price}",
-                    style = MaterialTheme.typography.displayMedium.copy(color = MaterialTheme.colorScheme.onPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 0.dp)  // Control padding to align text
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = {
-                        Log.d("ProductViewModel", "IconButton clicked for product ID: ${product.productId}")
-                        isLiked = !isLiked
-                        onLikeClicked(product.productId, customerId)  // Toggle the like status and perform an action
-                    }){
-                        Icon(
-                            imageVector = if (isLiked) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                            contentDescription = "Like",
-                            tint = if (isLiked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                    Text(
-                        text = "${product.likes}",
-                        style = MaterialTheme.typography.bodySmall.copy(color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                }
-                if (expanded) {
-                    Text(
-                        text = product.description.orEmpty(),
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                    TextButton(onClick = { expanded = false }) {
-                        Text("Less", color = MaterialTheme.colorScheme.primary)
-                    }
-                } else {
-                    Text(
-                        text = product.description.orEmpty().take(55) + "...",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
-                    )
-                    TextButton(onClick = { expanded = true }) {
-                        Text("More", color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                viewModel.addToCart(product)
-                Toast.makeText(context, "Added to cart", Toast.LENGTH_SHORT).show()
-            },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 100.dp)
-        ) {
-            Text("Add to Cart", color = MaterialTheme.colorScheme.onPrimary)
-        }
+    // Observe gist state from ViewModel
+    val gistState by viewModel.gistCreatedOrJoined.observeAsState()
+    val gistActive = gistState != null
+    val gistTopic = gistState?.first.orEmpty()
+    val gistId = gistState?.second.orEmpty()
 
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "View Comments",
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .clickable { navController.navigate("product/${product.productId}") }
-                .padding(8.dp),
-            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary)
-        )
-
-    }
-}
-@Composable
-fun VideoPlayer(videoUrl: String) {
-    val context = LocalContext.current
-    val baseUrl = stringResource(id = R.string.base_url) // Fetch the base URL from resources
-    val completeVideoUrl = baseUrl + videoUrl
-    val handler = remember { Handler(Looper.getMainLooper()) }
-    val videoView = remember { VideoView(context).apply { setVideoPath(completeVideoUrl) } }
-    val runnable = remember {
-        object : Runnable {
-            override fun run() {
-                if (videoView.isPlaying) {
-                    videoView.seekTo(0)
-                    videoView.start()
-                }
-                handler.postDelayed(this, 2000) // Reschedule the runnable
-            }
-        }
-    }
-
-    AndroidView(
-        factory = { videoView },
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(16f / 9f), // Example: Setting an aspect ratio of 16:9
-        update = { view ->
-            view.setOnPreparedListener { mediaPlayer ->
-                mediaPlayer.isLooping = false
-                mediaPlayer.setVolume(0f, 0f)  // Muting the video
-                mediaPlayer.start()
-                handler.postDelayed(runnable, 2000) // Start looping every 2 seconds
-            }
-            view.setOnErrorListener { _, what, extra ->
-                Log.e("VideoPlayer", "Error playing video: what=$what, extra=$extra")
-                true
-            }
-        }
+    val density = LocalDensity.current
+    val buttonPosition = remember { mutableStateOf(Offset.Zero) }
+    val enterTransition: EnterTransition = slideIn(
+        initialOffset = {
+            IntOffset(buttonPosition.value.x.roundToInt(), buttonPosition.value.y.roundToInt())
+        },
+        animationSpec = tween(durationMillis = 300)
+    ) + scaleIn(
+        initialScale = 0.3f,
+        animationSpec = tween(durationMillis = 300)
+    )
+    val exitTransition: ExitTransition = slideOut(
+        targetOffset = {
+            IntOffset(buttonPosition.value.x.roundToInt(), buttonPosition.value.y.roundToInt())
+        },
+        animationSpec = tween(durationMillis = 300)
+    ) + scaleOut(
+        targetScale = 0.3f,
+        animationSpec = tween(durationMillis = 300)
     )
 
-    // Proper placement of DisposableEffect
-    DisposableEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val messageObserver = Observer<List<ChatMessage>> { newMessages ->
+            newMessages.let {
+                // Handle new messages if needed
+            }
+        }
+
+        // Attach observers
+        viewModel.messages.observe(lifecycleOwner, messageObserver)
+
         onDispose {
-            videoView.stopPlayback()
-            handler.removeCallbacks(runnable)  // Important to avoid memory leaks
+            // Detach observers
+            viewModel.messages.removeObserver(messageObserver)
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.surface,
+    ) {
+        if (gistActive) {
+            ChatRoom(
+                topic = gistTopic,
+                sender = fullName,
+                gistId = gistId,
+                viewModel = viewModel,
+                customerId = customerId,
+                onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+                selectedEmoji = selectedEmoji,
+                showEmojiPicker = showEmojiPicker
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        onClick = { showOptions = false },
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }
+                    ),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(32.dp)
+                ) {
+                    AnimatedVisibility(
+                        visible = showOptions,
+                        enter = enterTransition,
+                        exit = exitTransition
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier
+                                .padding(end = 72.dp) // Adjust padding to position the options correctly
+                                .zIndex(1f)
+                        ) {
+                            OptionButton(
+                                text = "Start Gist",
+                                onClick = {
+                                    coroutineScope.launch {
+                                        showForm = true
+                                        showOptions = false
+                                    }
+                                }
+                            )
+                            OptionButton(
+                                text = "Start Ajo",
+                                onClick = {
+                                    coroutineScope.launch {
+                                        showOptions = false
+                                    }
+                                }
+                            )
+                        }
+                    }
+                    AddButton(
+                        onClick = {
+                            showOptions = !showOptions
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .size(56.dp),
+                        icon = Icons.Default.Add
+                    )
+                }
+            }
+
+            // GistForm overlay Box
+            if (showForm) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .clickable(
+                            onClick = { showForm = false },
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    GistForm(onSubmit = { topic, type ->
+                        coroutineScope.launch {
+                            viewModel.startGist(topic, type)
+                            showForm = false
+                        }
+                    }, onBack = { showForm = false })
+                }
+            }
         }
     }
 }
 
+@Composable
+private fun AddButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    contentDescription: String? = null
+) {
+    Box(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.primary)
+            .padding(12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+fun OptionButton(
+    text: String,
+    onClick: () -> Unit
+) {
+    Button(onClick = onClick) {
+        Text(text)
+    }
+}
+
+@Composable
+fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
+    var topic by remember { mutableStateOf(TextFieldValue("")) }
+    var selectedType by remember { mutableStateOf("public") } // State for selected gist type
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Row with back arrow and title
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            IconButton(onClick = onBack) { // Back arrow button
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = "Start a New Gist", style = MaterialTheme.typography.bodyLarge)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Input field for gist topic
+        OutlinedTextField(
+            value = topic,
+            onValueChange = { topic = it },
+            label = { Text("Gist Topic") }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Binary selection for gist type
+        Text(text = "Gist Type")
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row {
+            RadioButton(
+                selected = selectedType == "public",
+                onClick = { selectedType = "public" }
+            )
+            Text(text = "Public", modifier = Modifier.clickable { selectedType = "public" })
+            Spacer(modifier = Modifier.width(16.dp))
+            RadioButton(
+                selected = selectedType == "private",
+                onClick = { selectedType = "private" }
+            )
+            Text(text = "Private", modifier = Modifier.clickable { selectedType = "private" })
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Submit button
+        Button(onClick = {
+            onSubmit(topic.text, selectedType)
+        }) {
+            Text("Submit")
+        }
+    }
+}

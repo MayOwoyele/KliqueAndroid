@@ -1,27 +1,27 @@
 [versions]
 android-gradle-plugin = "7.0.4"
-agp = "8.4.1"
+agp = "8.4.2"
 annotations = "23.0.0"
 annotationsVersion = "12.0"
 kotlin = "1.9.0"
 coreKtx = "1.13.1"
 junit = "4.13.2"
-junitVersion = "1.1.5"
-espressoCore = "3.5.1"
-lifecycleRuntimeKtx = "2.8.0"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+lifecycleRuntimeKtx = "2.8.2"
 activityCompose = "1.9.0"
-composeBom = "2024.05.00"
+composeBom = "2024.06.00"
 retrofit = "2.9.0"
 okhttp = "4.9.3"
 gson = "2.9.0"
 constraintLayout = "2.1.4"
-compose = "1.6.7"  # Update to the latest stable version suitable for your project
+compose = "1.6.8"  # Update to the latest stable version suitable for your project
 material3 = "1.2.1"
-materialIconsExtended = "1.6.7"
+materialIconsExtended = "1.6.8"
 material = "1.12.0"
 navigationCompose = "2.7.7"
 ktor = "2.3.10"
-lifecycle = "2.8.0"
+lifecycle = "2.8.2"
 coroutines = "1.7.3"
 serialization = "1.5.1"
 mockk = "1.12.0"
@@ -31,11 +31,11 @@ coil = "2.1.0"
 picasso = "2.71828"
 room = "2.6.1"
 ksp = "1.9.0-1.0.12"
-uiTestJunit4 = "1.6.7"
+uiTestJunit4 = "1.6.8"
 emojicompat = "1.4.0"
 carUiLib = "2.6.0"
 emoji2 = "1.4.0"
-
+mobile-ffmpeg = "4.4"
 
 
 
@@ -75,8 +75,8 @@ lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel
 compose-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "compose" }
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
-lifecycle-livedata-ktx = "androidx.lifecycle:lifecycle-livedata-ktx:2.8.0"
-lifecycle-livedata = "androidx.lifecycle:lifecycle-livedata-ktx:2.8.0"
+lifecycle-livedata-ktx = "androidx.lifecycle:lifecycle-livedata-ktx:2.8.2"
+lifecycle-livedata = "androidx.lifecycle:lifecycle-livedata-ktx:2.8.2"
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 coroutinesTest = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 archCoreTesting = { module = "androidx.arch.core:core-testing", version.ref = "archCoreTesting" }
@@ -97,7 +97,7 @@ emoji2 = { group = "androidx.emoji2", name = "emoji2", version.ref = "emoji2" }
 emoji2-views = { group = "androidx.emoji2", name = "emoji2-views", version.ref = "emoji2" }
 emoji2-views-helper = { group = "androidx.emoji2", name = "emoji2-views-helper", version.ref = "emoji2" }
 emoji2-emojipicker = { group = "androidx.emoji2", name = "emoji2-emojipicker", version.ref = "emoji2" }
-
+mobile-ffmpeg = { group = "com.arthenica", name = "mobile-ffmpeg-full", version.ref = "mobile-ffmpeg" }
 
 
 [plugins]

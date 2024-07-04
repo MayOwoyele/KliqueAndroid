@@ -40,7 +40,6 @@ class ProductViewModel : ViewModel() {
 
     init {
         fetchProducts() // Correctly accessing a private method from within the class
-
     }
     fun addToCart(productToAdd: Product) {
         val currentItems = _cartItems.value ?: emptyList()
@@ -99,9 +98,9 @@ class ProductViewModel : ViewModel() {
             _marketProducts.postValue(Resource.Loading())
         }
 
-        val params = mapOf("action" to "homeScreenProducts", "page" to page.toString(), "market_id" to marketId.toString())
+        val endpoint = "screenProducts/$marketId/$page"
         try {
-            val response = NetworkUtils.makeRequest("api.php", "GET", params)
+            val response = NetworkUtils.makeRequest(endpoint, "GET", emptyMap())
             val newProducts = JsonConfig.json.decodeFromString<List<Product>>(response)
 
             if (page == 1) {
@@ -127,10 +126,9 @@ class ProductViewModel : ViewModel() {
         if (page == 1) {
             _products.postValue(Resource.Loading())
         }
-
-        val params = mapOf("action" to "homeScreenProducts", "page" to page.toString(), "market_id" to marketId.toString())
+        val endpoint = "screenProducts/$marketId/$page"
         try {
-            val response = NetworkUtils.makeRequest("api.php", "GET", params)
+            val response = NetworkUtils.makeRequest(endpoint , "GET", emptyMap())
             val newProducts = JsonConfig.json.decodeFromString<List<Product>>(response)
 
             with(generalProducts) {
@@ -156,12 +154,11 @@ class ProductViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val params = mapOf(
-                    "action" to "addLike",
                     "productId" to productId.toString(),
                     "customerId" to customerId.toString()
                 )
                 val responseString = NetworkUtils.makeRequest(
-                    endpoint = "api.php",
+                    endpoint = "addLike",
                     method = "POST",
                     params = params
                 )
@@ -172,10 +169,14 @@ class ProductViewModel : ViewModel() {
 
                 // Check if the response was successful and contains a new likes count
                 if (response.success && response.likesCount != null) {
-                    val updatedProducts = allProducts.map { product ->
+                    // Update the generalProducts list
+                    val updatedProducts = generalProducts.map { product ->
                         if (product.productId == productId) product.copy(likes = response.likesCount) else product
                     }
-                    _products.postValue(Resource.Success(updatedProducts))
+                    generalProducts.clear()
+                    generalProducts.addAll(updatedProducts)
+                    _products.postValue(Resource.Success(ArrayList(generalProducts)))
+                    Log.d("ProductViewModel", "Updated products list: $updatedProducts")
                     Log.d("ProductViewModel", "Updated products list successfully posted with new likes count: ${response.likesCount}.")
                 } else {
                     // Handle possible errors

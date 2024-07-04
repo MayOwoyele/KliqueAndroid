@@ -4,43 +4,77 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.compose.material3.*
-import androidx.core.app.ActivityCompat
+import androidx.compose.material3.Surface
 import androidx.core.content.ContextCompat
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 
 class MainActivity : ComponentActivity() {
+
+    private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+            Manifest.permission.READ_MEDIA_AUDIO
+        )
+    } else {
+        arrayOf(
+            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        )
+    }
+
+    private val requestPermissionLauncher: ActivityResultLauncher<Array<String>> =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            permissions.entries.forEach { (permission, granted) ->
+                Log.d("Permissions", "$permission granted: $granted")
+            }
+            val allPermissionsGranted = permissions.entries.all { it.value }
+
+            if (allPermissionsGranted) {
+                Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
+                finish()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NetworkUtils.initialize(this)
         enableEdgeToEdge()
         val config: Config = BundledEmojiCompatConfig(this)
         EmojiCompat.init(config)
         setContent {
             MyAppTheme {
                 Surface {
-                    MainScreen()  // Make MainScreen the root composable
+                    MainScreen()
                 }
             }
         }
 
-        // Request notification permission for Android 13 or higher
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            requestNotificationPermission()
+        Log.d("Permissions", "Requesting permissions...")
+        if (!allPermissionsGranted(requiredPermissions)) {
+            Log.d("Permissions", "Requesting required permissions...")
+            requestPermissionLauncher.launch(requiredPermissions)
+        } else {
+            Log.d("Permissions", "Required permissions already granted")
+            Toast.makeText(this, "Permissions already granted", Toast.LENGTH_SHORT).show()
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private fun requestNotificationPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS), 0)
-        }
+    private fun allPermissionsGranted(permissions: Array<String>) = permissions.all {
+        val granted = ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        Log.d("Permissions", "$it granted: $granted")
+        granted
     }
 }
