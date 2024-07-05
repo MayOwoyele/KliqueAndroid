@@ -1,4 +1,4 @@
-package com.justself.klique
+package com.justself.klique.Authentication.ui.viewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
 import android.util.Log  // Import Android Log utility
+import com.justself.klique.NetworkUtils
 
 class AuthViewModel : ViewModel() {
     private val _loginState = MutableStateFlow(LoginState.IDLE)

@@ -1,4 +1,4 @@
-package com.justself.klique
+package com.justself.klique.Authentication.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -32,6 +32,10 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
+import com.justself.klique.Authentication.ui.viewModels.LoginState
+import com.justself.klique.MyAppTheme
+import com.justself.klique.R
 
 
 @Composable
