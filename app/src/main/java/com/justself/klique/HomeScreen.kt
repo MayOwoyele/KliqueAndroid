@@ -1,6 +1,8 @@
 package com.justself.klique
 
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -62,6 +64,7 @@ import com.justself.klique.R
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun HomeScreen(
     customerId: Int,

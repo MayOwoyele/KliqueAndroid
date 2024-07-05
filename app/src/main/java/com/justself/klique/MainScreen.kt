@@ -2,7 +2,9 @@ package com.justself.klique
 
 import android.app.Application
 import android.net.Uri
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -122,6 +124,7 @@ fun MyAppTheme(
     )
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -161,6 +164,7 @@ fun MainScreen(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainContent(
     navController: NavHostController,
@@ -248,6 +252,7 @@ fun MainContent(
 }
 
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
                    commentViewModel: CommentsViewModel, onEmojiPickerVisibilityChange: (Boolean) -> Unit,
@@ -288,20 +293,6 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
         }
     }
 }
-
-@Composable
-fun ChatsScreen(navController: NavHostController) {
-    Text("Dashboard boardyboard")
-}
-@Composable
-fun OrdersScreen() {
-    Text("Dashboard boardyboard")
-}
-@Composable
-fun BookshelfScreen() {
-    Text("The Bookshelf, coming soon")
-}
-
 @Composable
 fun CustomAppBar(
     leftDrawerState: MutableState<Boolean>,
@@ -390,6 +381,21 @@ fun BottomNavigationBar(navController: NavController) {
         )
     }
 }
+
+@Composable
+fun ChatsScreen(navController: NavHostController) {
+    Text("Dashboard boardyboard")
+}
+@Composable
+fun OrdersScreen() {
+    Text("Dashboard boardyboard")
+}
+@Composable
+fun BookshelfScreen() {
+    Text("The Bookshelf, coming soon")
+}
+
+
 @Composable
 fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
     Column(

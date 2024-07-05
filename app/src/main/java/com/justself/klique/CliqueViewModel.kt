@@ -23,6 +23,13 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     init {
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
+        simulateGistCreated()
+    }
+    // remove this function later here and in the init block
+    private fun simulateGistCreated() {
+        val topic = "Kotlin"
+        val gistId = "1b345kt"
+        _gistCreatedOrJoined.postValue(Pair(topic, gistId))
     }
 
     override fun onCleared() {
