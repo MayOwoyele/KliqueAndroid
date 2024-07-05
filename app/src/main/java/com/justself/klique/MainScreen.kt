@@ -27,11 +27,8 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Chat
-import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
@@ -73,7 +70,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.justself.klique.ProductViewModel
+import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
+import com.justself.klique.Authentication.ui.screens.LoginScreen
 
 
 val Pink700 = Color(0xFFFF759C)
