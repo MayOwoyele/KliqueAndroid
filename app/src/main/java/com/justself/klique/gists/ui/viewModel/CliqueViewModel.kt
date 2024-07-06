@@ -1,5 +1,5 @@
 // File: SharedCliqueViewModel.kt
-package com.justself.klique
+package com.justself.klique.gists.ui.viewModel
 
 import android.app.Application
 import android.util.Log
@@ -8,9 +8,14 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.justself.klique.ChatMessage
+import com.justself.klique.WebSocketListener
+import com.justself.klique.WebSocketManager
+import com.justself.klique.deEscapeContent
 import org.json.JSONObject
 
-class SharedCliqueViewModel(application: Application, private val customerId: Int) : AndroidViewModel(application), WebSocketListener {
+class SharedCliqueViewModel(application: Application, private val customerId: Int) : AndroidViewModel(application),
+    WebSocketListener {
     override val listenerId: String = "SharedCliqueViewModel"
 
     // LiveData properties for observing state changes
