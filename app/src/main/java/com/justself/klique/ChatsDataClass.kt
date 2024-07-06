@@ -36,3 +36,12 @@ data class ChatMessage(
         return result
     }
 }
+data class ChatList(
+    val contactName: String,
+    val customerId: String,
+    val lastMsg: String,
+    val lastMsgAddtime: String,
+    val profilePhoto: String,
+    val recipientId: String,
+    val unreadMsgCounter: Int
+)

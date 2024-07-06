@@ -262,12 +262,18 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
     val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
         factory = SharedCliqueViewModelFactory(application, customerId)
     )
+    val chatDatabaseHelper = ChatDatabaseHelper(LocalContext.current)
+    // Initialize the ViewModel using the factory
+    val chatScreenViewModel: ChatScreenViewModel = viewModel(
+        factory = ChatViewModelFactory(chatDatabaseHelper)
+    )
+
     NavHost(
         navController = navController,
         startDestination = if (isLoggedIn) "home" else "login"
     ) {
         composable("home") { HomeScreen(customerId, fullName, sharedCliqueViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker) }
-        composable("chats") { ChatsScreen(navController) }
+        composable("chats") { ChatsScreen(navController, chatScreenViewModel) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen() }
         composable("orders") { OrdersScreen() }
@@ -382,10 +388,6 @@ fun BottomNavigationBar(navController: NavController) {
     }
 }
 
-@Composable
-fun ChatsScreen(navController: NavHostController) {
-    Text("Dashboard boardyboard")
-}
 @Composable
 fun OrdersScreen() {
     Text("Dashboard boardyboard")
