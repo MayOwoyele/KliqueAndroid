@@ -332,7 +332,6 @@ fun CustomAppBar(
             modifier = Modifier.padding(top = 40.dp)) {
             Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.primary)
         }
-
         Spacer(Modifier.weight(1f))
 
         // Conditional display of cart counter

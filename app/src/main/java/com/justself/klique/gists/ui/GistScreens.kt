@@ -22,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,22 +38,21 @@ enum class CurrentTab{
 @Composable
 fun GistScreen( modifier: Modifier){
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        var currentTab by rememberSaveable { mutableStateOf(CurrentTab.TRENDING) }
+        var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
         val uiState = GistUiState()
-        Text(text = "Gist", fontSize = 20.sp)
-        Row (modifier = Modifier.padding(bottom = 4.dp)){
+        Row (modifier = Modifier){
             Button(onClick = { currentTab = CurrentTab.TRENDING }, colors = ButtonDefaults.buttonColors().copy(containerColor =  if (currentTab == CurrentTab.TRENDING) MaterialTheme.colorScheme.primary else Color.Gray), modifier = Modifier
                 .padding(16.dp)
                 .width(146.dp)
             ) {
-                Text(text = "Trending", color = Color.White)
+                Text(text = "Trending")
             }
             Button(onClick = { currentTab= CurrentTab.MY_GISTS}, modifier = Modifier
                 .padding(16.dp)
                 .width(146.dp),
                 colors = ButtonDefaults.buttonColors().copy(containerColor =  if (currentTab == CurrentTab.MY_GISTS) MaterialTheme.colorScheme.primary else Color.Gray)
                 ) {
-                Text(text = "My Gists", color = Color.White)
+                Text(text = "My Gists")
             }
         }
         when (currentTab) {
