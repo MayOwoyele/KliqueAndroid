@@ -2,7 +2,9 @@ package com.justself.klique
 
 import android.app.Application
 import android.net.Uri
+import android.os.Build
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -70,9 +72,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.screens.LoginScreen
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 
 
 val Pink700 = Color(0xFFFF759C)
+val Pink400 = Color(0xFFC73868)
 val LightBackground = Color(0xFFFFFFFF)
 val DarkBackground = Color(0xFF000000)
 val DarkSurface = Color(0xFF121212) // Dark grey
@@ -94,7 +99,7 @@ val AppTypography = Typography(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Pink700,
+    primary = Pink400,
     surface = DarkSurface,
     background = DarkBackground,
     onPrimary = Color.White
@@ -120,6 +125,7 @@ fun MyAppTheme(
     )
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
@@ -159,6 +165,7 @@ fun MainScreen(
     }
 }
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainContent(
     navController: NavHostController,
@@ -246,6 +253,7 @@ fun MainContent(
 }
 
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
                    commentViewModel: CommentsViewModel, onEmojiPickerVisibilityChange: (Boolean) -> Unit,
@@ -314,7 +322,7 @@ fun CustomAppBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(90.dp)  // Standard app bar height
-            .background(MaterialTheme.colorScheme.primary),
+            .background(MaterialTheme.colorScheme.background),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = {
@@ -322,9 +330,8 @@ fun CustomAppBar(
             rightDrawerState.value = false  // Ensure only one drawer is open at a time
         },
             modifier = Modifier.padding(top = 40.dp)) {
-            Icon(Icons.Filled.Menu, contentDescription = "Menu")
+            Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = MaterialTheme.colorScheme.primary)
         }
-
         Spacer(Modifier.weight(1f))
 
         // Conditional display of cart counter
@@ -341,7 +348,7 @@ fun CustomAppBar(
             leftDrawerState.value = false  // Ensure only one drawer is open at a time
         },
             modifier = Modifier.padding(top = 40.dp)) {
-            Icon(Icons.Filled.ShoppingCart, contentDescription = "Cart")
+            Icon(Icons.Filled.ShoppingCart, contentDescription = "Cart", tint = MaterialTheme.colorScheme.primary)
         }
     }
 }
