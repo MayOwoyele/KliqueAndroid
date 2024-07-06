@@ -38,10 +38,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -52,7 +50,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.TextFieldValue
@@ -60,7 +57,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
-import com.justself.klique.R
+import com.justself.klique.gists.ui.GistScreen
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -148,6 +146,7 @@ fun HomeScreen(
                         interactionSource = remember { MutableInteractionSource() }
                     ),
             ) {
+                GistScreen(modifier=Modifier.padding(top = 15.dp).padding(horizontal = 16.dp).fillMaxSize()) // Display GistScreen behind the AddButton
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -220,7 +219,6 @@ fun HomeScreen(
         }
     }
 }
-
 @Composable
 private fun AddButton(
     onClick: () -> Unit,
