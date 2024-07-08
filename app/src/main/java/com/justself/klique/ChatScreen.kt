@@ -29,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,23 +43,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
-fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScreenViewModel) {
+fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
     val chats: List<ChatList> by chatScreenViewModel.chats.observeAsState(emptyList())
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(chats) { chat ->
                 ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
-                    navController.navigate("MessageScreen/${chat.recipientId}")
+                    navController.navigate("MessageScreen/${chat.enemyId}")
                 })
             }
         }
-
+        val databaseInjection: List<ChatList> = chatScreenViewModel.getMockChats(customerId)
+        val coroutineScope = rememberCoroutineScope()
         // Floating Action Button at the bottom right
         AddButton(
-            onClick = { /* Handle add button click */ },
+            onClick = {  coroutineScope.launch(Dispatchers.IO) {
+                databaseInjection.forEach {chat ->
+                chatScreenViewModel.addChat(chat)} } },
             icon = Icons.Default.Add,
             contentDescription = "Add Chat",
             modifier = Modifier
@@ -70,7 +76,7 @@ fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScree
 
 
     // Load chats when the composable is first composed
-    chatScreenViewModel.loadChats()
+    chatScreenViewModel.loadChats(customerId)
 }
 @Composable
 private fun AddButton(
@@ -159,10 +165,4 @@ fun ChatItem(chat: ChatList, modifier: Modifier = Modifier, onClick: () -> Unit)
             }
         }
     }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ChatItemPreview() {
-    ChatItem(ChatList("John Doe", "123", "Hello", "2024-07-05 12:34:56", "profile.jpg", "456", 0), onClick= {})
 }
