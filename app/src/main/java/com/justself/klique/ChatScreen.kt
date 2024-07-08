@@ -54,7 +54,9 @@ fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScree
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(chats) { chat ->
                 ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
+
                     navController.navigate("MessageScreen/${chat.enemyId}")
+
                 })
             }
         }

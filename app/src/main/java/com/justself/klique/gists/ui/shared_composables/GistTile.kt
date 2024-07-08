@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -32,22 +33,24 @@ fun GistTile(title:String, description:String, image:String, activeSpectators:In
         .clickable { }
         .height(141.dp)
         .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(bottomStart = 50.dp))
-        .clip(RoundedCornerShape(topStart = 20.dp, bottomEnd = 20.dp)) ){
-        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp)) {
-            Spacer(modifier = Modifier.weight(0.3F))
+        ){
+        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
+//            Spacer(modifier = Modifier.weight(0.3F))
             Surface (modifier= Modifier
-                .size((150).dp)
-                .clip(CircleShape)
-                .weight(4F)){
+                .size((150).dp).padding(vertical = 8.dp, horizontal = 8.dp)
+                .clip(CircleShape.copy(CornerSize(150.dp)))
+                .weight(5F)){
                 Image(painter = rememberAsyncImagePainter(image), contentDescription = "", contentScale = ContentScale.Crop)
-
             }
-            Spacer(modifier = Modifier.weight(0.7F))
+//            Spacer(modifier = Modifier.weight(0.7F))
             Column (modifier= Modifier.weight(9F)){
-                Text(text = "Topic: $title", style = MaterialTheme.typography.displayLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(text = "Description: $description", style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(text = "Active Spectators: $activeSpectators",style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-//                Button(onClick = { }) {
+
+                Text(text = "Topic: $title", style = MaterialTheme.typography.labelLarge, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4F))
+                Text(text = "Description: $description", style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4.5F))
+
+                Text(text = "Active Spectators: $activeSpectators",style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1.5F))
+//                Button(onClick = { /*TODO*/ }) {
+
 //                    Text(text = "View Gist")
 //                }
             }
