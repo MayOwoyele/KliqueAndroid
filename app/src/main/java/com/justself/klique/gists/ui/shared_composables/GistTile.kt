@@ -47,7 +47,7 @@ fun GistTile(title:String, description:String, image:String, activeSpectators:In
                 Text(text = "Topic: $title", style = MaterialTheme.typography.displayLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(text = "Description: $description", style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(text = "Active Spectators: $activeSpectators",style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
-//                Button(onClick = { /*TODO*/ }) {
+//                Button(onClick = { }) {
 //                    Text(text = "View Gist")
 //                }
             }
