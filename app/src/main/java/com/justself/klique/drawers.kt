@@ -75,7 +75,7 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(fraction = 80/100f)
+                    .fillMaxWidth(fraction = 80 / 100f)
                     .background(MaterialTheme.colorScheme.surface)
                     .padding(16.dp)
                     .clickable(
@@ -109,27 +109,27 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                     }
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
                     text = "My Profile",
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Contacts, contentDescription = "Profile") },
                     text = "Contacts",
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.MarkChatUnread, contentDescription = "Profile") },
                     text = "Chatrooms",
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.LocationCity, contentDescription = "Profile") },
                     text = "Your Area",
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Settings, contentDescription = "Profile") },
                     text = "Settings",
                 )
@@ -139,6 +139,7 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                     modifier = Modifier.align(Alignment.CenterHorizontally),
                     style = MaterialTheme.typography.bodyMedium
                 )
+
                 Button(onClick = { drawerState.value = false }) {
                     Text("Close Drawer")
                 }
@@ -196,32 +197,42 @@ fun RightDrawer(
         exit = slideOutHorizontally { it }, // Slide out to the right
         modifier = modifier
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(350.dp)
-                .background(MaterialTheme.colorScheme.surface)
-        ) {
-            Column(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(16.dp)
+        Box(modifier = Modifier.fillMaxSize().clickable(
+            indication = null,
+            interactionSource = remember { MutableInteractionSource() }) {
+            drawerState.value = false
+        }.background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))) {
+            Box(
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .fillMaxHeight().clickable(
+                        indication = null,
+                        interactionSource = remember { MutableInteractionSource() }) {
+
+                    }
+                    .fillMaxWidth(80 / 100f)
+                    .background(MaterialTheme.colorScheme.surface)
             ) {
-                Text("Cart", style = MaterialTheme.typography.displayLarge)
-                CartItemsList(productViewModel)
-            }
-            Button(
-                onClick = {
-                    // Trigger checkout functionality
-                    handleCheckout(productViewModel)
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                enabled = productViewModel.cartItems.observeAsState().value?.isNotEmpty() == true
-            ) {
-                Text("Checkout", style = MaterialTheme.typography.bodyLarge)
+                Column(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(16.dp)
+                ) {
+                    Text("Cart", style = MaterialTheme.typography.displayLarge)
+                    CartItemsList(productViewModel)
+                }
+                Button(
+                    onClick = {
+                        // Trigger checkout functionality
+                        handleCheckout(productViewModel)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    enabled = productViewModel.cartItems.observeAsState().value?.isNotEmpty() == true
+                ) {
+                    Text("Checkout", style = MaterialTheme.typography.bodyLarge)
+                }
             }
         }
     }
