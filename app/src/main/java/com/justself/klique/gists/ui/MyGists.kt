@@ -11,10 +11,10 @@ import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.shared_composables.GistTile
 
 @Composable
-fun MyGists(myGists: List<GistModel>){
+fun MyGists(myGists: List<GistModel>, customerId: Int){
         LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             items(myGists) { gist ->
-                GistTile(gist.title, gist.description, gist.image, gist.activeSpectators)
+                GistTile(gist.gistId, customerId, gist.title, gist.description, gist.image, gist.activeSpectators, onTap = {})
             }
         }
 }
