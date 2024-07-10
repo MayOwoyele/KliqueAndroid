@@ -14,6 +14,8 @@ import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
 import org.json.JSONObject
 
+
+//TODO: Discuss with May about the List of Gists, How we are getting gists from server,
 class SharedCliqueViewModel(application: Application, private val customerId: Int) : AndroidViewModel(application),
     WebSocketListener {
     override val listenerId: String = "SharedCliqueViewModel"

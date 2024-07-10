@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 
 enum class CurrentTab{
@@ -36,7 +38,7 @@ enum class CurrentTab{
 }
 
 @Composable
-fun GistScreen( modifier: Modifier){
+fun GistScreen( modifier: Modifier, customerId: Int, ){
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
         val uiState = GistUiState()
@@ -45,22 +47,22 @@ fun GistScreen( modifier: Modifier){
                 .padding(16.dp)
                 .width(146.dp)
             ) {
-                Text(text = "Trending")
+                Text(text = "Trending", color = Color.White)
             }
             Button(onClick = { currentTab= CurrentTab.MY_GISTS}, modifier = Modifier
                 .padding(16.dp)
                 .width(146.dp),
                 colors = ButtonDefaults.buttonColors().copy(containerColor =  if (currentTab == CurrentTab.MY_GISTS) MaterialTheme.colorScheme.primary else Color.Gray)
                 ) {
-                Text(text = "My Gists")
+                Text(text = "My Gists", color = Color.White)
             }
         }
         when (currentTab) {
             CurrentTab.TRENDING -> {
-                TrendingGists(uiState.trendingGists)
+                TrendingGists(uiState.trendingGists, customerId = customerId)
             }
             CurrentTab.MY_GISTS -> {
-                MyGists(uiState.myGists)
+                MyGists(uiState.myGists, customerId = customerId)
             }
         }
      }
