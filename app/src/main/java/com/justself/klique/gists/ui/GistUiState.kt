@@ -33,7 +33,8 @@ fun generateGistModels(reverse: Boolean = false): List<GistModel> {
     )
     return (0..<profileImageUrls.size).map { index ->
         GistModel(
-            id = index,
+            gistId = "gist$index",
+            customerId = index,
             title = "Gist $index Samuel bassey john, A  lowly developer  looking for money in this economy",
             description = "Description $index The linux can also isolate user resources from each other by using a feature called Multiuser Operating System. which allows access to independent resources like memory, CPU, RAM and Applications.\n" +
                     "Android built a feature on this technology called ‘Application Sandbox’.",

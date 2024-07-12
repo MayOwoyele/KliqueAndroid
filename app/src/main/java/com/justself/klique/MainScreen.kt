@@ -94,7 +94,8 @@ val AppTypography = Typography(
         fontWeight = FontWeight.Normal,
         fontSize = 18.sp),
     displayMedium = TextStyle(fontFamily = AfacadFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp),
-    bodyMedium = TextStyle(fontFamily = AfacadFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp)
+    bodyMedium = TextStyle(fontFamily = AfacadFamily, fontWeight = FontWeight.Normal, fontSize = 12.sp),
+    titleMedium = TextStyle(fontFamily = AfacadFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp)
 
 )
 

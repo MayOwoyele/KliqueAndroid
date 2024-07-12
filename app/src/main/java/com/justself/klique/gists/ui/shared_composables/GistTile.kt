@@ -29,21 +29,21 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
-fun GistTile(title:String, description:String, image:String, activeSpectators:Int, ){
+fun GistTile(gistId: String, customerId: Int, title:String, description:String, image:String, activeSpectators:Int, onTap: () -> Unit){
     Surface ( modifier = Modifier
-        .clickable { }
+        .clickable { onTap}
         .height(141.dp)
         .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(bottomStart = 50.dp))
         ){
         Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-//            Spacer(modifier = Modifier.weight(0.3F))
+
             Surface (modifier= Modifier
                 .size((150).dp).padding(vertical = 8.dp, horizontal = 8.dp)
                 .clip(CircleShape.copy(CornerSize(150.dp)))
                 .weight(5F)){
                 Image(painter = rememberAsyncImagePainter(image), contentDescription = "", contentScale = ContentScale.Crop)
             }
-//            Spacer(modifier = Modifier.weight(0.7F))
+
             Column (modifier= Modifier.weight(9F)){
 
                 Text(text = "Topic: $title", style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4F))
