@@ -9,10 +9,10 @@ import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.shared_composables.GistTile
 
 @Composable
-fun TrendingGists(trendingGists: List<GistModel>){
+fun TrendingGists(trendingGists: List<GistModel>, customerId: Int){
     LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp)) {
         items(trendingGists) { gist ->
-            GistTile(gist.title, gist.description, gist.image, gist.activeSpectators)
+            GistTile(gist.gistId, customerId,gist.title, gist.description, gist.image, gist.activeSpectators, onTap = {})
     }
   }
 }
