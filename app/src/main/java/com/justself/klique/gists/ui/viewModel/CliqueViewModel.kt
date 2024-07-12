@@ -2,17 +2,23 @@
 package com.justself.klique.gists.ui.viewModel
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.justself.klique.ChatMessage
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.IOException
 
 
 //TODO: Discuss with May about the List of Gists, How we are getting gists from server,
@@ -25,18 +31,26 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val gistCreatedOrJoined: LiveData<Pair<String, String>?> = _gistCreatedOrJoined
     private val _messages = MutableLiveData<List<ChatMessage>>(emptyList())
     val messages: LiveData<List<ChatMessage>> = _messages
+    private val gistId: String
+        get() = _gistCreatedOrJoined.value?.second ?: ""
     private var messageCounter = 0
-
+    private val _myName = mutableStateOf("")
+    private val myName: String
+        get() = _myName.value
+    fun setMyName(name: String) {
+        _myName.value = name
+        Log.d("MyName", "My name is: $myName")
+    }
     init {
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
-        // simulateGistCreated()
+        simulateGistCreated()
     }
     // remove this function later here and in the init block
-    private fun simulateGistCreated() {
-        val topic = "Kotlin"
-        val gistId = "1b345kt"
-        _gistCreatedOrJoined.postValue(Pair(topic, gistId))
+    fun simulateGistCreated() {
+            val topic = "Kotlin"
+            val gistId = "1b345kt"
+            _gistCreatedOrJoined.postValue(Pair(topic, gistId))
     }
 
     override fun onCleared() {
@@ -126,6 +140,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val updatedMessages = _messages.value.orEmpty().toMutableList()
         updatedMessages.add(message)
         _messages.postValue(updatedMessages)
+        Log.d("CliqueViewModel", "Message added: $message")
     }
 
     fun loadMessages(gistId: String) {
@@ -136,7 +151,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 "gistId": "$gistId"
             }
         """.trimIndent()
-        send(message)
+         send(message)
     }
 
     fun startGist(topic: String, type: String) {
@@ -178,6 +193,35 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
     fun close() {
         WebSocketManager.close()
+    }
+    fun handleTrimmedVideo(uri: Uri?) {
+        uri?.let { validUri ->
+            viewModelScope.launch {
+                try {
+                    val context = getApplication<Application>().applicationContext
+                    val videoByteArray = context.contentResolver.openInputStream(validUri)?.readBytes() ?: ByteArray(0)
+                    Log.d("ChatRoom", "Video Byte Array: ${videoByteArray.size} bytes")
+
+                    val messageId = generateMessageId()
+                    sendBinary(videoByteArray, "KVideo", gistId, messageId, customerId, fullName = myName)
+
+                    val chatMessage = ChatMessage(
+                        id = messageId,
+                        gistId = gistId,
+                        customerId = customerId,
+                        sender = myName,
+                        content = "",
+                        status = "pending",
+                        messageType = "KVideo",
+                        binaryData = videoByteArray
+                    )
+                    Log.d("customerId", "CustomerId: $customerId")
+                    addMessage(chatMessage)
+                } catch (e: IOException) {
+                    Log.e("ChatRoom", "Error processing video: ${e.message}", e)
+                }
+            }
+        }
     }
 }
 

@@ -11,12 +11,16 @@ import java.io.*
 object FileUtils {
 
     fun getPath(context: Context, uri: Uri): String? {
-        return if (uri.scheme == "file") {
-            uri.path
-        } else if (uri.scheme == "content") {
-            copyFileToInternalStorage(context, uri)
-        } else {
-            null
+        return when (uri.scheme) {
+            "file" -> {
+                uri.path
+            }
+            "content" -> {
+                copyFileToInternalStorage(context, uri)
+            }
+            else -> {
+                null
+            }
         }
     }
 
@@ -47,5 +51,9 @@ object FileUtils {
         }
         Log.d("FileUtils", "File Name: $name")
         return name
+    }
+    @Throws(IOException::class)
+    fun fileToByteArray(file: File): ByteArray {
+        return file.readBytes()
     }
 }

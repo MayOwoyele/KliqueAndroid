@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.shared_composables.GistTile
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 @Composable
 fun TrendingGists(trendingGists: List<GistModel>, customerId: Int){

@@ -66,10 +66,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.screens.LoginScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
@@ -78,7 +80,9 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 
 val Pink700 = Color(0xFFFF759C)
 val Pink400 = Color(0xFFC73868)
+val Pink200 = Color(0xFFFCA4C2)
 val LightBackground = Color(0xFFFFFFFF)
+val CultPink = Color(0xFF410C0C)
 val DarkBackground = Color(0xFF000000)
 val DarkSurface = Color(0xFF121212) // Dark grey
 val LightSurface = Color(0xFFFFFFFF) // White
@@ -110,7 +114,9 @@ private val LightColorScheme = lightColorScheme(
     primary = Pink700,
     surface = LightSurface,
     background = LightBackground,
-    onPrimary = Color.Black
+    onPrimary = Color.Black,
+    secondary = Pink200,
+    onSecondary = CultPink
 )
 @Composable
 fun MyAppTheme(
@@ -141,16 +147,26 @@ fun MainScreen(
     Log.d("DebuggerCartItemCount", "Composable fully re-composed with Cart item count: $cartItemCount")
     // Track keyboard visibility
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    Log.d("ConditionalCheck", "State of imeVisible: $imeVisible")
     var showEmojiPicker by remember { mutableStateOf(false)}
+    Log.d("ConditionalCheck", "State of showEmojiPicker: $showEmojiPicker")
     var selectedEmoji by remember { mutableStateOf("")}
-
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    val messageScreenGuy = currentRoute?.startsWith("messageScreen/")  == true
+    val bioScreenGuy = currentRoute?.startsWith("bioScreen/")  == true
+    Log.d("ConditionalCheck","State of bioScreenGuy: $bioScreenGuy")
 
     if (isLoggedIn) {
         Scaffold(
-            topBar = { CustomAppBar(leftDrawerState, rightDrawerState, cartItemCount) },
+            topBar = {
+                if (!(messageScreenGuy || bioScreenGuy)) {
+                    CustomAppBar(leftDrawerState, rightDrawerState, cartItemCount)
+                }
+            },
             bottomBar = {
                 // Conditionally render the bottom navigation bar
-                if (!imeVisible && !showEmojiPicker) {
+                if (!((imeVisible && showEmojiPicker) || messageScreenGuy || bioScreenGuy)) {
                     BottomNavigationBar(navController)
                 }
             }
@@ -165,6 +181,7 @@ fun MainScreen(
         LoginScreen(navController = navController)
     }
 }
+
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -188,6 +205,7 @@ fun MainContent(
     val lastName = userDetailsViewModel.lastName.collectAsState().value
     val fullName = "$firstName $lastName".trim()
     val commentViewModel: CommentsViewModel = viewModel()
+    Log.d("Names", "Full Name: $fullName")
 
     val context = LocalContext.current
     val webSocketUrl = context.getString(R.string.websocket_url)
@@ -254,53 +272,7 @@ fun MainContent(
 }
 
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
-@Composable
-fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
-                   commentViewModel: CommentsViewModel, onEmojiPickerVisibilityChange: (Boolean) -> Unit,
-                   selectedEmoji: String, showEmojiPicker: Boolean) {
-    val application = LocalContext.current.applicationContext as Application
-    val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-        factory = SharedCliqueViewModelFactory(application, customerId)
-    )
-    val chatDatabaseHelper = ChatDatabaseHelper(LocalContext.current)
-    // Initialize the ViewModel using the factory
-    val chatScreenViewModel: ChatScreenViewModel = viewModel(
-        factory = ChatViewModelFactory(chatDatabaseHelper)
-    )
 
-    NavHost(
-        navController = navController,
-        startDestination = if (isLoggedIn) "home" else "login"
-    ) {
-        composable("home") { HomeScreen(customerId, fullName, sharedCliqueViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker) }
-        composable("chats") { ChatsScreen(navController, chatScreenViewModel) }
-        composable("markets") { MarketsScreen(navController) }
-        composable("bookshelf") { BookshelfScreen() }
-        composable("orders") { OrdersScreen() }
-        composable("product/{productId}") { backStackEntry ->
-            val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull() ?: throw IllegalStateException("Product must be provided")
-            ProductCommentsScreen(productId, commentViewModel, navController, customerId) }
-        composable("marketProduct/{marketId}/{encodedMarketName}") { backStackEntry ->
-            val marketId = backStackEntry.arguments?.getString("marketId")?.toIntOrNull()
-                ?: throw IllegalStateException("Market Id must be provided")
-            val encodedMarketName = backStackEntry.arguments?.getString("encodedMarketName")?.let { Uri.decode(it) }
-                ?: throw IllegalStateException("Market Name must be provided")
-            MarketProductsScreen(productViewModel, navController, customerId, marketId, encodedMarketName )
-        }
-        composable("shop_details/{shopId}") { backStackEntry ->
-            val shopId = backStackEntry.arguments?.getString("shopId")?.toIntOrNull() ?: throw IllegalStateException("Shop ID must be provided")
-            ShopOwnerScreen(shopId, navController, productViewModel)
-        }
-        composable("dmScreen/{ownerId}/{shopName}") { backStackEntry ->
-            val ownerId = backStackEntry.arguments?.getString("ownerId")?.toIntOrNull()
-                ?: throw IllegalStateException("Owner ID must be provided")
-            val shopName = backStackEntry.arguments?.getString("shopName")?.let { Uri.decode(it) }
-                ?: throw IllegalStateException("Shop Name must be provided")
-            DMChatScreen(navController, customerId, shopName, ownerId)
-        }
-    }
-}
 @Composable
 fun CustomAppBar(
     leftDrawerState: MutableState<Boolean>,
