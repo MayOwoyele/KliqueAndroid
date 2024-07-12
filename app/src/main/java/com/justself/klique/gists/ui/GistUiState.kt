@@ -31,7 +31,7 @@ fun generateGistModels(reverse: Boolean = false): List<GistModel> {
         "https://unsplash.com/photos/mEZ3PoFGs_k/download?force=true&w=640",
         "https://unsplash.com/photos/PhYq704ffdA/download?force=true&w=640"
     )
-    return (0..profileImageUrls.size - 1).map { index ->
+    return (0..<profileImageUrls.size).map { index ->
         GistModel(
             gistId = "gist$index",
             customerId = index,

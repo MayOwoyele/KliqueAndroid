@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okio.ByteString
 import org.java_websocket.client.WebSocketClient
+import org.java_websocket.exceptions.WebsocketNotConnectedException
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONException
 import org.json.JSONObject
@@ -109,6 +110,7 @@ object WebSocketManager {
             }
         }
     }
+
     fun connect(url: String, customerId: Int, fullName: String) {
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
         val uri = URI("$url?customerId=$customerId&fullName=$encodedFullName")
@@ -120,11 +122,33 @@ object WebSocketManager {
     }
 
     fun send(message: String) {
-        webSocketClient?.send(message)
+        try {
+            if (webSocketClient?.isOpen == true) {
+                webSocketClient?.send(message)
+            } else {
+                throw WebsocketNotConnectedException()
+            }
+        } catch (e: WebsocketNotConnectedException) {
+            Log.e("WebSocketManager", "WebSocket not connected: ${e.message}")
+            // Optionally handle reconnection or notify the user
+        } catch (e: Exception) {
+            Log.e("WebSocketManager", "Exception in sending message: ${e.message}")
+        }
     }
 
     fun sendBinary(message: ByteArray) {
-        webSocketClient?.send(message)
+        try {
+            if (webSocketClient?.isOpen == true) {
+                webSocketClient?.send(message)
+            } else {
+                throw WebsocketNotConnectedException()
+            }
+        } catch (e: WebsocketNotConnectedException) {
+            Log.e("WebSocketManager", "WebSocket not connected: ${e.message}")
+            // Optionally handle reconnection or notify the user
+        } catch (e: Exception) {
+            Log.e("WebSocketManager", "Exception in sending binary data: ${e.message}")
+        }
     }
 
     fun close() {
@@ -164,6 +188,35 @@ object WebSocketManager {
                 println("Text message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
             } ?: println("Unhandled message type or target ID: $type, $targetId")
         }
+    }
+    fun simulateWebSocketMessages() {
+        // Generate 10 messages from different people, including customerId 25
+        val customerIds = listOf(1, 2, 3, 4, 5, 25, 7, 8, 9, 10) // Including customerId 25
+        val messagesJsonArray = customerIds.map { customerId ->
+            """
+        {
+            "id": ${System.currentTimeMillis()},
+            "gistId": "someGistId",
+            "customerId": $customerId,
+            "fullName": "User $customerId",
+            "content": "Hello from User $customerId",
+            "status": "sent",
+            "messageType": "text"
+        }
+        """
+        }
+
+        // Combine all messages into a single JSON object
+        val combinedMessage = """
+    {
+        "type": "previousMessages",
+        "gistId": "someGistId",
+        "messages": [${messagesJsonArray.joinToString(",")}]
+    }
+    """
+
+        // Simulate receiving the combined message
+        webSocketClient?.onMessage(combinedMessage)
     }
 }
 
