@@ -33,9 +33,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
+import androidx.navigation.NavController
 import com.justself.klique.gists.ui.GistScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.launch
@@ -70,7 +74,9 @@ fun HomeScreen(
     viewModel: SharedCliqueViewModel,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     selectedEmoji: String,
-    showEmojiPicker: Boolean
+    showEmojiPicker: Boolean,
+    onNavigateToTrimScreen: (String) -> Unit,
+    navController: NavController
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -128,13 +134,15 @@ fun HomeScreen(
         if (gistActive) {
             ChatRoom(
                 topic = gistTopic,
-                sender = fullName,
+                myName = fullName,
                 gistId = gistId,
                 viewModel = viewModel,
                 customerId = customerId,
                 onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
                 selectedEmoji = selectedEmoji,
-                showEmojiPicker = showEmojiPicker
+                showEmojiPicker = showEmojiPicker,
+                onNavigateToTrimScreen = onNavigateToTrimScreen,
+                navController = navController
             )
         } else {
             Box(
@@ -212,6 +220,7 @@ fun HomeScreen(
                     GistForm(onSubmit = { topic, type ->
                         coroutineScope.launch {
                             viewModel.startGist(topic, type)
+                            // Remember to also add 'description' parameter to the function call
                             showForm = false
                         }
                     }, onBack = { showForm = false })
@@ -257,6 +266,9 @@ fun OptionButton(
 fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
     var topic by remember { mutableStateOf(TextFieldValue("")) }
     var selectedType by remember { mutableStateOf("public") } // State for selected gist type
+    val minLength = 2
+    val maxLength = 20
+    var showError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -270,10 +282,10 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
             modifier = Modifier.fillMaxWidth()
         ) {
             IconButton(onClick = onBack) { // Back arrow button
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.background)
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "Start a New Gist", style = MaterialTheme.typography.bodyLarge)
+            Text(text = "Start a New Gist", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.background)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -281,8 +293,15 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
         // Input field for gist topic
         OutlinedTextField(
             value = topic,
-            onValueChange = { topic = it },
-            label = { Text("Gist Topic") }
+            onValueChange = { newText ->
+                if (newText.text.length <= maxLength) {topic = newText; showError = newText.text.length < minLength
+                } else {
+                    showError = true
+                }},
+            label = { Text("Gist Topic", color = MaterialTheme.colorScheme.surface) },
+            colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.background,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                focusedTextColor = MaterialTheme.colorScheme.background)
         )
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -293,24 +312,34 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
         Row {
             RadioButton(
                 selected = selectedType == "public",
-                onClick = { selectedType = "public" }
+                onClick = { selectedType = "public" },
+                colors = RadioButtonDefaults.colors(MaterialTheme.colorScheme.background)
             )
-            Text(text = "Public", modifier = Modifier.clickable { selectedType = "public" })
+            Text(text = "Public", modifier = Modifier.clickable { selectedType = "public" }, color = MaterialTheme.colorScheme.background)
             Spacer(modifier = Modifier.width(16.dp))
             RadioButton(
                 selected = selectedType == "private",
-                onClick = { selectedType = "private" }
+                onClick = { selectedType = "private" },
+                colors = RadioButtonDefaults.colors(MaterialTheme.colorScheme.background)
             )
-            Text(text = "Private", modifier = Modifier.clickable { selectedType = "private" })
+            Text(text = "Private", modifier = Modifier.clickable { selectedType = "private" }, color = MaterialTheme.colorScheme.background)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
         // Submit button
         Button(onClick = {
-            onSubmit(topic.text, selectedType)
+            if (topic.text.length > minLength) {
+                onSubmit(topic.text, selectedType)
+            } else {
+                showError = true
+            }
         }) {
-            Text("Submit")
+            Text("Submit", color = MaterialTheme.colorScheme.background)
+        }
+        if (showError) {
+            Text("Topic must be at least $minLength characters",
+            color = MaterialTheme.colorScheme.background)
         }
     }
 }

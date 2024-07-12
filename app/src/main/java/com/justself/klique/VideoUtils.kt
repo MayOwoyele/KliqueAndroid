@@ -29,34 +29,59 @@ import com.arthenica.mobileffmpeg.FFmpeg
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.arthenica.mobileffmpeg.LogCallback
 import java.io.File
 
 object VideoUtils {
+    private const val TAG = "VideoUtils"
+
     fun getVideoResolution(context: Context, uri: Uri): Pair<Int, Int>? {
         val retriever = android.media.MediaMetadataRetriever()
-        retriever.setDataSource(context, uri)
-        val width = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
-        val height = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
-        retriever.release()
-        return if (width != null && height != null) Pair(width, height) else null
+        try {
+            retriever.setDataSource(context, uri)
+            val width = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
+            val height = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
+            return if (width != null && height != null) {
+                Log.i(TAG, "Video resolution retrieved: Width=$width, Height=$height")
+                Pair(width, height)
+            } else {
+                Log.w(TAG, "Failed to retrieve video resolution.")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error retrieving video metadata: ${e.message}", e)
+            return null
+        } finally {
+            retriever.release()
+        }
     }
 
     fun downscaleVideo(context: Context, uri: Uri): Uri? {
-        val resolution = getVideoResolution(context, uri) ?: return null
+        val resolution = getVideoResolution(context, uri)
+        if (resolution == null) {
+            Log.e(TAG, "No resolution found, cannot downscale.")
+            return null
+        }
+
         if (resolution.first <= 480 && resolution.second <= 480) {
-            // No downscaling needed
+            Log.i(TAG, "No downscaling needed as video is within size limits.")
             return uri
         }
 
-        val inputPath = FileUtils.getPath(context, uri) ?: return null
+        val inputPath = FileUtils.getPath(context, uri)
+        if (inputPath == null) {
+            Log.e(TAG, "Failed to get path from URI.")
+            return null
+        }
+
         val outputFile = File(context.cacheDir, "scaled_video.mp4")
         val outputPath = outputFile.absolutePath
-
         val scale = if (resolution.first > resolution.second) "480:-2" else "-2:480"
+
         val command = arrayOf(
             "-i", inputPath,
             "-vf", "scale=$scale",
-            "-c:v", "libx264",
+            "-c:v", "mpeg4",
             "-crf", "28",
             "-preset", "veryfast",
             "-c:a", "aac",
@@ -65,11 +90,20 @@ object VideoUtils {
             "-y", outputPath
         )
 
+        Log.i(TAG, "Starting video downscaling. Command: ${command.joinToString(" ")}")
+
+        // Setting up the log callback to capture FFmpeg logs
+        Config.enableLogCallback { message ->
+            Log.e(TAG, message.text)
+        }
+
         val rc = FFmpeg.execute(command)
-        return if (rc == Config.RETURN_CODE_SUCCESS) {
-            Uri.fromFile(outputFile)
+        if (rc == Config.RETURN_CODE_SUCCESS) {
+            Log.i(TAG, "Video downscaling successful. Output: $outputPath")
+            return Uri.fromFile(outputFile)
         } else {
-            null
+            Log.e(TAG, "Video downscaling failed. FFmpeg return code: $rc")
+            return null
         }
     }
 }
@@ -209,7 +243,7 @@ fun VideoTrimmingScreen(
     }
 }
 
-suspend fun performTrimming(context: Context, uri: Uri, startMs: Long, endMs: Long): Uri? {
+fun performTrimming(context: Context, uri: Uri, startMs: Long, endMs: Long): Uri? {
     val inputPath = FileUtils.getPath(context, uri)
 
     if (inputPath == null) {

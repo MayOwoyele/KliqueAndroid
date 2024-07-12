@@ -55,7 +55,7 @@ fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScree
             items(chats) { chat ->
                 ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
 
-                    navController.navigate("MessageScreen/${chat.enemyId}")
+                    navController.navigate("messageScreen/${chat.enemyId}/${chat.contactName}")
 
                 })
             }

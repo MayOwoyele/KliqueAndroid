@@ -2,19 +2,31 @@ package com.justself.klique
 
 import ImageUtils
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.view.MotionEvent
+import android.widget.Toast
 import android.widget.VideoView
+import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,13 +43,18 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
@@ -45,6 +62,7 @@ import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -55,12 +73,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -68,42 +89,63 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.PermissionChecker
+import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
+import android.Manifest
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.mutableIntStateOf
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ChatRoom(
     topic: String,
-    sender: String,
+    myName: String,
     gistId: String,
     viewModel: SharedCliqueViewModel,
     customerId: Int,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     selectedEmoji: String,
-    showEmojiPicker: Boolean
+    showEmojiPicker: Boolean,
+    onNavigateToTrimScreen: (String) -> Unit,
+    navController: NavController
 ) {
     var message by remember { mutableStateOf(TextFieldValue("")) }
     val observedMessages by viewModel.messages.observeAsState(emptyList())
@@ -117,7 +159,9 @@ fun ChatRoom(
     val focusRequester = remember { FocusRequester() }
     val isFocused = remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    var showTrimmingScreen by remember { mutableStateOf<Uri?>(null) }
+    Log.d("MyName", "Slim Shady's name is: $myName")
+    viewModel.setMyName(myName)
+
 
     // Image Picker Launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -128,13 +172,13 @@ fun ChatRoom(
                     Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
                     val messageId = viewModel.generateMessageId()
-                    viewModel.sendBinary(imageByteArray, "KImage", gistId, messageId, customerId, sender)
+                    viewModel.sendBinary(imageByteArray, "KImage", gistId, messageId, customerId, myName)
 
                     val chatMessage = ChatMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
-                        sender = sender,
+                        sender = myName,
                         content = "",
                         status = "pending",
                         messageType = "KImage",
@@ -150,12 +194,19 @@ fun ChatRoom(
 
     // Video Picker Launcher
     val videoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
+        uri?.let { selectedUri ->
             coroutineScope.launch {
-                val filePath = FileUtils.getPath(context, it)
+                val filePath = FileUtils.getPath(context, selectedUri)
                 filePath?.let { path ->
-                    val downscaledUri = VideoUtils.downscaleVideo(context, Uri.fromFile(File(path))) ?: Uri.fromFile(File(path))
-                    showTrimmingScreen = downscaledUri
+                    val fileUri = Uri.fromFile(File(path))
+                    val downscaledUri = VideoUtils.downscaleVideo(context, fileUri)
+                    Log.d("VideoProcessing", "Downscaled URI: $downscaledUri")
+                    if (downscaledUri == null) {
+                        Log.e("VideoProcessing", "Downscaling failed, using original file.")
+                        onNavigateToTrimScreen(fileUri.toString())  // Use the original file URI if downscaling fails
+                    } else {
+                        onNavigateToTrimScreen(downscaledUri.toString())  // Use the downscaled URI if successful
+                    }
                 } ?: run {
                     Log.e("ChatRoom", "Error getting video path")
                 }
@@ -200,253 +251,555 @@ fun ChatRoom(
             }
         }
     }
+    // Scroll State to handle Gist Title visibility
+    val scrollState = rememberLazyListState()
+    val showTitle = remember { mutableStateOf(true) }
 
-    // Observe Emoji Picker Visibility
-    LaunchedEffect(showEmojiPicker, maxKeyboardHeightDp) {
-        Log.d("ChatRoom", "showEmojiPicker: $showEmojiPicker, maxKeyboardHeightDp: $maxKeyboardHeightDp")
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < 0) {
+                    // Scrolling down
+                    showTitle.value = true
+                } else if (available.y > 0) {
+                    // Scrolling up
+                    showTitle.value = false
+                }
+                return Offset.Zero
+            }
+        }
+    }
+    var isRecording = remember { mutableStateOf(false) }
+
+    // Permission launcher for recording audio
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            AudioRecorder.startRecording(context)
+            isRecording.value = true
+        } else {
+            Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+
+    val stopRecording = { file: File? ->
+        isRecording.value = false
+        file?.let {
+            // Handle the recorded file, e.g., send it or save it
+            coroutineScope.launch {
+                // Upload file to a server and handle locally
+                try {
+                    val audioByteArray = FileUtils.fileToByteArray(it)
+                    Log.d("ChatRoom", "Audio Byte Array: ${audioByteArray.size} bytes")
+
+                    val messageId = viewModel.generateMessageId()
+                    viewModel.sendBinary(
+                        audioByteArray,
+                        "KAudio",
+                        gistId,
+                        messageId,
+                        customerId,
+                        myName
+                    )
+
+                    val chatMessage = ChatMessage(
+                        id = messageId,
+                        gistId = gistId,
+                        customerId = customerId,
+                        sender = myName,
+                        content = "",
+                        status = "pending",
+                        messageType = "KAudio",
+                        binaryData = audioByteArray
+                    )
+                    viewModel.addMessage(chatMessage)
+                } catch (e: IOException) {
+                    Log.e("ChatRoom", "Error processing audio: ${e.message}", e)
+                }
+            }
+        }
     }
 
     // Main content
-    if (showTrimmingScreen != null) {
-        VideoTrimmingScreen(
-            appContext = context,
-            uri = showTrimmingScreen!!,
-            onTrimComplete = { trimmedUri ->
-                Log.d("ChatRoom", "OnTrimComplete called with trimmedUri: $trimmedUri")
-                showTrimmingScreen = null
-                trimmedUri?.let { validUri ->
-                    coroutineScope.launch {
-                        try {
-                            val videoByteArray = context.contentResolver.openInputStream(validUri)?.readBytes() ?: ByteArray(0)
-                            Log.d("ChatRoom", "Video Byte Array: ${videoByteArray.size} bytes")
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .nestedScroll(nestedScrollConnection)
+    ) {
+        if (showTitle.value) {
+            GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it })
+        }
 
-                            val messageId = viewModel.generateMessageId()
-                            viewModel.sendBinary(videoByteArray, "KVideo", gistId, messageId, customerId, sender)
+        Spacer(modifier = Modifier.height(0.dp))
 
-                            val chatMessage = ChatMessage(
-                                id = messageId,
-                                gistId = gistId,
-                                customerId = customerId,
-                                sender = sender,
-                                content = "",
-                                status = "pending",
-                                messageType = "KVideo",
-                                binaryData = videoByteArray
-                            )
-                            viewModel.addMessage(chatMessage)
-                        } catch (e: IOException) {
-                            Log.e("ChatRoom", "Error processing video: ${e.message}", e)
-                        }
-                    }
+        MessageContent(
+            observedMessages = observedMessages,
+            customerId = customerId,
+            context = context,
+            scrollState = scrollState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            navController = navController
+        )
+        Spacer(modifier = Modifier.height(5.dp))
+
+        InputRow(
+            message = message,
+            onMessageChange = { message = it },
+            onSendMessage = {
+                if (message.text.isNotEmpty()) {
+                    val messageId = viewModel.generateMessageId()
+                    val chatMessage = ChatMessage(
+                        id = messageId,
+                        gistId = gistId,
+                        customerId = customerId,
+                        sender = myName,
+                        content = message.text,
+                        status = "pending",
+                        messageType = "text"
+                    )
+                    viewModel.addMessage(chatMessage)
+                    val messageJson = """
+                            {
+                            "type": "message",
+                            "gistId": "$gistId",
+                            "content": "${message.text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")}",
+                            "id": $messageId,
+                            "sender": "$myName"
+                            }
+                            """.trimIndent()
+                    viewModel.send(messageJson)
+                    message = TextFieldValue("")
                 }
             },
-            onCancel = {
-                showTrimmingScreen = null
-            }
+            imeVisible = imeVisible,
+            showEmojiPicker = showEmojiPicker,
+            onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+            keyboardController = keyboardController,
+            focusRequester = focusRequester,
+            isFocused = isFocused,
+            maxKeyboardHeightDp = maxKeyboardHeightDp,
+            imagePickerLauncher = imagePickerLauncher,
+            videoPickerLauncher = videoPickerLauncher,
+            permissionLauncherImages = permissionLauncherImages,
+            permissionLauncherVideos = permissionLauncherVideos,
+            coroutineScope = coroutineScope,
+            context = context,
+            isRecording = isRecording,
+            onStopRecording = stopRecording,
+            audioPermissionLauncher = audioPermissionLauncher
         )
-    } else {
-        // Your existing ChatRoom UI goes here
-        Column(modifier = Modifier.fillMaxSize().padding(8.dp).imePadding()) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Gist: $topic",
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    ),
-                    color = MaterialTheme.colorScheme.onPrimary
+    }
+}
+
+@Composable
+fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = "Gist: $topic",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            ),
+            color = MaterialTheme.colorScheme.onPrimary
+        )
+        Box {
+            IconButton(onClick = { onExpandChange(true) }) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More options"
                 )
-                Box {
-                    IconButton(onClick = { expanded = true }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More options"
+            }
+            DropdownMenu(expanded = expanded, onDismissRequest = { onExpandChange(false) }) {
+                DropdownMenuItem(
+                    text = { Text("Add Member") },
+                    onClick = { /* Handle option 1 click */ })
+                DropdownMenuItem(
+                    text = { Text("Exit") },
+                    onClick = { /* Handle option 2 click */ })
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageContent(
+    observedMessages: List<ChatMessage>,
+    customerId: Int,
+    context: Context,
+    scrollState: LazyListState,
+    modifier: Modifier = Modifier,
+    navController: NavController
+) {
+    LazyColumn(
+        state = scrollState,
+        modifier = modifier.padding(horizontal = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(observedMessages) { message ->
+            Log.d("ChatRoom", "Rendering message: ${message.content}")
+            val isCurrentUser = message.customerId == customerId
+            val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
+            val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
+
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)) {
+                Column(
+                    modifier = Modifier
+                        .background(Color.Gray, shape)
+                        .padding(8.dp),
+                    horizontalAlignment = alignment
+                ) {
+                    if (!isCurrentUser) {
+                        Text(
+                            text = message.sender,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier
+                                .padding(bottom = 4.dp)
+                                .clickable { navController.navigate("bioScreen/${message.customerId}") }
                         )
                     }
-                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Add Member") },
-                            onClick = { /* Handle option 1 click */ })
-                        DropdownMenuItem(
-                            text = { Text("Exit") },
-                            onClick = { /* Handle option 2 click */ })
+                    when (message.messageType) {
+                        "KImage" -> {
+                            message.binaryData?.let { binaryData ->
+                                val bitmap = decodeBinaryToBitmap(binaryData)
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = null,
+                                    modifier = Modifier
+                                        .height(200.dp)
+                                        .clip(shape)
+                                )
+                            } ?: Text(text = "Image not available", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        "KVideo" -> {
+                            message.binaryData?.let { binaryData ->
+                                val videoUri = getUriFromByteArray(binaryData, context)
+                                AndroidView(
+                                    factory = { VideoView(context).apply {
+                                        setVideoURI(videoUri)
+                                        start()
+                                    } },
+                                    modifier = Modifier
+                                        .height(200.dp)
+                                        .clip(shape)
+                                )
+                            } ?: Text(text = "Video not available", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        "KAudio" -> {
+                            message.binaryData?.let { binaryData ->
+                                val audioUri = getUriFromByteArray(binaryData, context)
+                                AudioPlayer(audioUri = audioUri, modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp))
+                            } ?: Text(text = "Audio not available", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        else -> {
+                            Text(text = message.content, color = MaterialTheme.colorScheme.background)
+                        }
+                    }
+                    if (isCurrentUser) {
+                        Icon(
+                            imageVector = getStatusIcon(message.status),
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(16.dp))
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+fun InputRow(
+    message: TextFieldValue,
+    onMessageChange: (TextFieldValue) -> Unit,
+    onSendMessage: () -> Unit,
+    imeVisible: Boolean,
+    showEmojiPicker: Boolean,
+    onEmojiPickerVisibilityChange: (Boolean) -> Unit,
+    keyboardController: SoftwareKeyboardController?,
+    focusRequester: FocusRequester,
+    isFocused: MutableState<Boolean>,
+    maxKeyboardHeightDp: Dp,
+    imagePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
+    videoPickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
+    permissionLauncherImages: ManagedActivityResultLauncher<String, Boolean>,
+    permissionLauncherVideos: ManagedActivityResultLauncher<String, Boolean>,
+    coroutineScope: CoroutineScope,
+    context: Context,
+    isRecording: MutableState<Boolean>,
+    onStopRecording: (File?) -> Job?,
+    audioPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
+) {
+    val expandedState = remember { mutableStateOf(false) }
+    val showClipIcon = remember(message) { mutableStateOf(message.text.isEmpty()) }
+    var recordingDuration by remember { mutableIntStateOf(0) }
+    val maxRecordingDuration = 2 * 60 * 1000 // 2 minutes in milliseconds
 
-            LazyColumn(
-                modifier = Modifier.weight(1f).fillMaxWidth().nestedScroll(remember { object : NestedScrollConnection {} }),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+    LaunchedEffect(message.text) {
+        showClipIcon.value = message.text.isEmpty()
+    }
+
+    LaunchedEffect(isRecording.value) {
+        if (isRecording.value) {
+            recordingDuration = 0
+            while (isRecording.value && recordingDuration < maxRecordingDuration) {
+                delay(1000)
+                recordingDuration += 1000
+            }
+            if (recordingDuration >= maxRecordingDuration) {
+                val recordedFile = AudioRecorder.stopRecording()
+                onStopRecording(recordedFile)
+                isRecording.value = false
+            }
+        }
+    }
+    val transitionState = remember { mutableStateOf(expandedState.value) }
+
+    LaunchedEffect(expandedState.value) {
+        if (!expandedState.value) {
+            // Delay to allow the collapse animation to complete
+            delay(100)
+            transitionState.value = expandedState.value
+        } else {
+            transitionState.value = expandedState.value
+        }
+    }
+
+    val offset by animateDpAsState(if (isRecording.value) (-0.5).dp else 0.dp)
+    val boxWidth by animateDpAsState(targetValue = if (expandedState.value) 100.dp else 5.dp)
+    val textNotEmpty =message.text.isNotEmpty()
+    val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp)
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
+                .imePadding()
+                .offset(y = offset),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 50.dp, max = 150.dp)
+                    .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
+                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
+                    .padding(8.dp)
             ) {
-                items(observedMessages) { message ->
-                    Log.d("ChatRoom", "Rendering message: ${message.content}")
-                    val isCurrentUser = message.sender == sender
-                    val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
-                    val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-
-                    Box(modifier = Modifier.fillMaxWidth().wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)) {
-                        Column(
-                            modifier = Modifier.background(Color.Gray, shape).padding(8.dp),
-                            horizontalAlignment = alignment
-                        ) {
-                            if (!isCurrentUser) {
-                                Text(
-                                    text = message.sender,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                            }
-                            when (message.messageType) {
-                                "KImage" -> {
-                                    message.binaryData?.let { binaryData ->
-                                        val bitmap = decodeBinaryToBitmap(binaryData)
-                                        Image(
-                                            bitmap = bitmap.asImageBitmap(),
-                                            contentDescription = null,
-                                            modifier = Modifier.height(200.dp).clip(shape)
-                                        )
-                                    } ?: Text(text = "Image not available", color = MaterialTheme.colorScheme.onPrimary)
-                                }
-                                "KVideo" -> {
-                                    message.binaryData?.let { binaryData ->
-                                        val videoUri = getUriFromByteArray(binaryData, context)
-                                        AndroidView(
-                                            factory = { VideoView(context).apply {
-                                                setVideoURI(videoUri)
-                                                start()
-                                            } },
-                                            modifier = Modifier.height(200.dp).clip(shape)
-                                        )
-                                    } ?: Text(text = "Video not available", color = MaterialTheme.colorScheme.onPrimary)
-                                }
-                                else -> {
-                                    Text(text = message.content, color = MaterialTheme.colorScheme.onPrimary)
-                                }
-                            }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (imeVisible || showEmojiPicker) {
+                        IconButton(onClick = {
+                            onEmojiPickerVisibilityChange(!showEmojiPicker)
+                            if (showEmojiPicker) keyboardController?.show() else keyboardController?.hide()
+                        }) {
                             Icon(
-                                imageVector = getStatusIcon(message.status),
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp).align(if (isCurrentUser) Alignment.End else Alignment.Start),
-                                tint = MaterialTheme.colorScheme.primary
+                                imageVector = if (showEmojiPicker) Icons.Default.Keyboard else Icons.Default.EmojiEmotions,
+                                contentDescription = if (showEmojiPicker) "Show Keyboard" else "Select Emoji"
                             )
                         }
                     }
-                }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp).imePadding(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier.weight(1f).heightIn(min = 50.dp, max = 150.dp).border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small).background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small).padding(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (imeVisible || showEmojiPicker) {
-                            IconButton(onClick = {
-                                onEmojiPickerVisibilityChange(!showEmojiPicker)
-                                if (showEmojiPicker) keyboardController?.show() else keyboardController?.hide()
-                            }) {
-                                Icon(imageVector = if (showEmojiPicker) Icons.Default.Keyboard else Icons.Default.EmojiEmotions, contentDescription = if (showEmojiPicker) "Show Keyboard" else "Select Emoji")
+                    val textScrollState = rememberScrollState()
+                    BasicTextField(
+                        value = message,
+                        onValueChange = {
+                            onMessageChange(it)
+                            coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
+                            if (it.text.isNotEmpty()) {
+                                expandedState.value = false
                             }
-                        }
-                        val textScrollState = rememberScrollState()
-                        BasicTextField(
-                            value = message,
-                            onValueChange = {
-                                message = it
-                                coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
-                            },
-                            textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onPrimary),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-                            modifier = Modifier.fillMaxWidth().verticalScroll(textScrollState).focusRequester(focusRequester).onFocusChanged { focusState ->
+                        },
+                        textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onPrimary),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .verticalScroll(textScrollState)
+                            .focusRequester(focusRequester)
+                            .onFocusChanged { focusState ->
                                 isFocused.value = focusState.isFocused
-                                if (focusState.isFocused && showEmojiPicker) onEmojiPickerVisibilityChange(false)
-                            }.pointerInteropFilter {
+                                if (focusState.isFocused && showEmojiPicker) onEmojiPickerVisibilityChange(
+                                    false
+                                )
+                            }
+                            .pointerInteropFilter {
                                 if (it.action == MotionEvent.ACTION_DOWN) {
                                     if (showEmojiPicker) onEmojiPickerVisibilityChange(false)
                                     if (isFocused.value) keyboardController?.show() else focusRequester.requestFocus()
                                 }
                                 false
                             }
-                        )
-                    }
+                    )
                 }
+            }
+
+            if (showClipIcon.value) {
                 IconButton(onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_MEDIA_IMAGES) == PermissionChecker.PERMISSION_GRANTED) {
-                            imagePickerLauncher.launch("image/*")
-                        } else {
-                            permissionLauncherImages.launch(android.Manifest.permission.READ_MEDIA_IMAGES)
-                        }
-                    } else {
-                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PermissionChecker.PERMISSION_GRANTED) {
-                            imagePickerLauncher.launch("image/*")
-                        } else {
-                            permissionLauncherImages.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
-                        }
-                    }
+                    expandedState.value = !expandedState.value
                 }) {
-                    Icon(imageVector = Icons.Default.Image, contentDescription = "Select Image")
+                    Icon(imageVector = Icons.Default.AttachFile, contentDescription = if (expandedState.value) "Collapse" else "Expand")
                 }
-                IconButton(onClick = {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_MEDIA_VIDEO) == PermissionChecker.PERMISSION_GRANTED) {
-                            videoPickerLauncher.launch("video/*")
-                        } else {
-                            permissionLauncherVideos.launch(android.Manifest.permission.READ_MEDIA_VIDEO)
+            }
+
+            if (transitionState.value && message.text.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .width(boxWidth)
+                        .height(48.dp)
+                ) {
+                    Row (verticalAlignment = Alignment.CenterVertically){
+                        IconButton(onClick = {
+                            launchPicker(
+                                permissionLauncherImages,
+                                imagePickerLauncher,
+                                context,
+                                "image"
+                            )
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Image,
+                                contentDescription = "Select Image"
+                            )
                         }
-                    } else {
-                        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PermissionChecker.PERMISSION_GRANTED) {
-                            videoPickerLauncher.launch("video/*")
-                        } else {
-                            permissionLauncherVideos.launch(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+                        IconButton(onClick = {
+                            launchPicker(
+                                permissionLauncherVideos,
+                                videoPickerLauncher,
+                                context,
+                                "video"
+                            )
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.VideoLibrary,
+                                contentDescription = "Select Video"
+                            )
                         }
                     }
-                }) {
-                    Icon(imageVector = Icons.Default.VideoLibrary, contentDescription = "Select Video")
                 }
-                IconButton(onClick = {
-                    if (message.text.isNotEmpty()) {
-                        val messageId = viewModel.generateMessageId()
-                        val chatMessage = ChatMessage(
-                            id = messageId,
-                            gistId = gistId,
-                            customerId = customerId,
-                            sender = sender,
-                            content = message.text,
-                            status = "pending",
-                            messageType = "text"
-                        )
-                        viewModel.addMessage(chatMessage)
-                        val messageJson = """
-                            {
-                            "type": "message",
-                            "gistId": "$gistId",
-                            "content": "${message.text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")}",
-                            "id": $messageId,
-                            "sender": "$sender"
+            }
+
+            if (!transitionState.value && message.text.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .width(100.dp)
+                        .height(48.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            // Additional action can be added here
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Comment,
+                                contentDescription = "Comment"
+                            )
+                        }
+                        IconButton(onClick = {
+                            if (isRecording.value) {
+                                val recordedFile = AudioRecorder.stopRecording()
+                                onStopRecording(recordedFile)
+                                isRecording.value = false
+                            } else {
+                                if (ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                ) {
+                                    AudioRecorder.startRecording(context)
+                                    isRecording.value = true
+                                } else {
+                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
                             }
-                            """.trimIndent()
-                        viewModel.send(messageJson)
-                        message = TextFieldValue("")
+                        }) {
+                            Icon(
+                                imageVector = if (isRecording.value) Icons.Default.Stop else Icons.Default.Mic,
+                                contentDescription = if (isRecording.value) "Stop Recording" else "Record Voice Note"
+                            )
+                        }
                     }
-                }) {
-                    if (message.text.isEmpty()) {
-                        Icon(imageVector = Icons.Default.Mic, contentDescription = "Record Voice Note")
-                    } else {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send")
+                }
+            }
+
+            if (textNotEmpty) {
+                Box(
+                    modifier = Modifier
+                        .width(commentBoxWidth)
+                        .height(48.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { /* Handle comment icon click */ }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Comment,
+                                contentDescription = "Comment"
+                            )
+                        }
+                        IconButton(onClick = {
+                            onSendMessage()
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send"
+                            )
+                        }
                     }
                 }
             }
         }
+
+        // Recording timer placed below the input row
+        if (isRecording.value) {
+            Text(
+                text = "Recording: ${recordingDuration / 1000}s",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .align(Alignment.End)
+            )
+        }
+    }
+}
+private fun launchPicker(
+    permissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
+    launcher: ManagedActivityResultLauncher<String, Uri?>,
+    context: Context,
+    mediaType: String // "image" or "video"
+) {
+    val permissionToCheck: String
+    val mimeType: String
+
+    if (mediaType == "video") {
+        mimeType = "video/*"
+        permissionToCheck = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_VIDEO
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+    } else { // Defaults to "image"
+        mimeType = "image/*"
+        permissionToCheck = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            android.Manifest.permission.READ_MEDIA_IMAGES
+        } else {
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+    }
+
+    // Check if the necessary permission is granted
+    if (ContextCompat.checkSelfPermission(context, permissionToCheck) == PermissionChecker.PERMISSION_GRANTED) {
+        launcher.launch(mimeType)
+    } else {
+        permissionLauncher.launch(permissionToCheck)
     }
 }
 
