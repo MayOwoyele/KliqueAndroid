@@ -146,7 +146,8 @@ fun HomeScreen(
                         interactionSource = remember { MutableInteractionSource() }
                     ),
             ) {
-                GistScreen(modifier=Modifier.padding(top = 15.dp).padding(horizontal = 16.dp).fillMaxSize()) // Display GistScreen behind the AddButton
+
+                GistScreen(modifier=Modifier.padding(top = 15.dp).padding(horizontal = 16.dp).fillMaxSize(), customerId = customerId) // Display GistScreen behind the AddButton
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
