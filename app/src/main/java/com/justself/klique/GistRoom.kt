@@ -388,9 +388,9 @@ fun GistRoom(
         // Bottom Sheet
         CustomBottomSheet(
             visible = showBottomSheet,
-            onDismissRequest = { showBottomSheet = false }
+            onDismissRequest = { showBottomSheet = false },
         ) {
-            CommentSection()
+            CommentSection(viewModel, navController)
         }
     }
 }

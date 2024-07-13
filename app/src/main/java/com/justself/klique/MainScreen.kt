@@ -83,7 +83,7 @@ val Pink700 = Color(0xFFFF759C)
 val Pink400 = Color(0xFFC73868)
 val Pink200 = Color(0xFFFCA4C2)
 val LightBackground = Color(0xFFFFFFFF)
-val CultPink = Color(0xFF410C0C)
+val CultPink = Color(0xFF6D1E1E)
 val DarkBackground = Color(0xFF000000)
 val DarkSurface = Color(0xFF121212) // Dark grey
 val LightSurface = Color(0xFFFFFFFF) // White
@@ -105,10 +105,11 @@ val AppTypography = Typography(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Pink400,
+    primary = Pink700,
     surface = DarkSurface,
     background = DarkBackground,
-    onPrimary = Color.White
+    onPrimary = Color.White,
+    onSecondary = CultPink
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -117,7 +118,7 @@ private val LightColorScheme = lightColorScheme(
     background = LightBackground,
     onPrimary = Color.Black,
     secondary = Pink200,
-    onSecondary = CultPink
+    onSecondary = Pink700
 )
 @Composable
 fun MyAppTheme(
