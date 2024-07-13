@@ -159,7 +159,7 @@ fun GistRoom(
                     val messageId = viewModel.generateMessageId()
                     viewModel.sendBinary(imageByteArray, "KImage", gistId, messageId, customerId, myName)
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -169,7 +169,7 @@ fun GistRoom(
                         messageType = "KImage",
                         binaryData = imageByteArray
                     )
-                    viewModel.addMessage(chatMessage)
+                    viewModel.addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing image: ${e.message}", e)
                 }
@@ -289,7 +289,7 @@ fun GistRoom(
                         myName
                     )
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -299,7 +299,7 @@ fun GistRoom(
                         messageType = "KAudio",
                         binaryData = audioByteArray
                     )
-                    viewModel.addMessage(chatMessage)
+                    viewModel.addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing audio: ${e.message}", e)
                 }
@@ -341,7 +341,7 @@ fun GistRoom(
                 onSendMessage = {
                     if (message.text.isNotEmpty()) {
                         val messageId = viewModel.generateMessageId()
-                        val chatMessage = ChatMessage(
+                        val gistMessage = GistMessage(
                             id = messageId,
                             gistId = gistId,
                             customerId = customerId,
@@ -350,7 +350,7 @@ fun GistRoom(
                             status = "pending",
                             messageType = "text"
                         )
-                        viewModel.addMessage(chatMessage)
+                        viewModel.addMessage(gistMessage)
                         val messageJson = """
                             {
                             "type": "message",
@@ -416,7 +416,7 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
                 Text(
                     text = "$activeUserCount active",
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.clickable {  }
                 )
                 Box {
@@ -430,7 +430,7 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
                         expanded = expanded,
                         onDismissRequest = { onExpandChange(false) }) {
                         DropdownMenuItem(
-                            text = { Text("Add Member") },
+                            text = { Text("Share") },
                             onClick = { /* Handle option 1 click */ })
                         DropdownMenuItem(
                             text = { Text("Exit") },
@@ -444,7 +444,7 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
 
 @Composable
 fun MessageContent(
-    observedMessages: List<ChatMessage>,
+    observedMessages: List<GistMessage>,
     customerId: Int,
     context: Context,
     scrollState: LazyListState,

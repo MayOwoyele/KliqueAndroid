@@ -1,7 +1,6 @@
 package com.justself.klique
 
 import android.os.Build
-import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
@@ -38,7 +37,6 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -112,7 +110,7 @@ fun HomeScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
-        val messageObserver = Observer<List<ChatMessage>> { newMessages ->
+        val messageObserver = Observer<List<GistMessage>> { newMessages ->
             newMessages.let {
                 // Handle new messages if needed
             }
