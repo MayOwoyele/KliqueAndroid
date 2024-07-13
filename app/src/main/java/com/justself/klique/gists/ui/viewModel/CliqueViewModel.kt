@@ -10,7 +10,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.justself.klique.ChatMessage
+import com.justself.klique.GistMessage
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
@@ -34,13 +34,13 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     // LiveData properties for observing state changes
     private val _gistCreatedOrJoined = MutableLiveData<Pair<String, String>?>()
     val gistCreatedOrJoined: LiveData<Pair<String, String>?> = _gistCreatedOrJoined
-    private val _messages = MutableLiveData<List<ChatMessage>>(emptyList())
-    val messages: LiveData<List<ChatMessage>> = _messages
+    private val _messages = MutableLiveData<List<GistMessage>>(emptyList())
+    val messages: LiveData<List<GistMessage>> = _messages
     private val gistId: String
         get() = _gistCreatedOrJoined.value?.second ?: ""
     private var messageCounter = 0
     private val _myName = mutableStateOf("")
-    private val _isSpeaker = MutableLiveData(true)
+    private val _isSpeaker = MutableLiveData(false)
     val isSpeaker: LiveData<Boolean> get() = _isSpeaker
     private val myName: String
         get() = _myName.value
@@ -88,7 +88,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
                 val messages = (0 until messagesJsonArray.length()).map { i ->
                     val msg = messagesJsonArray.getJSONObject(i)
-                    ChatMessage(
+                    GistMessage(
                         id = msg.getInt("id"),
                         gistId = msg.getString("gistId"),
                         customerId = msg.getInt("customerId"),
@@ -106,7 +106,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val customerId = jsonObject.getInt("customerId")
                 val fullName = jsonObject.getString("fullName")
                 val content = deEscapeContent(jsonObject.getString("content"))
-                val message = ChatMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = content, status = "received")
+                val message = GistMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = content, status = "received")
                 addMessage(message)
             }
             "messageAck" -> {
@@ -128,7 +128,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         println("Received message with Id: $messageId")
         val binaryData = jsonObject.getString("binaryData")
 
-        val message = ChatMessage(
+        val message = GistMessage(
             id = messageId,
             gistId = "",  // Adjust as necessary
             customerId = 0,  // Adjust as necessary
@@ -145,7 +145,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val message = prefixBytes + data
         WebSocketManager.sendBinary(message)
     }
-    fun addMessage(message: ChatMessage) {
+    fun addMessage(message: GistMessage) {
         val updatedMessages = _messages.value.orEmpty().toMutableList()
         updatedMessages.add(message)
         _messages.postValue(updatedMessages)
@@ -214,7 +214,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                     val messageId = generateMessageId()
                     sendBinary(videoByteArray, "KVideo", gistId, messageId, customerId, fullName = myName)
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -225,7 +225,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                         binaryData = videoByteArray
                     )
                     Log.d("customerId", "CustomerId: $customerId")
-                    addMessage(chatMessage)
+                    addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing video: ${e.message}", e)
                 }

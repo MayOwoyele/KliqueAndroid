@@ -9,7 +9,7 @@ class BioViewModel : ViewModel() {
     fun fetchProfile(customerId: Int) = liveData {
         val profile = Profile(
             bioImage = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-            backgroundColor = Color.Gray,
+            backgroundColor = Color.White,
             fullName = "Tatiana Manois",
             bioText = "This life is fucked and I don’t care",
             isContact = true,

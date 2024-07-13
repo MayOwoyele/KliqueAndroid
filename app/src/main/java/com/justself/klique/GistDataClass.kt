@@ -1,6 +1,6 @@
 package com.justself.klique
 
-data class ChatMessage(
+data class GistMessage(
     val id: Int,
     val gistId: String,
     val customerId: Int,
@@ -12,7 +12,7 @@ data class ChatMessage(
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is ChatMessage) return false
+        if (other !is GistMessage) return false
 
         return id == other.id &&
                 gistId == other.gistId &&

@@ -109,6 +109,7 @@ private val DarkColorScheme = darkColorScheme(
     surface = DarkSurface,
     background = DarkBackground,
     onPrimary = Color.White,
+    secondary = Pink700,
     onSecondary = CultPink
 )
 
@@ -117,7 +118,7 @@ private val LightColorScheme = lightColorScheme(
     surface = LightSurface,
     background = LightBackground,
     onPrimary = Color.Black,
-    secondary = Pink200,
+    secondary = Pink400,
     onSecondary = Pink700
 )
 @Composable
