@@ -132,7 +132,7 @@ fun HomeScreen(
         color = MaterialTheme.colorScheme.surface,
     ) {
         if (gistActive) {
-            ChatRoom(
+            GistRoom(
                 topic = gistTopic,
                 myName = fullName,
                 gistId = gistId,

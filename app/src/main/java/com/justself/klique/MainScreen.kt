@@ -78,6 +78,7 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 
 
+
 val Pink700 = Color(0xFFFF759C)
 val Pink400 = Color(0xFFC73868)
 val Pink200 = Color(0xFFFCA4C2)
@@ -248,7 +249,13 @@ fun MainContent(
                 }
             )
     ) {
-        NavigationHost(navController, isLoggedIn, productViewModel, customerId, fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker)
+        val application = LocalContext.current.applicationContext as Application
+        val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
+            factory = SharedCliqueViewModelFactory(application, customerId)
+        )
+        NavigationHost(navController, isLoggedIn, productViewModel, customerId,
+            fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
+            showEmojiPicker, application, sharedCliqueViewModel)
         LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart))
         RightDrawer(rightDrawerState, Modifier.align(Alignment.CenterEnd))
 

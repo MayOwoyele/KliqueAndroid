@@ -14,17 +14,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
-import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
+
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
                    commentViewModel: CommentsViewModel, onEmojiPickerVisibilityChange: (Boolean) -> Unit,
-                   selectedEmoji: String, showEmojiPicker: Boolean) {
-    val application = LocalContext.current.applicationContext as Application
-    val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-        factory = SharedCliqueViewModelFactory(application, customerId)
-    )
+                   selectedEmoji: String, showEmojiPicker: Boolean, application: Application,
+                   sharedCliqueViewModel: SharedCliqueViewModel) {
+
     val chatDao = remember { DatabaseProvider.getDatabase(application).chatDao() }
     val viewModelFactory = remember { ChatViewModelFactory(chatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)

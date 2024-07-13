@@ -1,6 +1,5 @@
 // File: SharedCliqueViewModel.kt
 package com.justself.klique.gists.ui.viewModel
-
 import android.app.Application
 import android.net.Uri
 import android.util.Log
@@ -16,9 +15,15 @@ import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
+import java.util.Locale
+import kotlin.random.Random
 
 
 //TODO: Discuss with May about the List of Gists, How we are getting gists from server,
@@ -35,8 +40,11 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         get() = _gistCreatedOrJoined.value?.second ?: ""
     private var messageCounter = 0
     private val _myName = mutableStateOf("")
+    private val _isSpeaker = MutableLiveData(true)
+    val isSpeaker: LiveData<Boolean> get() = _isSpeaker
     private val myName: String
         get() = _myName.value
+
     fun setMyName(name: String) {
         _myName.value = name
         Log.d("MyName", "My name is: $myName")
@@ -45,6 +53,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
         simulateGistCreated()
+        startUpdatingUserCount()
     }
     // remove this function later here and in the init block
     fun simulateGistCreated() {
@@ -220,6 +229,32 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing video: ${e.message}", e)
                 }
+            }
+        }
+    }
+    private val _formattedUserCount = MutableStateFlow(formatUserCount(0))
+    val formattedUserCount: StateFlow<String> = _formattedUserCount.asStateFlow()
+
+    fun updateUserCount(newCount: Int) {
+        userCount = newCount
+        _formattedUserCount.value = formatUserCount(newCount)
+    }
+
+    private fun formatUserCount(count: Int): String {
+        return when {
+            count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
+            count >= 100_000 -> String.format(Locale.US, "%dK", count / 100_000 * 100)
+            count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000)
+            else -> count.toString()
+        }
+    }
+    private var userCount = 0
+    private fun startUpdatingUserCount() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(3000) // Delay for 3 seconds
+                val randomIncrement = Random.nextInt(1, 1_000)
+                updateUserCount(userCount + randomIncrement)
             }
         }
     }
