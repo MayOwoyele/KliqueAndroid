@@ -30,6 +30,9 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.navigation.NavController
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+
 @Composable
 fun CustomBottomSheet(
     visible: Boolean,
@@ -67,7 +70,7 @@ fun CustomBottomSheet(
 
 
 @Composable
-fun CommentSection() {
+fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController) {
     var showRepliesForCommentId by remember { mutableStateOf<Int?>(null) }
     var showKCDonationDialog by remember { mutableStateOf(false)}
     val comments = remember {
@@ -95,14 +98,16 @@ fun CommentSection() {
                 items(comments) { comment ->
                     CommentItem(
                         comment = comment,
-                        onReplyClick = { showRepliesForCommentId = comment.id }
+                        onReplyClick = { showRepliesForCommentId = comment.id },
+                        viewModel = viewModel,
+                        navController = navController
                     )
                 }
             } else {
                 val selectedComment = comments.find { it.id == showRepliesForCommentId }
                 selectedComment?.replies?.let { replies ->
                     items(replies) { reply ->
-                        ReplyItem(reply = reply)
+                        ReplyItem(reply = reply, navController = navController)
                     }
                 }
             }
@@ -167,7 +172,8 @@ fun CommentSection() {
 
 
 @Composable
-fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
+fun CommentItem(comment: GistComment, onReplyClick: () -> Unit,
+                viewModel: SharedCliqueViewModel, navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -177,7 +183,7 @@ fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
             text = comment.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { /*navController.navigate("bioScreen/${comment.customerId}")*/ }
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${comment.customerId}") }
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = comment.comment, style = MaterialTheme.typography.bodyLarge)
@@ -205,7 +211,7 @@ fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
 }
 
 @Composable
-fun ReplyItem(reply: Reply) {
+fun ReplyItem(reply: Reply, navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -215,7 +221,7 @@ fun ReplyItem(reply: Reply) {
             text = reply.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { /*navController.navigate("bioScreen/${reply.customerId}")*/ }
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${reply.customerId}") }
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = reply.reply, style = MaterialTheme.typography.bodyLarge)
