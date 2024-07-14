@@ -36,3 +36,7 @@ data class GistMessage(
         return result
     }
 }
+data class UserStatus(
+    val isSpeaker: Boolean,
+    val isOwner: Boolean
+)

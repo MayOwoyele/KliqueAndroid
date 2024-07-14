@@ -307,7 +307,7 @@ fun GistRoom(
         }
     }
     var showBottomSheet by remember { mutableStateOf(false) }
-    val isSpeaker by viewModel.isSpeaker.observeAsState(false)
+    val userStatus by viewModel.userStatus.observeAsState(initial = UserStatus(false, false))
     // Main content
     Box(modifier = Modifier.fillMaxSize()) {
         // Main content
@@ -318,7 +318,8 @@ fun GistRoom(
                 .nestedScroll(nestedScrollConnection)
         ) {
             if (showTitle.value) {
-                GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it }, viewModel = viewModel)
+                GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it },
+                    viewModel = viewModel, userStatus = userStatus, navController = navController, gistId = gistId)
             }
 
             Spacer(modifier = Modifier.height(0.dp))
@@ -381,7 +382,7 @@ fun GistRoom(
                 onStopRecording = stopRecording,
                 audioPermissionLauncher = audioPermissionLauncher,
                 onShowBottomSheet = {showBottomSheet = true},
-                isSpeaker = isSpeaker
+                isSpeaker = userStatus.isSpeaker
             )
         }
 
@@ -396,7 +397,10 @@ fun GistRoom(
 }
 
 @Composable
-fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit, viewModel: SharedCliqueViewModel) {
+fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit,
+                 viewModel: SharedCliqueViewModel, userStatus: UserStatus,
+                 navController: NavController, gistId: String) {
+    val isOwner = userStatus.isOwner
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -414,10 +418,12 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
         Box {
             Row (verticalAlignment = Alignment.CenterVertically){
                 Text(
-                    text = "$activeUserCount active",
+                    text = "$activeUserCount spectators",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.clickable {  }
+                    modifier = Modifier.then(if(isOwner){
+                        Modifier.clickable { navController.navigate("gistSettings/$gistId") }
+                    }else {Modifier})
                 )
                 Box {
                     IconButton(onClick = { onExpandChange(true) }) {
@@ -429,6 +435,12 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
                     DropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { onExpandChange(false) }) {
+                        if (isOwner) {
+                            DropdownMenuItem(
+                                text = {Text("Gist Settings")},
+                                onClick = {navController.navigate("gistSettings/$gistId")}
+                            )
+                        }
                         DropdownMenuItem(
                             text = { Text("Share") },
                             onClick = { /* Handle option 1 click */ })

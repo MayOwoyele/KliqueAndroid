@@ -1,11 +1,14 @@
 package com.justself.klique
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,11 +27,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @Composable
 fun CustomBottomSheet(
@@ -83,10 +91,13 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
             )
         }
     }
-
+    val listState = rememberLazyListState()
+    var loading by remember{ mutableStateOf(false)}
+    val coroutineScope = rememberCoroutineScope()
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrollable list of comments or replies
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = 56.dp, bottom = 56.dp) // Padding added for top row and input field
@@ -108,6 +119,22 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                     }
                 }
             }
+        }
+        LaunchedEffect(listState) {
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                .map { it.lastOrNull()?.index }
+                .distinctUntilChanged()
+                .filter { it == comments.size -1 }
+                .collect {
+                    if (!loading){
+                        loading = true
+                        coroutineScope.launch {
+                            //viewModel.loadMoreComments()
+                            //This part is where the code is going to be for loading more comments
+                            loading = false
+                        }
+                    }
+                }
         }
 
         // Top row with title and wallet icon
@@ -152,7 +179,8 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                 modifier = Modifier
                     .weight(1f)
                     .border(width = 1.dp, color = MaterialTheme.colorScheme.onPrimary),
-                placeholder = { Text("Add a comment") }
+                placeholder = { Text("Add a comment") },
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text)
             )
             IconButton(onClick = { /* Add comment */ }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send icon")

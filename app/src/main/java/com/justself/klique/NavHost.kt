@@ -3,6 +3,7 @@ package com.justself.klique
 import android.app.Application
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -85,6 +86,13 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
         composable("bioScreen/{customerId}", arguments = listOf(navArgument("customerId") { type = NavType.IntType })
         ) { val profileId = it.arguments?.getInt("customerId")
             ?: throw IllegalStateException("where is the profileId?")
-        BioScreen(profileId, navController)}
+        BioScreen(profileId, navController)
+        }
+        composable("gistSettings/{gistId}"){backStackEntry ->
+            val gistId = backStackEntry.arguments?.getString("gistId")
+                ?: throw IllegalStateException("where is the gistId")
+            Log.d("GistId", "The gist Id is: $gistId")
+            GistSettings(navController, gistId)
+        }
     }
 }
