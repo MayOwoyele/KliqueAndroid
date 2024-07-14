@@ -1,11 +1,14 @@
 package com.justself.klique
 
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -24,37 +27,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-
-@Composable
-fun CustomBottomSheetDemo() {
-    var showBottomSheet by remember { mutableStateOf(false) }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Main content
-        Column(modifier = Modifier.fillMaxSize()) {
-            // Your main screen content goes here
-            Button(onClick = { showBottomSheet = true }) {
-                Text("Show Bottom Sheet")
-            }
-            Spacer(modifier = Modifier.weight(1f))
-            Text("Content behind Bottom Sheet")
-        }
-
-        // Bottom Sheet
-        CustomBottomSheet(
-            visible = showBottomSheet,
-            onDismissRequest = { showBottomSheet = false }
-        ) {
-                CommentSection()
-        }
-    }
-}
-
-
+import androidx.navigation.NavController
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 @Composable
 fun CustomBottomSheet(
@@ -93,7 +75,7 @@ fun CustomBottomSheet(
 
 
 @Composable
-fun CommentSection() {
+fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController) {
     var showRepliesForCommentId by remember { mutableStateOf<Int?>(null) }
     var showKCDonationDialog by remember { mutableStateOf(false)}
     val comments = remember {
@@ -109,10 +91,13 @@ fun CommentSection() {
             )
         }
     }
-
+    val listState = rememberLazyListState()
+    var loading by remember{ mutableStateOf(false)}
+    val coroutineScope = rememberCoroutineScope()
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrollable list of comments or replies
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = 56.dp, bottom = 56.dp) // Padding added for top row and input field
@@ -121,17 +106,35 @@ fun CommentSection() {
                 items(comments) { comment ->
                     CommentItem(
                         comment = comment,
-                        onReplyClick = { showRepliesForCommentId = comment.id }
+                        onReplyClick = { showRepliesForCommentId = comment.id },
+                        viewModel = viewModel,
+                        navController = navController
                     )
                 }
             } else {
                 val selectedComment = comments.find { it.id == showRepliesForCommentId }
                 selectedComment?.replies?.let { replies ->
                     items(replies) { reply ->
-                        ReplyItem(reply = reply)
+                        ReplyItem(reply = reply, navController = navController)
                     }
                 }
             }
+        }
+        LaunchedEffect(listState) {
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                .map { it.lastOrNull()?.index }
+                .distinctUntilChanged()
+                .filter { it == comments.size -1 }
+                .collect {
+                    if (!loading){
+                        loading = true
+                        coroutineScope.launch {
+                            //viewModel.loadMoreComments()
+                            //This part is where the code is going to be for loading more comments
+                            loading = false
+                        }
+                    }
+                }
         }
 
         // Top row with title and wallet icon
@@ -164,7 +167,8 @@ fun CommentSection() {
                 .fillMaxWidth()
                 .background(MaterialTheme.colorScheme.background) // Optional: background to distinguish the input area
                 .padding(1.dp)
-                .align(Alignment.BottomCenter), // Align at the bottom
+                .align(Alignment.BottomCenter)
+                .imePadding(), // Align at the bottom
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -175,7 +179,8 @@ fun CommentSection() {
                 modifier = Modifier
                     .weight(1f)
                     .border(width = 1.dp, color = MaterialTheme.colorScheme.onPrimary),
-                placeholder = { Text("Add a comment") }
+                placeholder = { Text("Add a comment") },
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text)
             )
             IconButton(onClick = { /* Add comment */ }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send icon")
@@ -192,7 +197,8 @@ fun CommentSection() {
 
 
 @Composable
-fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
+fun CommentItem(comment: GistComment, onReplyClick: () -> Unit,
+                viewModel: SharedCliqueViewModel, navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -202,7 +208,7 @@ fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
             text = comment.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { /*navController.navigate("bioScreen/${comment.customerId}")*/ }
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${comment.customerId}") }
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = comment.comment, style = MaterialTheme.typography.bodyLarge)
@@ -230,7 +236,7 @@ fun CommentItem(comment: GistComment, onReplyClick: () -> Unit) {
 }
 
 @Composable
-fun ReplyItem(reply: Reply) {
+fun ReplyItem(reply: Reply, navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,7 +246,7 @@ fun ReplyItem(reply: Reply) {
             text = reply.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { /*navController.navigate("bioScreen/${reply.customerId}")*/ }
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${reply.customerId}") }
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = reply.reply, style = MaterialTheme.typography.bodyLarge)
@@ -296,10 +302,4 @@ fun KCDialog(onDismissRequest: () -> Unit, onDonate: (Int) -> Unit) {
             }
         }
     }
-}
-
-@Composable
-@Preview
-fun PreviewCustomBottomSheetDemo() {
-    CustomBottomSheetDemo()
 }

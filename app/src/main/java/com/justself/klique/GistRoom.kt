@@ -15,18 +15,10 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -54,7 +46,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.Image
@@ -74,14 +65,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -97,7 +86,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -121,13 +109,10 @@ import java.io.File
 import java.io.IOException
 import android.Manifest
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -135,7 +120,7 @@ import kotlinx.coroutines.delay
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun ChatRoom(
+fun GistRoom(
     topic: String,
     myName: String,
     gistId: String,
@@ -174,7 +159,7 @@ fun ChatRoom(
                     val messageId = viewModel.generateMessageId()
                     viewModel.sendBinary(imageByteArray, "KImage", gistId, messageId, customerId, myName)
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -184,7 +169,7 @@ fun ChatRoom(
                         messageType = "KImage",
                         binaryData = imageByteArray
                     )
-                    viewModel.addMessage(chatMessage)
+                    viewModel.addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing image: ${e.message}", e)
                 }
@@ -304,7 +289,7 @@ fun ChatRoom(
                         myName
                     )
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -314,56 +299,60 @@ fun ChatRoom(
                         messageType = "KAudio",
                         binaryData = audioByteArray
                     )
-                    viewModel.addMessage(chatMessage)
+                    viewModel.addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing audio: ${e.message}", e)
                 }
             }
         }
     }
-
+    var showBottomSheet by remember { mutableStateOf(false) }
+    val userStatus by viewModel.userStatus.observeAsState(initial = UserStatus(false, false))
     // Main content
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
-            .nestedScroll(nestedScrollConnection)
-    ) {
-        if (showTitle.value) {
-            GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it })
-        }
-
-        Spacer(modifier = Modifier.height(0.dp))
-
-        MessageContent(
-            observedMessages = observedMessages,
-            customerId = customerId,
-            context = context,
-            scrollState = scrollState,
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Main content
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            navController = navController
-        )
-        Spacer(modifier = Modifier.height(5.dp))
+                .fillMaxSize()
+                .imePadding()
+                .nestedScroll(nestedScrollConnection)
+        ) {
+            if (showTitle.value) {
+                GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it },
+                    viewModel = viewModel, userStatus = userStatus, navController = navController, gistId = gistId)
+            }
 
-        InputRow(
-            message = message,
-            onMessageChange = { message = it },
-            onSendMessage = {
-                if (message.text.isNotEmpty()) {
-                    val messageId = viewModel.generateMessageId()
-                    val chatMessage = ChatMessage(
-                        id = messageId,
-                        gistId = gistId,
-                        customerId = customerId,
-                        sender = myName,
-                        content = message.text,
-                        status = "pending",
-                        messageType = "text"
-                    )
-                    viewModel.addMessage(chatMessage)
-                    val messageJson = """
+            Spacer(modifier = Modifier.height(0.dp))
+
+            MessageContent(
+                observedMessages = observedMessages,
+                customerId = customerId,
+                context = context,
+                scrollState = scrollState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                navController = navController
+            )
+            Spacer(modifier = Modifier.height(5.dp))
+
+            InputRow(
+                message = message,
+                onMessageChange = { message = it },
+                onSendMessage = {
+                    if (message.text.isNotEmpty()) {
+                        val messageId = viewModel.generateMessageId()
+                        val gistMessage = GistMessage(
+                            id = messageId,
+                            gistId = gistId,
+                            customerId = customerId,
+                            sender = myName,
+                            content = message.text,
+                            status = "pending",
+                            messageType = "text"
+                        )
+                        viewModel.addMessage(gistMessage)
+                        val messageJson = """
                             {
                             "type": "message",
                             "gistId": "$gistId",
@@ -372,37 +361,52 @@ fun ChatRoom(
                             "sender": "$myName"
                             }
                             """.trimIndent()
-                    viewModel.send(messageJson)
-                    message = TextFieldValue("")
-                }
-            },
-            imeVisible = imeVisible,
-            showEmojiPicker = showEmojiPicker,
-            onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
-            keyboardController = keyboardController,
-            focusRequester = focusRequester,
-            isFocused = isFocused,
-            maxKeyboardHeightDp = maxKeyboardHeightDp,
-            imagePickerLauncher = imagePickerLauncher,
-            videoPickerLauncher = videoPickerLauncher,
-            permissionLauncherImages = permissionLauncherImages,
-            permissionLauncherVideos = permissionLauncherVideos,
-            coroutineScope = coroutineScope,
-            context = context,
-            isRecording = isRecording,
-            onStopRecording = stopRecording,
-            audioPermissionLauncher = audioPermissionLauncher
-        )
+                        viewModel.send(messageJson)
+                        message = TextFieldValue("")
+                    }
+                },
+                imeVisible = imeVisible,
+                showEmojiPicker = showEmojiPicker,
+                onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+                keyboardController = keyboardController,
+                focusRequester = focusRequester,
+                isFocused = isFocused,
+                maxKeyboardHeightDp = maxKeyboardHeightDp,
+                imagePickerLauncher = imagePickerLauncher,
+                videoPickerLauncher = videoPickerLauncher,
+                permissionLauncherImages = permissionLauncherImages,
+                permissionLauncherVideos = permissionLauncherVideos,
+                coroutineScope = coroutineScope,
+                context = context,
+                isRecording = isRecording,
+                onStopRecording = stopRecording,
+                audioPermissionLauncher = audioPermissionLauncher,
+                onShowBottomSheet = {showBottomSheet = true},
+                isSpeaker = userStatus.isSpeaker
+            )
+        }
+
+        // Bottom Sheet
+        CustomBottomSheet(
+            visible = showBottomSheet,
+            onDismissRequest = { showBottomSheet = false },
+        ) {
+            CommentSection(viewModel, navController)
+        }
     }
 }
 
 @Composable
-fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit) {
+fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit,
+                 viewModel: SharedCliqueViewModel, userStatus: UserStatus,
+                 navController: NavController, gistId: String) {
+    val isOwner = userStatus.isOwner
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        val activeUserCount = viewModel.formattedUserCount.collectAsState().value
         Text(
             text = "Gist: $topic",
             style = MaterialTheme.typography.bodyLarge.copy(
@@ -412,19 +416,39 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
             color = MaterialTheme.colorScheme.onPrimary
         )
         Box {
-            IconButton(onClick = { onExpandChange(true) }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More options"
+            Row (verticalAlignment = Alignment.CenterVertically){
+                Text(
+                    text = "$activeUserCount spectators",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.then(if(isOwner){
+                        Modifier.clickable { navController.navigate("gistSettings/$gistId") }
+                    }else {Modifier})
                 )
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { onExpandChange(false) }) {
-                DropdownMenuItem(
-                    text = { Text("Add Member") },
-                    onClick = { /* Handle option 1 click */ })
-                DropdownMenuItem(
-                    text = { Text("Exit") },
-                    onClick = { /* Handle option 2 click */ })
+                Box {
+                    IconButton(onClick = { onExpandChange(true) }) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = "More options"
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { onExpandChange(false) }) {
+                        if (isOwner) {
+                            DropdownMenuItem(
+                                text = {Text("Gist Settings")},
+                                onClick = {navController.navigate("gistSettings/$gistId")}
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text("Share") },
+                            onClick = { /* Handle option 1 click */ })
+                        DropdownMenuItem(
+                            text = { Text("Exit") },
+                            onClick = { /* Handle option 2 click */ })
+                    }
+                }
             }
         }
     }
@@ -432,7 +456,7 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
 
 @Composable
 fun MessageContent(
-    observedMessages: List<ChatMessage>,
+    observedMessages: List<GistMessage>,
     customerId: Int,
     context: Context,
     scrollState: LazyListState,
@@ -541,7 +565,9 @@ fun InputRow(
     context: Context,
     isRecording: MutableState<Boolean>,
     onStopRecording: (File?) -> Job?,
-    audioPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
+    audioPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
+    onShowBottomSheet: () -> Unit,
+    isSpeaker: Boolean
 ) {
     val expandedState = remember { mutableStateOf(false) }
     val showClipIcon = remember(message) { mutableStateOf(message.text.isEmpty()) }
@@ -584,176 +610,195 @@ fun InputRow(
     val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp)
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
-                .imePadding()
-                .offset(y = offset),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        if (isSpeaker) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 50.dp, max = 150.dp)
-                    .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
-                    .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
-                    .padding(8.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
+                    .imePadding()
+                    .offset(y = offset),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (imeVisible || showEmojiPicker) {
-                        IconButton(onClick = {
-                            onEmojiPickerVisibilityChange(!showEmojiPicker)
-                            if (showEmojiPicker) keyboardController?.show() else keyboardController?.hide()
-                        }) {
-                            Icon(
-                                imageVector = if (showEmojiPicker) Icons.Default.Keyboard else Icons.Default.EmojiEmotions,
-                                contentDescription = if (showEmojiPicker) "Show Keyboard" else "Select Emoji"
-                            )
-                        }
-                    }
-                    val textScrollState = rememberScrollState()
-                    BasicTextField(
-                        value = message,
-                        onValueChange = {
-                            onMessageChange(it)
-                            coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
-                            if (it.text.isNotEmpty()) {
-                                expandedState.value = false
-                            }
-                        },
-                        textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onPrimary),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(textScrollState)
-                            .focusRequester(focusRequester)
-                            .onFocusChanged { focusState ->
-                                isFocused.value = focusState.isFocused
-                                if (focusState.isFocused && showEmojiPicker) onEmojiPickerVisibilityChange(
-                                    false
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 50.dp, max = 150.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.primary, MaterialTheme.shapes.small)
+                        .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
+                        .padding(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (imeVisible || showEmojiPicker) {
+                            IconButton(onClick = {
+                                onEmojiPickerVisibilityChange(!showEmojiPicker)
+                                if (showEmojiPicker) keyboardController?.show() else keyboardController?.hide()
+                            }) {
+                                Icon(
+                                    imageVector = if (showEmojiPicker) Icons.Default.Keyboard else Icons.Default.EmojiEmotions,
+                                    contentDescription = if (showEmojiPicker) "Show Keyboard" else "Select Emoji"
                                 )
                             }
-                            .pointerInteropFilter {
-                                if (it.action == MotionEvent.ACTION_DOWN) {
-                                    if (showEmojiPicker) onEmojiPickerVisibilityChange(false)
-                                    if (isFocused.value) keyboardController?.show() else focusRequester.requestFocus()
-                                }
-                                false
-                            }
-                    )
-                }
-            }
-
-            if (showClipIcon.value) {
-                IconButton(onClick = {
-                    expandedState.value = !expandedState.value
-                }) {
-                    Icon(imageVector = Icons.Default.AttachFile, contentDescription = if (expandedState.value) "Collapse" else "Expand")
-                }
-            }
-
-            if (transitionState.value && message.text.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .width(boxWidth)
-                        .height(48.dp)
-                ) {
-                    Row (verticalAlignment = Alignment.CenterVertically){
-                        IconButton(onClick = {
-                            launchPicker(
-                                permissionLauncherImages,
-                                imagePickerLauncher,
-                                context,
-                                "image"
-                            )
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.Image,
-                                contentDescription = "Select Image"
-                            )
                         }
-                        IconButton(onClick = {
-                            launchPicker(
-                                permissionLauncherVideos,
-                                videoPickerLauncher,
-                                context,
-                                "video"
-                            )
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.VideoLibrary,
-                                contentDescription = "Select Video"
-                            )
+                        val textScrollState = rememberScrollState()
+                        BasicTextField(
+                            value = message,
+                            onValueChange = {
+                                onMessageChange(it)
+                                coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
+                                if (it.text.isNotEmpty()) {
+                                    expandedState.value = false
+                                }
+                            },
+                            textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onPrimary),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .verticalScroll(textScrollState)
+                                .focusRequester(focusRequester)
+                                .onFocusChanged { focusState ->
+                                    isFocused.value = focusState.isFocused
+                                    if (focusState.isFocused && showEmojiPicker) onEmojiPickerVisibilityChange(
+                                        false
+                                    )
+                                }
+                                .pointerInteropFilter {
+                                    if (it.action == MotionEvent.ACTION_DOWN) {
+                                        if (showEmojiPicker) onEmojiPickerVisibilityChange(false)
+                                        if (isFocused.value) keyboardController?.show() else focusRequester.requestFocus()
+                                    }
+                                    false
+                                }
+                        )
+                    }
+                }
+
+                if (showClipIcon.value) {
+                    IconButton(onClick = {
+                        expandedState.value = !expandedState.value
+                    }) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = if (expandedState.value) "Collapse" else "Expand"
+                        )
+                    }
+                }
+
+                if (transitionState.value && message.text.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .width(boxWidth)
+                            .height(48.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = {
+                                launchPicker(
+                                    permissionLauncherImages,
+                                    imagePickerLauncher,
+                                    context,
+                                    "image"
+                                )
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = "Select Image"
+                                )
+                            }
+                            IconButton(onClick = {
+                                launchPicker(
+                                    permissionLauncherVideos,
+                                    videoPickerLauncher,
+                                    context,
+                                    "video"
+                                )
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Default.VideoLibrary,
+                                    contentDescription = "Select Video"
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            if (!transitionState.value && message.text.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .width(100.dp)
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            // Additional action can be added here
-                        }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Comment,
-                                contentDescription = "Comment"
-                            )
-                        }
-                        IconButton(onClick = {
-                            if (isRecording.value) {
-                                val recordedFile = AudioRecorder.stopRecording()
-                                onStopRecording(recordedFile)
-                                isRecording.value = false
-                            } else {
-                                if (ContextCompat.checkSelfPermission(
-                                        context,
-                                        Manifest.permission.RECORD_AUDIO
-                                    ) == PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    AudioRecorder.startRecording(context)
-                                    isRecording.value = true
+                if (!transitionState.value && message.text.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .width(100.dp)
+                            .height(48.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onShowBottomSheet) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Comment,
+                                    contentDescription = "Comment"
+                                )
+                            }
+                            IconButton(onClick = {
+                                if (isRecording.value) {
+                                    val recordedFile = AudioRecorder.stopRecording()
+                                    onStopRecording(recordedFile)
+                                    isRecording.value = false
                                 } else {
-                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    if (ContextCompat.checkSelfPermission(
+                                            context,
+                                            Manifest.permission.RECORD_AUDIO
+                                        ) == PackageManager.PERMISSION_GRANTED
+                                    ) {
+                                        AudioRecorder.startRecording(context)
+                                        isRecording.value = true
+                                    } else {
+                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
                                 }
+                            }) {
+                                Icon(
+                                    imageVector = if (isRecording.value) Icons.Default.Stop else Icons.Default.Mic,
+                                    contentDescription = if (isRecording.value) "Stop Recording" else "Record Voice Note"
+                                )
                             }
-                        }) {
-                            Icon(
-                                imageVector = if (isRecording.value) Icons.Default.Stop else Icons.Default.Mic,
-                                contentDescription = if (isRecording.value) "Stop Recording" else "Record Voice Note"
-                            )
+                        }
+                    }
+                }
+
+                if (textNotEmpty) {
+                    Box(
+                        modifier = Modifier
+                            .width(commentBoxWidth)
+                            .height(48.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = onShowBottomSheet) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Comment,
+                                    contentDescription = "Comment"
+                                )
+                            }
+                            IconButton(onClick = {
+                                onSendMessage()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Send"
+                                )
+                            }
                         }
                     }
                 }
             }
-
-            if (textNotEmpty) {
-                Box(
-                    modifier = Modifier
-                        .width(commentBoxWidth)
-                        .height(48.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { /* Handle comment icon click */ }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Comment,
-                                contentDescription = "Comment"
-                            )
-                        }
-                        IconButton(onClick = {
-                            onSendMessage()
-                        }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send"
-                            )
-                        }
-                    }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
+                    .imePadding()
+                    .offset(y = offset),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onShowBottomSheet) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Comment,
+                        contentDescription = "Comment"
+                    )
                 }
             }
         }
