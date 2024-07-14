@@ -1,6 +1,5 @@
 // File: SharedCliqueViewModel.kt
 package com.justself.klique.gists.ui.viewModel
-
 import android.app.Application
 import android.net.Uri
 import android.util.Log
@@ -11,14 +10,21 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.justself.klique.ChatMessage
+import com.justself.klique.GistMessage
+import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
+import java.util.Locale
+import kotlin.random.Random
 
 
 //TODO: Discuss with May about the List of Gists, How we are getting gists from server,
@@ -29,14 +35,18 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     // LiveData properties for observing state changes
     private val _gistCreatedOrJoined = MutableLiveData<Pair<String, String>?>()
     val gistCreatedOrJoined: LiveData<Pair<String, String>?> = _gistCreatedOrJoined
-    private val _messages = MutableLiveData<List<ChatMessage>>(emptyList())
-    val messages: LiveData<List<ChatMessage>> = _messages
+    private val _messages = MutableLiveData<List<GistMessage>>(emptyList())
+    val messages: LiveData<List<GistMessage>> = _messages
     private val gistId: String
         get() = _gistCreatedOrJoined.value?.second ?: ""
     private var messageCounter = 0
+
+    private val _userStatus = MutableLiveData(UserStatus(isSpeaker = true, isOwner = true))
+    val userStatus: LiveData<UserStatus> = _userStatus
     private val _myName = mutableStateOf("")
     private val myName: String
         get() = _myName.value
+
     fun setMyName(name: String) {
         _myName.value = name
         Log.d("MyName", "My name is: $myName")
@@ -45,8 +55,12 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
         simulateGistCreated()
+        //startUpdatingUserCount()
     }
-    // remove this function later here and in the init block
+    /**
+    remove this function later here and in the init block, it is simply for simulation purpose
+     * @property simulateGistCreated
+     */
     fun simulateGistCreated() {
             val topic = "Kotlin"
             val gistId = "1b345kt"
@@ -79,7 +93,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
                 val messages = (0 until messagesJsonArray.length()).map { i ->
                     val msg = messagesJsonArray.getJSONObject(i)
-                    ChatMessage(
+                    GistMessage(
                         id = msg.getInt("id"),
                         gistId = msg.getString("gistId"),
                         customerId = msg.getInt("customerId"),
@@ -97,7 +111,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val customerId = jsonObject.getInt("customerId")
                 val fullName = jsonObject.getString("fullName")
                 val content = deEscapeContent(jsonObject.getString("content"))
-                val message = ChatMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = content, status = "received")
+                val message = GistMessage(id = messageId, gistId = gistId, customerId = customerId, sender = fullName, content = content, status = "received")
                 addMessage(message)
             }
             "messageAck" -> {
@@ -119,7 +133,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         println("Received message with Id: $messageId")
         val binaryData = jsonObject.getString("binaryData")
 
-        val message = ChatMessage(
+        val message = GistMessage(
             id = messageId,
             gistId = "",  // Adjust as necessary
             customerId = 0,  // Adjust as necessary
@@ -136,7 +150,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val message = prefixBytes + data
         WebSocketManager.sendBinary(message)
     }
-    fun addMessage(message: ChatMessage) {
+    fun addMessage(message: GistMessage) {
         val updatedMessages = _messages.value.orEmpty().toMutableList()
         updatedMessages.add(message)
         _messages.postValue(updatedMessages)
@@ -205,7 +219,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                     val messageId = generateMessageId()
                     sendBinary(videoByteArray, "KVideo", gistId, messageId, customerId, fullName = myName)
 
-                    val chatMessage = ChatMessage(
+                    val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
                         customerId = customerId,
@@ -216,10 +230,44 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                         binaryData = videoByteArray
                     )
                     Log.d("customerId", "CustomerId: $customerId")
-                    addMessage(chatMessage)
+                    addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing video: ${e.message}", e)
                 }
+            }
+        }
+    }
+    private val _formattedUserCount = MutableStateFlow(formatUserCount(0))
+    val formattedUserCount: StateFlow<String> = _formattedUserCount.asStateFlow()
+
+    fun updateUserCount(newCount: Int) {
+        /* userCount = newCount This code is only for testing */
+        _formattedUserCount.value = formatUserCount(newCount)
+    }
+
+    private fun formatUserCount(count: Int): String {
+        return when {
+            count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
+            count >= 100_000 -> String.format(Locale.US, "%dK", count / 100_000 * 100)
+            count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000)
+            else -> count.toString()
+        }
+    }
+    /**
+     * This function simulates updating the user count every 3 seconds.
+     * It generates a random number between 1 and 1,000 and adds it to the current user count.
+     * It uses the variable userCount to store the current user count.
+     * @property userCount
+     * @property startUpdatingUserCount
+     *
+     * */
+    private var userCount = 0
+    private fun startUpdatingUserCount() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(3000) // Delay for 3 seconds
+                val randomIncrement = Random.nextInt(1, 1_000)
+                updateUserCount(userCount + randomIncrement)
             }
         }
     }

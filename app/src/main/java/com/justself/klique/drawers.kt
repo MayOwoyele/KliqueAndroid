@@ -115,34 +115,17 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.Rounded.Contacts, contentDescription = "Profile") },
-                    text = "Contacts",
-                )
-                LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.MarkChatUnread, contentDescription = "Profile") },
                     text = "Chatrooms",
-                )
-                LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.Rounded.LocationCity, contentDescription = "Profile") },
-                    text = "Your Area",
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Settings, contentDescription = "Profile") },
                     text = "Settings",
                 )
-                Spacer(modifier = Modifier.weight(1F))
-                Text(
-                    text = "Powered by Just Self",
-                    modifier = Modifier.align(Alignment.CenterHorizontally),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-
-                Button(onClick = { drawerState.value = false }) {
+                /*Button(onClick = { drawerState.value = false }) {
                     Text("Close Drawer")
-                }
+                }*/
             }
         }
     }

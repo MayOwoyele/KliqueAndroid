@@ -78,11 +78,12 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 
 
+
 val Pink700 = Color(0xFFFF759C)
 val Pink400 = Color(0xFFC73868)
 val Pink200 = Color(0xFFFCA4C2)
 val LightBackground = Color(0xFFFFFFFF)
-val CultPink = Color(0xFF410C0C)
+val CultPink = Color(0xFF6D1E1E)
 val DarkBackground = Color(0xFF000000)
 val DarkSurface = Color(0xFF121212) // Dark grey
 val LightSurface = Color(0xFFFFFFFF) // White
@@ -104,10 +105,12 @@ val AppTypography = Typography(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Pink400,
+    primary = Pink700,
     surface = DarkSurface,
     background = DarkBackground,
-    onPrimary = Color.White
+    onPrimary = Color.White,
+    secondary = Pink700,
+    onSecondary = CultPink
 )
 
 private val LightColorScheme = lightColorScheme(
@@ -115,8 +118,8 @@ private val LightColorScheme = lightColorScheme(
     surface = LightSurface,
     background = LightBackground,
     onPrimary = Color.Black,
-    secondary = Pink200,
-    onSecondary = CultPink
+    secondary = Pink400,
+    onSecondary = Pink700
 )
 @Composable
 fun MyAppTheme(
@@ -248,7 +251,13 @@ fun MainContent(
                 }
             )
     ) {
-        NavigationHost(navController, isLoggedIn, productViewModel, customerId, fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker)
+        val application = LocalContext.current.applicationContext as Application
+        val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
+            factory = SharedCliqueViewModelFactory(application, customerId)
+        )
+        NavigationHost(navController, isLoggedIn, productViewModel, customerId,
+            fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
+            showEmojiPicker, application, sharedCliqueViewModel)
         LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart))
         RightDrawer(rightDrawerState, Modifier.align(Alignment.CenterEnd))
 

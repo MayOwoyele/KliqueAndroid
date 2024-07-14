@@ -3,6 +3,7 @@ package com.justself.klique
 import android.app.Application
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -14,17 +15,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
-import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
+
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, productViewModel: ProductViewModel, customerId: Int, fullName: String,
                    commentViewModel: CommentsViewModel, onEmojiPickerVisibilityChange: (Boolean) -> Unit,
-                   selectedEmoji: String, showEmojiPicker: Boolean) {
-    val application = LocalContext.current.applicationContext as Application
-    val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-        factory = SharedCliqueViewModelFactory(application, customerId)
-    )
+                   selectedEmoji: String, showEmojiPicker: Boolean, application: Application,
+                   sharedCliqueViewModel: SharedCliqueViewModel) {
+
     val chatDao = remember { DatabaseProvider.getDatabase(application).chatDao() }
     val viewModelFactory = remember { ChatViewModelFactory(chatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
@@ -87,6 +86,13 @@ fun NavigationHost(navController: NavHostController, isLoggedIn: Boolean, produc
         composable("bioScreen/{customerId}", arguments = listOf(navArgument("customerId") { type = NavType.IntType })
         ) { val profileId = it.arguments?.getInt("customerId")
             ?: throw IllegalStateException("where is the profileId?")
-        BioScreen(profileId, navController)}
+        BioScreen(profileId, navController)
+        }
+        composable("gistSettings/{gistId}"){backStackEntry ->
+            val gistId = backStackEntry.arguments?.getString("gistId")
+                ?: throw IllegalStateException("where is the gistId")
+            Log.d("GistId", "The gist Id is: $gistId")
+            GistSettings(navController, gistId)
+        }
     }
 }
