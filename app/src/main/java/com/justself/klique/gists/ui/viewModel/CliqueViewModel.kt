@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.GistMessage
+import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
@@ -39,9 +40,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     private val gistId: String
         get() = _gistCreatedOrJoined.value?.second ?: ""
     private var messageCounter = 0
+
+    private val _userStatus = MutableLiveData(UserStatus(isSpeaker = true, isOwner = true))
+    val userStatus: LiveData<UserStatus> = _userStatus
     private val _myName = mutableStateOf("")
-    private val _isSpeaker = MutableLiveData(false)
-    val isSpeaker: LiveData<Boolean> get() = _isSpeaker
     private val myName: String
         get() = _myName.value
 
@@ -53,9 +55,12 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
         simulateGistCreated()
-        startUpdatingUserCount()
+        //startUpdatingUserCount()
     }
-    // remove this function later here and in the init block
+    /**
+    remove this function later here and in the init block, it is simply for simulation purpose
+     * @property simulateGistCreated
+     */
     fun simulateGistCreated() {
             val topic = "Kotlin"
             val gistId = "1b345kt"
@@ -236,7 +241,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val formattedUserCount: StateFlow<String> = _formattedUserCount.asStateFlow()
 
     fun updateUserCount(newCount: Int) {
-        userCount = newCount
+        /* userCount = newCount This code is only for testing */
         _formattedUserCount.value = formatUserCount(newCount)
     }
 
@@ -248,6 +253,14 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             else -> count.toString()
         }
     }
+    /**
+     * This function simulates updating the user count every 3 seconds.
+     * It generates a random number between 1 and 1,000 and adds it to the current user count.
+     * It uses the variable userCount to store the current user count.
+     * @property userCount
+     * @property startUpdatingUserCount
+     *
+     * */
     private var userCount = 0
     private fun startUpdatingUserCount() {
         viewModelScope.launch {
