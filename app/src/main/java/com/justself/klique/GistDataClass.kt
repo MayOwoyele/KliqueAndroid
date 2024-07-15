@@ -47,3 +47,9 @@ data class Members(
     val isOwner: Boolean = false,
     val isSpeaker: Boolean = false
 )
+data class GistTopRow(
+    val gistId: String,
+    val topic: String,
+    val gistDescription: String,
+    val activeSpectators: String
+)

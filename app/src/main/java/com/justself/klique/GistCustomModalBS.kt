@@ -139,7 +139,7 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color.LightGray)
+                .background(MaterialTheme.colorScheme.surface)
                 .padding(horizontal = 16.dp)
                 .align(Alignment.TopCenter),
             horizontalArrangement = Arrangement.SpaceBetween,
