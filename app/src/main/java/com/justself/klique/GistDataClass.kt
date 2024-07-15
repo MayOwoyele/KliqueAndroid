@@ -40,3 +40,10 @@ data class UserStatus(
     val isSpeaker: Boolean,
     val isOwner: Boolean
 )
+data class Members(
+    val customerId: Int,
+    val fullName: String,
+    val isContact: Boolean = false,
+    val isOwner: Boolean = false,
+    val isSpeaker: Boolean = false
+)

@@ -112,10 +112,14 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.selects.select
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalComposeUiApi::class)
@@ -130,7 +134,8 @@ fun GistRoom(
     selectedEmoji: String,
     showEmojiPicker: Boolean,
     onNavigateToTrimScreen: (String) -> Unit,
-    navController: NavController
+    navController: NavController,
+    resetSelectedEmoji: () -> Unit
 ) {
     var message by remember { mutableStateOf(TextFieldValue("")) }
     val observedMessages by viewModel.messages.observeAsState(emptyList())
@@ -149,67 +154,73 @@ fun GistRoom(
 
 
     // Image Picker Launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let {
-            coroutineScope.launch {
-                try {
-                    val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
-                    Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
+    val imagePickerLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                coroutineScope.launch {
+                    try {
+                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
+                        Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
-                    val messageId = viewModel.generateMessageId()
-                    viewModel.sendBinary(imageByteArray, "KImage", gistId, messageId, customerId, myName)
+                        val messageId = viewModel.generateMessageId()
+                        viewModel.sendBinary(
+                            imageByteArray, "KImage", gistId, messageId, customerId, myName
+                        )
 
-                    val gistMessage = GistMessage(
-                        id = messageId,
-                        gistId = gistId,
-                        customerId = customerId,
-                        sender = myName,
-                        content = "",
-                        status = "pending",
-                        messageType = "KImage",
-                        binaryData = imageByteArray
-                    )
-                    viewModel.addMessage(gistMessage)
-                } catch (e: IOException) {
-                    Log.e("ChatRoom", "Error processing image: ${e.message}", e)
+                        val gistMessage = GistMessage(
+                            id = messageId,
+                            gistId = gistId,
+                            customerId = customerId,
+                            sender = myName,
+                            content = "",
+                            status = "pending",
+                            messageType = "KImage",
+                            binaryData = imageByteArray
+                        )
+                        viewModel.addMessage(gistMessage)
+                    } catch (e: IOException) {
+                        Log.e("ChatRoom", "Error processing image: ${e.message}", e)
+                    }
                 }
             }
         }
-    }
 
     // Video Picker Launcher
-    val videoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { selectedUri ->
-            coroutineScope.launch {
-                val filePath = FileUtils.getPath(context, selectedUri)
-                filePath?.let { path ->
-                    val fileUri = Uri.fromFile(File(path))
-                    val downscaledUri = VideoUtils.downscaleVideo(context, fileUri)
-                    Log.d("VideoProcessing", "Downscaled URI: $downscaledUri")
-                    if (downscaledUri == null) {
-                        Log.e("VideoProcessing", "Downscaling failed, using original file.")
-                        onNavigateToTrimScreen(fileUri.toString())  // Use the original file URI if downscaling fails
-                    } else {
-                        onNavigateToTrimScreen(downscaledUri.toString())  // Use the downscaled URI if successful
+    val videoPickerLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let { selectedUri ->
+                coroutineScope.launch {
+                    val filePath = FileUtils.getPath(context, selectedUri)
+                    filePath?.let { path ->
+                        val fileUri = Uri.fromFile(File(path))
+                        val downscaledUri = VideoUtils.downscaleVideo(context, fileUri)
+                        Log.d("VideoProcessing", "Downscaled URI: $downscaledUri")
+                        if (downscaledUri == null) {
+                            Log.e("VideoProcessing", "Downscaling failed, using original file.")
+                            onNavigateToTrimScreen(fileUri.toString())  // Use the original file URI if downscaling fails
+                        } else {
+                            onNavigateToTrimScreen(downscaledUri.toString())  // Use the downscaled URI if successful
+                        }
+                    } ?: run {
+                        Log.e("ChatRoom", "Error getting video path")
                     }
-                } ?: run {
-                    Log.e("ChatRoom", "Error getting video path")
                 }
             }
         }
-    }
 
     // Permission Launcher for Images
-    val permissionLauncherImages = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        permissionGrantedImages.value = granted
-        if (granted) imagePickerLauncher.launch("image/*")
-    }
+    val permissionLauncherImages =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            permissionGrantedImages.value = granted
+            if (granted) imagePickerLauncher.launch("image/*")
+        }
 
     // Permission Launcher for Videos
-    val permissionLauncherVideos = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        permissionGrantedVideos.value = granted
-        if (granted) videoPickerLauncher.launch("video/*")
-    }
+    val permissionLauncherVideos =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            permissionGrantedVideos.value = granted
+            if (granted) videoPickerLauncher.launch("video/*")
+        }
 
     // Handle Keyboard Visibility
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -222,8 +233,12 @@ fun GistRoom(
     // Handle Emoji Selection
     LaunchedEffect(selectedEmoji) {
         if (selectedEmoji.isNotEmpty()) {
-            message = message.copy(text = message.text + selectedEmoji, selection = TextRange(message.text.length + selectedEmoji.length))
+            message = message.copy(
+                text = message.text + selectedEmoji,
+                selection = TextRange(message.text.length + selectedEmoji.length)
+            )
         }
+        resetSelectedEmoji()
     }
 
     // Load Messages
@@ -281,12 +296,7 @@ fun GistRoom(
 
                     val messageId = viewModel.generateMessageId()
                     viewModel.sendBinary(
-                        audioByteArray,
-                        "KAudio",
-                        gistId,
-                        messageId,
-                        customerId,
-                        myName
+                        audioByteArray, "KAudio", gistId, messageId, customerId, myName
                     )
 
                     val gistMessage = GistMessage(
@@ -318,8 +328,15 @@ fun GistRoom(
                 .nestedScroll(nestedScrollConnection)
         ) {
             if (showTitle.value) {
-                GistTitleRow(topic = topic, expanded = expanded, onExpandChange = { expanded = it },
-                    viewModel = viewModel, userStatus = userStatus, navController = navController, gistId = gistId)
+                GistTitleRow(
+                    topic = topic,
+                    expanded = expanded,
+                    onExpandChange = { expanded = it },
+                    viewModel = viewModel,
+                    userStatus = userStatus,
+                    navController = navController,
+                    gistId = gistId
+                )
             }
 
             Spacer(modifier = Modifier.height(0.dp))
@@ -336,8 +353,7 @@ fun GistRoom(
             )
             Spacer(modifier = Modifier.height(5.dp))
 
-            InputRow(
-                message = message,
+            InputRow(message = message,
                 onMessageChange = { message = it },
                 onSendMessage = {
                     if (message.text.isNotEmpty()) {
@@ -356,7 +372,11 @@ fun GistRoom(
                             {
                             "type": "message",
                             "gistId": "$gistId",
-                            "content": "${message.text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")}",
+                            "content": "${
+                            message.text.replace("\\", "\\\\").replace("\"", "\\\"")
+                                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                                .replace("\b", "\\b")
+                        }",
                             "id": $messageId,
                             "sender": "$myName"
                             }
@@ -381,7 +401,7 @@ fun GistRoom(
                 isRecording = isRecording,
                 onStopRecording = stopRecording,
                 audioPermissionLauncher = audioPermissionLauncher,
-                onShowBottomSheet = {showBottomSheet = true},
+                onShowBottomSheet = { showBottomSheet = true },
                 isSpeaker = userStatus.isSpeaker
             )
         }
@@ -397,9 +417,15 @@ fun GistRoom(
 }
 
 @Composable
-fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> Unit,
-                 viewModel: SharedCliqueViewModel, userStatus: UserStatus,
-                 navController: NavController, gistId: String) {
+fun GistTitleRow(
+    topic: String,
+    expanded: Boolean,
+    onExpandChange: (Boolean) -> Unit,
+    viewModel: SharedCliqueViewModel,
+    userStatus: UserStatus,
+    navController: NavController,
+    gistId: String
+) {
     val isOwner = userStatus.isOwner
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -408,23 +434,20 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
     ) {
         val activeUserCount = viewModel.formattedUserCount.collectAsState().value
         Text(
-            text = "Gist: $topic",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            ),
-            color = MaterialTheme.colorScheme.onPrimary
+            text = "Gist: $topic", style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 20.sp, fontWeight = FontWeight.Bold
+            ), color = MaterialTheme.colorScheme.onPrimary
         )
         Box {
-            Row (verticalAlignment = Alignment.CenterVertically){
-                Text(
-                    text = "$activeUserCount spectators",
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "$activeUserCount spectators",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.then(if(isOwner){
+                    modifier = Modifier.then(if (isOwner) {
                         Modifier.clickable { navController.navigate("gistSettings/$gistId") }
-                    }else {Modifier})
-                )
+                    } else {
+                        Modifier
+                    }))
                 Box {
                     IconButton(onClick = { onExpandChange(true) }) {
                         Icon(
@@ -432,20 +455,15 @@ fun GistTitleRow(topic: String, expanded: Boolean, onExpandChange: (Boolean) -> 
                             contentDescription = "More options"
                         )
                     }
-                    DropdownMenu(
-                        expanded = expanded,
+                    DropdownMenu(expanded = expanded,
                         onDismissRequest = { onExpandChange(false) }) {
                         if (isOwner) {
-                            DropdownMenuItem(
-                                text = {Text("Gist Settings")},
-                                onClick = {navController.navigate("gistSettings/$gistId")}
-                            )
+                            DropdownMenuItem(text = { Text("Gist Settings") },
+                                onClick = { navController.navigate("gistSettings/$gistId") })
                         }
-                        DropdownMenuItem(
-                            text = { Text("Share") },
+                        DropdownMenuItem(text = { Text("Share") },
                             onClick = { /* Handle option 1 click */ })
-                        DropdownMenuItem(
-                            text = { Text("Exit") },
+                        DropdownMenuItem(text = { Text("Exit") },
                             onClick = { /* Handle option 2 click */ })
                     }
                 }
@@ -472,11 +490,15 @@ fun MessageContent(
             Log.d("ChatRoom", "Rendering message: ${message.content}")
             val isCurrentUser = message.customerId == customerId
             val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
-            val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
+            val shape = if (isCurrentUser) RoundedCornerShape(
+                16.dp, 0.dp, 16.dp, 16.dp
+            ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
 
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
+            ) {
                 Column(
                     modifier = Modifier
                         .background(Color.Gray, shape)
@@ -484,14 +506,12 @@ fun MessageContent(
                     horizontalAlignment = alignment
                 ) {
                     if (!isCurrentUser) {
-                        Text(
-                            text = message.sender,
+                        Text(text = message.sender,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier
                                 .padding(bottom = 4.dp)
-                                .clickable { navController.navigate("bioScreen/${message.customerId}") }
-                        )
+                                .clickable { navController.navigate("bioScreen/${message.customerId}") })
                     }
                     when (message.messageType) {
                         "KImage" -> {
@@ -504,30 +524,48 @@ fun MessageContent(
                                         .height(200.dp)
                                         .clip(shape)
                                 )
-                            } ?: Text(text = "Image not available", color = MaterialTheme.colorScheme.onPrimary)
+                            } ?: Text(
+                                text = "Image not available",
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
+
                         "KVideo" -> {
                             message.binaryData?.let { binaryData ->
                                 val videoUri = getUriFromByteArray(binaryData, context)
                                 AndroidView(
-                                    factory = { VideoView(context).apply {
-                                        setVideoURI(videoUri)
-                                        start()
-                                    } },
-                                    modifier = Modifier
+                                    factory = {
+                                        VideoView(context).apply {
+                                            setVideoURI(videoUri)
+                                            start()
+                                        }
+                                    }, modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
                                 )
-                            } ?: Text(text = "Video not available", color = MaterialTheme.colorScheme.onPrimary)
+                            } ?: Text(
+                                text = "Video not available",
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
+
                         "KAudio" -> {
                             message.binaryData?.let { binaryData ->
                                 val audioUri = getUriFromByteArray(binaryData, context)
-                                AudioPlayer(audioUri = audioUri, modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp))
-                            } ?: Text(text = "Audio not available", color = MaterialTheme.colorScheme.onPrimary)
+                                AudioPlayer(
+                                    audioUri = audioUri,
+                                    modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp)
+                                )
+                            } ?: Text(
+                                text = "Audio not available",
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
+
                         else -> {
-                            Text(text = message.content, color = MaterialTheme.colorScheme.background)
+                            Text(
+                                text = message.content, color = MaterialTheme.colorScheme.background
+                            )
                         }
                     }
                     if (isCurrentUser) {
@@ -606,7 +644,7 @@ fun InputRow(
 
     val offset by animateDpAsState(if (isRecording.value) (-0.5).dp else 0.dp)
     val boxWidth by animateDpAsState(targetValue = if (expandedState.value) 100.dp else 5.dp)
-    val textNotEmpty =message.text.isNotEmpty()
+    val textNotEmpty = message.text.isNotEmpty()
     val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp)
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -616,8 +654,7 @@ fun InputRow(
                     .fillMaxWidth()
                     .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
                     .imePadding()
-                    .offset(y = offset),
-                verticalAlignment = Alignment.CenterVertically
+                    .offset(y = offset), verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
@@ -640,8 +677,7 @@ fun InputRow(
                             }
                         }
                         val textScrollState = rememberScrollState()
-                        BasicTextField(
-                            value = message,
+                        BasicTextField(value = message,
                             onValueChange = {
                                 onMessageChange(it)
                                 coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
@@ -667,7 +703,11 @@ fun InputRow(
                                         if (isFocused.value) keyboardController?.show() else focusRequester.requestFocus()
                                     }
                                     false
-                                }
+                                },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Sentences
+                            )
                         )
                     }
                 }
@@ -692,10 +732,7 @@ fun InputRow(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = {
                                 launchPicker(
-                                    permissionLauncherImages,
-                                    imagePickerLauncher,
-                                    context,
-                                    "image"
+                                    permissionLauncherImages, imagePickerLauncher, context, "image"
                                 )
                             }) {
                                 Icon(
@@ -705,10 +742,7 @@ fun InputRow(
                             }
                             IconButton(onClick = {
                                 launchPicker(
-                                    permissionLauncherVideos,
-                                    videoPickerLauncher,
-                                    context,
-                                    "video"
+                                    permissionLauncherVideos, videoPickerLauncher, context, "video"
                                 )
                             }) {
                                 Icon(
@@ -740,8 +774,7 @@ fun InputRow(
                                     isRecording.value = false
                                 } else {
                                     if (ContextCompat.checkSelfPermission(
-                                            context,
-                                            Manifest.permission.RECORD_AUDIO
+                                            context, Manifest.permission.RECORD_AUDIO
                                         ) == PackageManager.PERMISSION_GRANTED
                                     ) {
                                         AudioRecorder.startRecording(context)
@@ -791,8 +824,7 @@ fun InputRow(
                     .fillMaxWidth()
                     .padding(bottom = if (showEmojiPicker) maxKeyboardHeightDp else 0.dp)
                     .imePadding()
-                    .offset(y = offset),
-                verticalAlignment = Alignment.CenterVertically
+                    .offset(y = offset), verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onShowBottomSheet) {
                     Icon(
@@ -815,6 +847,7 @@ fun InputRow(
         }
     }
 }
+
 private fun launchPicker(
     permissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
     launcher: ManagedActivityResultLauncher<String, Uri?>,
@@ -841,7 +874,10 @@ private fun launchPicker(
     }
 
     // Check if the necessary permission is granted
-    if (ContextCompat.checkSelfPermission(context, permissionToCheck) == PermissionChecker.PERMISSION_GRANTED) {
+    if (ContextCompat.checkSelfPermission(
+            context, permissionToCheck
+        ) == PermissionChecker.PERMISSION_GRANTED
+    ) {
         launcher.launch(mimeType)
     } else {
         permissionLauncher.launch(permissionToCheck)

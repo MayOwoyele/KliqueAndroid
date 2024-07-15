@@ -74,7 +74,8 @@ fun HomeScreen(
     selectedEmoji: String,
     showEmojiPicker: Boolean,
     onNavigateToTrimScreen: (String) -> Unit,
-    navController: NavController
+    navController: NavController,
+    resetSelectedEmoji: () -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -140,7 +141,8 @@ fun HomeScreen(
                 selectedEmoji = selectedEmoji,
                 showEmojiPicker = showEmojiPicker,
                 onNavigateToTrimScreen = onNavigateToTrimScreen,
-                navController = navController
+                navController = navController,
+                resetSelectedEmoji = resetSelectedEmoji
             )
         } else {
             Box(
