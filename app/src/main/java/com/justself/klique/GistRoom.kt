@@ -109,10 +109,13 @@ import java.io.File
 import java.io.IOException
 import android.Manifest
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -125,9 +128,7 @@ import kotlinx.coroutines.selects.select
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GistRoom(
-    topic: String,
     myName: String,
-    gistId: String,
     viewModel: SharedCliqueViewModel,
     customerId: Int,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
@@ -137,6 +138,7 @@ fun GistRoom(
     navController: NavController,
     resetSelectedEmoji: () -> Unit
 ) {
+    val gistId = viewModel.gistTopRow.collectAsState().value.gistId
     var message by remember { mutableStateOf(TextFieldValue("")) }
     val observedMessages by viewModel.messages.observeAsState(emptyList())
     val context = LocalContext.current
@@ -269,7 +271,7 @@ fun GistRoom(
             }
         }
     }
-    var isRecording = remember { mutableStateOf(false) }
+    val isRecording = remember { mutableStateOf(false) }
 
     // Permission launcher for recording audio
     val audioPermissionLauncher = rememberLauncherForActivityResult(
@@ -329,13 +331,11 @@ fun GistRoom(
         ) {
             if (showTitle.value) {
                 GistTitleRow(
-                    topic = topic,
                     expanded = expanded,
                     onExpandChange = { expanded = it },
                     viewModel = viewModel,
                     userStatus = userStatus,
                     navController = navController,
-                    gistId = gistId
                 )
             }
 
@@ -353,7 +353,8 @@ fun GistRoom(
             )
             Spacer(modifier = Modifier.height(5.dp))
 
-            InputRow(message = message,
+            InputRow(
+                message = message,
                 onMessageChange = { message = it },
                 onSendMessage = {
                     if (message.text.isNotEmpty()) {
@@ -418,25 +419,33 @@ fun GistRoom(
 
 @Composable
 fun GistTitleRow(
-    topic: String,
     expanded: Boolean,
     onExpandChange: (Boolean) -> Unit,
     viewModel: SharedCliqueViewModel,
     userStatus: UserStatus,
     navController: NavController,
-    gistId: String
 ) {
     val isOwner = userStatus.isOwner
+    val showDialog = remember { mutableStateOf(false) }
+    val showInfoDialog = remember { mutableStateOf(false) }
+    val gistTopRow by viewModel.gistTopRow.collectAsState()
+    val activeUserCount = gistTopRow.activeSpectators
+    val gistTopic = gistTopRow.topic
+    val gistDescription = gistTopRow.gistDescription
+    val id = gistTopRow.gistId
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        val activeUserCount = viewModel.formattedUserCount.collectAsState().value
+
         Text(
-            text = "Gist: $topic", style = MaterialTheme.typography.bodyLarge.copy(
+            text = "Gist: $gistTopic",
+            style = MaterialTheme.typography.bodyLarge.copy(
                 fontSize = 20.sp, fontWeight = FontWeight.Bold
-            ), color = MaterialTheme.colorScheme.onPrimary
+            ),
+            color = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.clickable { showInfoDialog.value = true }
         )
         Box {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -444,7 +453,7 @@ fun GistTitleRow(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.then(if (isOwner) {
-                        Modifier.clickable { navController.navigate("gistSettings/$gistId") }
+                        Modifier.clickable { navController.navigate("gistSettings/$id") }
                     } else {
                         Modifier
                     }))
@@ -455,19 +464,63 @@ fun GistTitleRow(
                             contentDescription = "More options"
                         )
                     }
-                    DropdownMenu(expanded = expanded,
+                    DropdownMenu(
+                        expanded = expanded,
                         onDismissRequest = { onExpandChange(false) }) {
                         if (isOwner) {
+                            DropdownMenuItem(text = { Text("Make Everyone a Speaker") },
+                                onClick = { showDialog.value = true })
                             DropdownMenuItem(text = { Text("Gist Settings") },
-                                onClick = { navController.navigate("gistSettings/$gistId") })
+                                onClick = { navController.navigate("gistSettings/$id") })
                         }
                         DropdownMenuItem(text = { Text("Share") },
                             onClick = { /* Handle option 1 click */ })
                         DropdownMenuItem(text = { Text("Exit") },
                             onClick = { /* Handle option 2 click */ })
                     }
+                    if (showDialog.value) {
+                        AlertDialog(
+                            onDismissRequest = { showDialog.value = false },
+                            title = {
+                                Text(
+                                    "Are you sure?",
+                                    style = MaterialTheme.typography.displayLarge
+                                )
+                            },
+                            text = {
+                                Text(
+                                    "Are you sure you want to make everyone a speaker? This might cause a rowdy gist",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showDialog.value = false
+                                        // Handle the "Yes" action here
+                                    }
+                                ) {
+                                    Text("Yes")
+                                }
+                            },
+                            dismissButton = {
+                                Button(
+                                    onClick = { showDialog.value = false }
+                                ) {
+                                    Text("No")
+                                }
+                            }
+                        )
+                    }
                 }
             }
+        }
+        if (showInfoDialog.value) {
+            AlertDialog(
+                title = { Text(gistTopic, style = MaterialTheme.typography.displayLarge) },
+                text = { Text(gistDescription, style = MaterialTheme.typography.bodyLarge) },
+                onDismissRequest = { showInfoDialog.value = false },
+                confirmButton = { /*TODO*/ })
         }
     }
 }
@@ -664,7 +717,11 @@ fun InputRow(
                         .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.small)
                         .padding(8.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically, modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 40.dp)
+                    ) {
                         if (imeVisible || showEmojiPicker) {
                             IconButton(onClick = {
                                 onEmojiPickerVisibilityChange(!showEmojiPicker)
@@ -689,6 +746,7 @@ fun InputRow(
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .align(alignment = Alignment.CenterVertically)
                                 .verticalScroll(textScrollState)
                                 .focusRequester(focusRequester)
                                 .onFocusChanged { focusState ->

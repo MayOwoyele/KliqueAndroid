@@ -12,6 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.GistMessage
+import com.justself.klique.GistTopRow
 import com.justself.klique.Members
 import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
@@ -41,13 +42,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val messages: LiveData<List<GistMessage>> = _messages
     private val gistId: String
         get() = _gistCreatedOrJoined.value?.second ?: ""
-    private var messageCounter = 0
 
     private val _userStatus = MutableLiveData(UserStatus(isSpeaker = true, isOwner = true))
     val userStatus: LiveData<UserStatus> = _userStatus
-    private val _myName = mutableStateOf("")
-    private val myName: String
-        get() = _myName.value
+
     private val _listOfContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfNonContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfOwners = MutableStateFlow<List<Members>>(emptyList())
@@ -57,17 +55,16 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val listOfOwners = _listOfOwners.asStateFlow()
     val listOfSpeakers = _listOfSpeakers.asStateFlow()
 
-    fun setMyName(name: String) {
-        _myName.value = name
-        Log.d("MyName", "My name is: $myName")
-    }
+    private val _gistTopRow =
+        MutableStateFlow(GistTopRow(gistId = "", topic = "", gistDescription = "", activeSpectators = ""))
+    val gistTopRow = _gistTopRow.asStateFlow()
 
     init {
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
         simulateGistCreated()
-        //startUpdatingUserCount()
         generateMembersList()
+        startUpdatingActiveSpectators()
     }
 
     /**
@@ -78,13 +75,14 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val topic = "Kotlin"
         val gistId = "1b345kt"
         _gistCreatedOrJoined.postValue(Pair(topic, gistId))
+        _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic, gistDescription = "This is for further testing")
     }
 
     override fun onCleared() {
         super.onCleared()
         WebSocketManager.unregisterListener(this)
     }
-
+    private var messageCounter = 0
     private fun initializeMessageCounter() {
         messageCounter = 0
     }
@@ -100,8 +98,8 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val gistId = jsonObject.getString("gistId")
                 val topic = jsonObject.getString("topic")
                 _gistCreatedOrJoined.postValue(Pair(topic, gistId))
+                _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic)
             }
-
             "previousMessages" -> {
                 val gistId = jsonObject.getString("gistId")
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
@@ -245,7 +243,13 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     fun close() {
         WebSocketManager.close()
     }
-
+    private val _myName = mutableStateOf("")
+    private val myName: String
+        get() = _myName.value
+    fun setMyName(name: String) {
+        _myName.value = name
+        Log.d("MyName", "My name is: $myName")
+    }
     fun handleTrimmedVideo(uri: Uri?) {
         uri?.let { validUri ->
             viewModelScope.launch {
@@ -280,14 +284,20 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             }
         }
     }
-
-    private val _formattedUserCount = MutableStateFlow(formatUserCount(0))
-    val formattedUserCount: StateFlow<String> = _formattedUserCount.asStateFlow()
-
-    fun updateUserCount(newCount: Int) {/* userCount = newCount This code is only for testing */
-        _formattedUserCount.value = formatUserCount(newCount)
+    fun updateSpectatorCount(newCount: Int) {
+        _gistTopRow.value = _gistTopRow.value.copy(activeSpectators = (formatUserCount(newCount)))
     }
-
+    var activeSpectatorsCount = 0
+    fun startUpdatingActiveSpectators() {
+        viewModelScope.launch {
+            while (isActive) {
+                delay(3000) // Delay for 3 seconds
+                val randomIncrement = Random.nextInt(1, 1000)
+                activeSpectatorsCount += randomIncrement
+                updateSpectatorCount(activeSpectatorsCount)
+            }
+        }
+    }
     private fun formatUserCount(count: Int): String {
         return when {
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
@@ -296,35 +306,17 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             else -> count.toString()
         }
     }
-
-    /**
-     * This function simulates updating the user count every 3 seconds.
-     * It generates a random number between 1 and 1,000 and adds it to the current user count.
-     * It uses the variable userCount to store the current user count.
-     * @property userCount
-     * @property startUpdatingUserCount
-     *
-     * */
-    private var userCount = 0
-    private fun startUpdatingUserCount() {
-        viewModelScope.launch {
-            while (isActive) {
-                delay(3000) // Delay for 3 seconds
-                val randomIncrement = Random.nextInt(1, 1_000)
-                updateUserCount(userCount + randomIncrement)
-            }
-        }
-    }
-    private fun sortMembersByContact(members: MutableList<Members>){
-        val contacts = members.filter {it.isContact}
-        val nonContacts = members.filter {!it.isContact}
-        val owners = members.filter {it.isOwner}
-        val speakers = members.filter {it.isSpeaker && !it.isOwner}
+    private fun sortMembersByContact(members: MutableList<Members>) {
+        val contacts = members.filter { it.isContact }
+        val nonContacts = members.filter { !it.isContact }
+        val owners = members.filter { it.isOwner }
+        val speakers = members.filter { it.isSpeaker && !it.isOwner }
         _listOfContactMembers.value = contacts
         _listOfNonContactMembers.value = nonContacts
         _listOfOwners.value = owners
         _listOfSpeakers.value = speakers
     }
+
     fun generateMembersList() {
         val membersList = mutableListOf<Members>()
         for (i in 1..40) { // Generate 100 members

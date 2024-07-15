@@ -19,10 +19,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -34,19 +38,29 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 
 @Composable
@@ -54,6 +68,10 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
     var isEditing by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf("Editable Text") }
     var editedText by remember { mutableStateOf(text) }
+    var isSearchMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -80,14 +98,19 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
                     contentDescription = "Image with Pencil Icon",
                     modifier = Modifier.fillMaxWidth()
                 )
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Icon",
-                    modifier = Modifier
+                IconButton(
+                    onClick = { //other things for picking image
+                        isSearchMode = false
+                    }, modifier = Modifier
                         .size(24.dp)
                         .align(Alignment.BottomEnd)
                         .padding(4.dp)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Icon"
+                    )
+                }
             }
 
             // Right Box with Text and Pencil Icon
@@ -135,7 +158,7 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
                     )
                 }
                 IconButton(
-                    onClick = { isEditing = !isEditing },
+                    onClick = { isEditing = !isEditing; isSearchMode = false },
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(4.dp)
@@ -153,31 +176,69 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
                 .padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(
-                onClick = {
+            if (isSearchMode) {
+                TextField(value = searchQuery,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 20) {
+                            searchQuery = newValue
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .clip(RoundedCornerShape(16.dp)),
+                    singleLine = true,
+                    placeholder = { Text("Search...") },
+                    leadingIcon = {
+                        IconButton(onClick = {
+                            isSearchMode = false
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
+                        }
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(imageVector = Icons.Filled.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    })
+
+            } else {
+                IconButton(onClick = {
                     // Handle back navigation
                     navController.popBackStack()
+                }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
                 }
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back"
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(
-                onClick = {
-                    if (isEditing) {
-                        text = editedText
-                        isEditing = false
-                    }
-                },
-                modifier = Modifier
-                    .weight(1f) // Makes the button fill the remaining space
-            ) {
-                Text(text = "Save")
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (isEditing) {
+                            text = editedText
+                            isEditing = false
+                        }
+                    }, modifier = Modifier.weight(1f) // Makes the button fill the remaining space
+                ) {
+                    Text(text = "Save")
+                }
+                IconButton(onClick = {
+                    isSearchMode = true
+                }) {
+                    Icon(imageVector = Icons.Filled.Search, contentDescription = "Search")
+                }
             }
         }
+
         val listOfContactMembers by viewModel.listOfContactMembers.collectAsState()
         val listOfNonContactMembers by viewModel.listOfNonContactMembers.collectAsState()
         val listOfOwners by viewModel.listOfOwners.collectAsState()
@@ -223,20 +284,15 @@ fun MyMembersList(member: Members) {
     var showMenu by remember { mutableStateOf(false) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .padding(horizontal = 20.dp)
-            .clickable { showMenu = true }
-    ) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .height(50.dp)
+        .padding(horizontal = 20.dp)
+        .clickable { showMenu = true }) {
         Text(text = member.fullName)
 
         Box(modifier = Modifier.align(Alignment.BottomStart)) {
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                 if (member.isOwner) {
                     DropdownMenuItem(onClick = {
                         showMenu = false
@@ -268,14 +324,11 @@ fun MyMembersList(member: Members) {
         }
 
         if (showConfirmationDialog) {
-            ConfirmationDialog(
-                onConfirm = {
-                    // Handle Make owner action
-                    showConfirmationDialog = false
-                    // Add your logic here
-                },
-                onDismiss = { showConfirmationDialog = false }
-            )
+            ConfirmationDialog(onConfirm = {
+                // Handle Make owner action
+                showConfirmationDialog = false
+                // Add your logic here
+            }, onDismiss = { showConfirmationDialog = false })
         }
     }
 }
@@ -294,8 +347,7 @@ fun Headers(text: String) {
 
 @Composable
 fun ConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
+    AlertDialog(onDismissRequest = onDismiss,
         title = { Text(text = "Confirmation", style = MaterialTheme.typography.displayLarge) },
         text = {
             Text(
@@ -312,6 +364,5 @@ fun ConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
             Button(onClick = onDismiss) {
                 Text("No")
             }
-        }
-    )
+        })
 }

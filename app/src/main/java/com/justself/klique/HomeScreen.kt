@@ -84,8 +84,6 @@ fun HomeScreen(
     // Observe gist state from ViewModel
     val gistState by viewModel.gistCreatedOrJoined.observeAsState()
     val gistActive = gistState != null
-    val gistTopic = gistState?.first.orEmpty()
-    val gistId = gistState?.second.orEmpty()
 
     val density = LocalDensity.current
     val buttonPosition = remember { mutableStateOf(Offset.Zero) }
@@ -132,9 +130,7 @@ fun HomeScreen(
     ) {
         if (gistActive) {
             GistRoom(
-                topic = gistTopic,
                 myName = fullName,
-                gistId = gistId,
                 viewModel = viewModel,
                 customerId = customerId,
                 onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
