@@ -40,9 +40,7 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CustomBottomSheet(
-    visible: Boolean,
-    onDismissRequest: () -> Unit,
-    content: @Composable () -> Unit
+    visible: Boolean, onDismissRequest: () -> Unit, content: @Composable () -> Unit
 ) {
     if (visible) {
         Box(
@@ -77,22 +75,25 @@ fun CustomBottomSheet(
 @Composable
 fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController) {
     var showRepliesForCommentId by remember { mutableStateOf<Int?>(null) }
-    var showKCDonationDialog by remember { mutableStateOf(false)}
+    var showKCDonationDialog by remember { mutableStateOf(false) }
     val comments = remember {
         List(20) { index ->
-            GistComment(
-                id = index,
+            GistComment(id = index,
                 fullName = "User $index",
                 comment = "This is comment number $index",
                 customerId = index,
                 replies = List(index % 3) { replyIndex ->
-                    Reply(id = replyIndex, fullName = "User ${replyIndex + 1}", customerId = index, reply = "This is a reply to comment $index")
-                }
-            )
+                    Reply(
+                        id = replyIndex,
+                        fullName = "User ${replyIndex + 1}",
+                        customerId = index,
+                        reply = "This is a reply to comment $index"
+                    )
+                })
         }
     }
     val listState = rememberLazyListState()
-    var loading by remember{ mutableStateOf(false)}
+    var loading by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     Box(modifier = Modifier.fillMaxSize()) {
         // Scrollable list of comments or replies
@@ -121,12 +122,9 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
             }
         }
         LaunchedEffect(listState) {
-            snapshotFlow { listState.layoutInfo.visibleItemsInfo }
-                .map { it.lastOrNull()?.index }
-                .distinctUntilChanged()
-                .filter { it == comments.size -1 }
-                .collect {
-                    if (!loading){
+            snapshotFlow { listState.layoutInfo.visibleItemsInfo }.map { it.lastOrNull()?.index }
+                .distinctUntilChanged().filter { it == comments.size - 1 }.collect {
+                    if (!loading) {
                         loading = true
                         coroutineScope.launch {
                             //viewModel.loadMoreComments()
@@ -149,14 +147,16 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
         ) {
             if (showRepliesForCommentId != null) {
                 IconButton(onClick = { showRepliesForCommentId = null }) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
                 }
             }
             Text(if (showRepliesForCommentId == null) "Comments" else "Replies")
             IconButton(onClick = { showKCDonationDialog = true }) {
                 Icon(
-                    imageVector = Icons.Default.AccountBalanceWallet,
-                    contentDescription = "Wallet"
+                    imageVector = Icons.Default.AccountBalanceWallet, contentDescription = "Wallet"
                 )
             }
         }
@@ -180,43 +180,45 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                     .weight(1f)
                     .border(width = 1.dp, color = MaterialTheme.colorScheme.onPrimary),
                 placeholder = { Text("Add a comment") },
-                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text)
+                keyboardOptions = KeyboardOptions.Default.copy(
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Sentences
+                )
             )
+            Log.d("text", text.value)
             IconButton(onClick = { /* Add comment */ }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send icon")
             }
         }
         if (showKCDonationDialog) {
-            KCDialog(
-                onDismissRequest = { showKCDonationDialog = false},
-                onDonate = {}
-            )
+            KCDialog(onDismissRequest = { showKCDonationDialog = false }, onDonate = {})
         }
     }
 }
 
 
 @Composable
-fun CommentItem(comment: GistComment, onReplyClick: () -> Unit,
-                viewModel: SharedCliqueViewModel, navController: NavController) {
+fun CommentItem(
+    comment: GistComment,
+    onReplyClick: () -> Unit,
+    viewModel: SharedCliqueViewModel,
+    navController: NavController
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(
-            text = comment.fullName,
+        Text(text = comment.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { navController.navigate("bioScreen/${comment.customerId}") }
-        )
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${comment.customerId}") })
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = comment.comment, style = MaterialTheme.typography.bodyLarge)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Thumbs up icon below the comment
-        Text(
-            text = "👍",
+        Text(text = "👍",
             modifier = Modifier
                 .clickable { /* Handle thumbs up */ }
                 .align(Alignment.Start) // Align the thumbs up icon to the start
@@ -242,16 +244,15 @@ fun ReplyItem(reply: Reply, navController: NavController) {
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(
-            text = reply.fullName,
+        Text(text = reply.fullName,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { navController.navigate("bioScreen/${reply.customerId}") }
-        )
+            modifier = Modifier.clickable { navController.navigate("bioScreen/${reply.customerId}") })
         Spacer(modifier = Modifier.height(4.dp))
         Text(text = reply.reply, style = MaterialTheme.typography.bodyLarge)
     }
 }
+
 @Composable
 fun KCDialog(onDismissRequest: () -> Unit, onDonate: (Int) -> Unit) {
     var kcAmount by remember { mutableIntStateOf(0) }
@@ -285,7 +286,7 @@ fun KCDialog(onDismissRequest: () -> Unit, onDonate: (Int) -> Unit) {
                         modifier = Modifier.width(100.dp),
                         textStyle = MaterialTheme.typography.bodyLarge,
                         singleLine = true,
-                        placeholder = {Text("0")},
+                        placeholder = { Text("0") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     IconButton(onClick = { kcAmount++ }) {
