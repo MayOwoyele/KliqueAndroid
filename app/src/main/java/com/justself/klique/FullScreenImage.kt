@@ -1,86 +1,123 @@
 package com.justself.klique
 
 import android.util.Log
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.toSize
 import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
-import kotlin.math.roundToInt
 
 @Composable
 fun FullScreenImage(viewModel: SharedCliqueViewModel, navController: NavController) {
     val bitmap by viewModel.bitmap.observeAsState()
-
-
+    val scale = remember { mutableStateOf(1f) }
+    val offsetX = remember { mutableStateOf(0f) }
+    val offsetY = remember { mutableStateOf(0f) }
+    val doubleTapScale = 2f
     bitmap?.let {
         val bitmapWidthPx = it.width.toFloat()
         val bitmapHeightPx = it.height.toFloat()
-        val density = LocalDensity.current.density
-        Log.d("FullScreenImage", "Bitmap Width in Pixels: ${bitmapWidthPx} px")
-        Log.d("FullScreenImage", "Bitmap Height in Pixels: ${bitmapHeightPx} px")
+        Log.d("FullScreenImage", "Bitmap width is $bitmapWidthPx, bitmap height is $bitmapHeightPx")
 
-        val bitmapWidthDp = bitmapWidthPx / density
-        val bitmapHeightDp = bitmapHeightPx / density
+        Canvas(modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures(
+                    onGesture = { _, pan, zoom, _ ->
+                        // Update scale
+                        val newScale = (scale.value * zoom).coerceIn(1f, 3f)
+                        scale.value = newScale
 
-        Log.d("FullScreenImage", "Bitmap Width: ${bitmapWidthDp} dp")
-        Log.d("FullScreenImage", "Bitmap Height: ${bitmapHeightDp} dp")
+                        // Calculate necessary values for panning
+                        val canvasWidth = size.width
+                        val canvasHeight = size.height
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
+                        val widthScaleFactor = canvasWidth / bitmapWidthPx
+                        val heightScaleFactor = canvasHeight / bitmapHeightPx
+                        val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * newScale
+
+                        val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
+                        val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
+
+                        // Calculate maximum offsets to prevent panning out of bounds
+                        val maxXOffset = ((scaledBitmapWidth - canvasWidth) / 2).coerceAtLeast(0f)
+                        val maxYOffset = ((scaledBitmapHeight - canvasHeight) / 2).coerceAtLeast(0f)
+
+                        // Update offsets with bounds checking
+                        offsetX.value = (offsetX.value + pan.x).coerceIn(-maxXOffset, maxXOffset)
+                        offsetY.value = (offsetY.value + pan.y).coerceIn(-maxYOffset, maxYOffset)
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = { tapOffset ->
+                    scale.value = if (scale.value == 1f) doubleTapScale else 1f
+
+                    val canvasWidth = size.width
+                    val canvasHeight = size.height
+
+                    val widthScaleFactor = canvasWidth / bitmapWidthPx
+                    val heightScaleFactor = canvasHeight / bitmapHeightPx
+
+                    val newScale = scale.value
+                    val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * newScale
+
+                    val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
+                    val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
+                    val drawOffsetX = (canvasWidth - scaledBitmapWidth) / 2
+                    val drawOffsetY = (canvasHeight - scaledBitmapHeight) / 2
+
+                    val maxXOffset = ((scaledBitmapWidth - canvasWidth) / 2).coerceAtLeast(0f)
+                    val maxYOffset = ((scaledBitmapHeight - canvasHeight) / 2).coerceAtLeast(0f)
+                    offsetX.value = if (newScale == doubleTapScale) {
+                        ((canvasWidth / 2 - tapOffset.x * newScale).coerceIn(
+                            -maxXOffset,
+                            maxXOffset
+                        ))
+                    } else {
+                        0f
+                    }
+                    offsetY.value = if (newScale == doubleTapScale) {
+                        ((canvasHeight / 2 - tapOffset.x * newScale)).coerceIn(
+                            -maxYOffset,
+                            maxYOffset
+                        )
+                    } else {
+                        0f
+                    }
+                })
+            }) {
             val canvasWidth = size.width
             val canvasHeight = size.height
-
-            Log.d("FullScreenImage", "Canvas Width: ${canvasWidth} dp")
-            Log.d("FullScreenImage", "Canvas Height: ${canvasHeight} dp")
 
             val widthScaleFactor = canvasWidth / bitmapWidthPx
             val heightScaleFactor = canvasHeight / bitmapHeightPx
 
-            val scale = minOf(widthScaleFactor, heightScaleFactor)
+            // Calculate the scale to fit the bitmap to the canvas, considering the current scale
+            val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.value
 
-            val scaledBitmapWidth = bitmapWidthPx * scale
-            val scaledBitmapHeight = bitmapHeightPx * scale
-            val offsetX = (canvasWidth - scaledBitmapWidth) / 2
-            val offsetY = (canvasHeight - scaledBitmapHeight) / 2
+            val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
+            val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
 
-            Log.d("FullScreenImage", "OffsetX: ${offsetX} dp")
-            Log.d("FullScreenImage", "OffsetY: ${offsetY} dp")
-            Log.d("FullScreenImage", "Scale: ${scale}")
+            // Calculate the offsets to center the bitmap within the canvas
+            val offsetXForFit = (canvasWidth - scaledBitmapWidth) / 2 + offsetX.value
+            val offsetYForFit = (canvasHeight - scaledBitmapHeight) / 2 + offsetY.value
 
             with(drawContext.canvas.nativeCanvas) {
                 save()
-                translate(offsetX, offsetY) // Ensure this conversion is correct
-                scale(scale, scale)
+                translate(offsetXForFit, offsetYForFit) // Ensure this conversion is correct
+                scale(scaleBitmapToFit, scaleBitmapToFit)
                 drawImage(
                     image = it.asImageBitmap(),
                     topLeft = Offset.Zero
