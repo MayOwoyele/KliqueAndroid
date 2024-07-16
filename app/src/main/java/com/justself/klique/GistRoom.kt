@@ -120,6 +120,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.selects.select
@@ -349,7 +350,8 @@ fun GistRoom(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
-                navController = navController
+                navController = navController,
+                viewModel = viewModel
             )
             Spacer(modifier = Modifier.height(5.dp))
 
@@ -532,7 +534,8 @@ fun MessageContent(
     context: Context,
     scrollState: LazyListState,
     modifier: Modifier = Modifier,
-    navController: NavController
+    navController: NavController,
+    viewModel: SharedCliqueViewModel
 ) {
     LazyColumn(
         state = scrollState,
@@ -546,7 +549,7 @@ fun MessageContent(
             val shape = if (isCurrentUser) RoundedCornerShape(
                 16.dp, 0.dp, 16.dp, 16.dp
             ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-
+            var isExpanded by remember { mutableStateOf(false) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -576,6 +579,10 @@ fun MessageContent(
                                     modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
+                                        .clickable {
+                                            viewModel.setBitmap(bitmap)
+                                            navController.navigate("fullScreenImage")
+                                        }
                                 )
                             } ?: Text(
                                 text = "Image not available",
@@ -595,6 +602,15 @@ fun MessageContent(
                                     }, modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
+                                        .clickable {
+                                            navController.navigate(
+                                                "fullScreenVideo/${
+                                                    Uri.encode(
+                                                        videoUri.toString()
+                                                    )
+                                                }"
+                                            )
+                                        }
                                 )
                             } ?: Text(
                                 text = "Video not available",

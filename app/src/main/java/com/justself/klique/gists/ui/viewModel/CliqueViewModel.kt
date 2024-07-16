@@ -2,6 +2,7 @@
 package com.justself.klique.gists.ui.viewModel
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
@@ -59,12 +60,16 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         MutableStateFlow(GistTopRow(gistId = "", topic = "", gistDescription = "", activeSpectators = ""))
     val gistTopRow = _gistTopRow.asStateFlow()
 
+    private val _bitmap = MutableLiveData<Bitmap?>()
+    val bitmap: LiveData<Bitmap?> get() = _bitmap
+
+
     init {
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
         simulateGistCreated()
         generateMembersList()
-        startUpdatingActiveSpectators()
+        //startUpdatingActiveSpectators()
     }
 
     /**
@@ -206,6 +211,13 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         """.trimIndent()
         send(message)
     }
+    fun setBitmap(bitmap: Bitmap) {
+        _bitmap.value = bitmap
+    }
+    fun clearBitmap() {
+        Log.d("Bitmap", "Bitmap cleared")
+        _bitmap.value = null
+    }
 
     fun isGistActive(): Boolean {
         return _gistCreatedOrJoined.value != null
@@ -292,7 +304,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         viewModelScope.launch {
             while (isActive) {
                 delay(3000) // Delay for 3 seconds
-                val randomIncrement = Random.nextInt(1, 1000)
+                val randomIncrement = Random.nextInt(1, 10000)
                 activeSpectatorsCount += randomIncrement
                 updateSpectatorCount(activeSpectatorsCount)
             }
@@ -301,8 +313,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     private fun formatUserCount(count: Int): String {
         return when {
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
-            count >= 100_000 -> String.format(Locale.US, "%dK", count / 100_000 * 100)
-            count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000)
+            count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000) // Keep in thousands up to a million
             else -> count.toString()
         }
     }

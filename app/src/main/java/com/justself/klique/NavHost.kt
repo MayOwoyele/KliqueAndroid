@@ -43,7 +43,8 @@ fun NavigationHost(
         startDestination = if (isLoggedIn) "home" else "login"
     ) {
         composable("home") {
-            HomeScreen(customerId, fullName, sharedCliqueViewModel,
+            HomeScreen(
+                customerId, fullName, sharedCliqueViewModel,
                 onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker,
                 onNavigateToTrimScreen = { uri ->
                     navController.navigate(
@@ -132,6 +133,14 @@ fun NavigationHost(
                 ?: throw IllegalStateException("where is the gistId")
             Log.d("GistId", "The gist Id is: $gistId")
             GistSettings(navController, gistId, sharedCliqueViewModel)
+        }
+        composable("fullScreenImage") { backStackEntry ->
+            FullScreenImage(viewModel = sharedCliqueViewModel, navController = navController)
+        }
+        composable("fullScreenVideo/{videoUri}") { backStackEntry ->
+            val videoUriString = backStackEntry.arguments?.getString("videoUri")
+                ?: throw IllegalStateException("where is the videoUri")
+            FullScreenVideo(videoUri = videoUriString, navController = navController)
         }
     }
 }
