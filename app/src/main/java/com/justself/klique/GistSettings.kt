@@ -1,30 +1,83 @@
 package com.justself.klique
 
-import android.text.TextUtils.replace
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Composable
-fun GistSettings(navController: NavController, gistId: String) {
+fun GistSettings(navController: NavController, gistId: String, viewModel: SharedCliqueViewModel) {
     var isEditing by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf("Editable Text") }
     var editedText by remember { mutableStateOf(text) }
+    var isSearchMode by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
 
-    Column(modifier = Modifier.fillMaxSize().imePadding()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -45,14 +98,19 @@ fun GistSettings(navController: NavController, gistId: String) {
                     contentDescription = "Image with Pencil Icon",
                     modifier = Modifier.fillMaxWidth()
                 )
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit Icon",
-                    modifier = Modifier
+                IconButton(
+                    onClick = { //other things for picking image
+                        isSearchMode = false
+                    }, modifier = Modifier
                         .size(24.dp)
                         .align(Alignment.BottomEnd)
                         .padding(4.dp)
-                )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit Icon"
+                    )
+                }
             }
 
             // Right Box with Text and Pencil Icon
@@ -69,43 +127,122 @@ fun GistSettings(navController: NavController, gistId: String) {
                         onValueChange = { newValue ->
                             if (newValue.length <= 150) {
                                 editedText = newValue.replace("\n", "")
-                            } },
-                        modifier = Modifier.fillMaxWidth(1f).height(100.dp).padding(4.dp).align(alignment = Alignment.Center),
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(1f)
+                            .height(100.dp)
+                            .padding(4.dp)
+                            .align(alignment = Alignment.Center),
                         textStyle = MaterialTheme.typography.bodyMedium,
-                        colors = TextFieldDefaults.colors(focusedContainerColor = MaterialTheme.colorScheme.background,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.background, focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary)
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.background,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            capitalization = KeyboardCapitalization.Sentences
+                        )
                     )
                 } else {
-                    Text(text = text, modifier = Modifier.fillMaxSize(1f).padding(4.dp).wrapContentHeight(Alignment.CenterVertically).align(alignment = Alignment.Center), style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = text,
+                        modifier = Modifier
+                            .fillMaxSize(1f)
+                            .padding(4.dp)
+                            .wrapContentHeight(Alignment.CenterVertically)
+                            .align(alignment = Alignment.Center),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
                 IconButton(
-                    onClick = { isEditing = !isEditing },
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp)
+                    onClick = { isEditing = !isEditing; isSearchMode = false },
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Icon"
+                        imageVector = Icons.Default.Edit, contentDescription = "Edit Icon"
                     )
                 }
             }
         }
 
-        // Save Button
-        Button(
-            onClick = {
-                if (isEditing) {
-                    text = editedText
-                    isEditing = false
-                }
-            },
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(10.dp)
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "Save")
+            if (isSearchMode) {
+                TextField(value = searchQuery,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 20) {
+                            searchQuery = newValue
+                        }
+                    },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .clip(RoundedCornerShape(16.dp)),
+                    singleLine = true,
+                    placeholder = { Text("Search...") },
+                    leadingIcon = {
+                        IconButton(onClick = {
+                            isSearchMode = false
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                        LaunchedEffect(Unit) {
+                            focusRequester.requestFocus()
+                        }
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(imageVector = Icons.Filled.Clear, contentDescription = "Clear")
+                            }
+                        }
+                    })
+
+            } else {
+                IconButton(onClick = {
+                    // Handle back navigation
+                    navController.popBackStack()
+                }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back"
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (isEditing) {
+                            text = editedText
+                            isEditing = false
+                        }
+                    }, modifier = Modifier.weight(1f) // Makes the button fill the remaining space
+                ) {
+                    Text(text = "Save")
+                }
+                IconButton(onClick = {
+                    isSearchMode = true
+                }) {
+                    Icon(imageVector = Icons.Filled.Search, contentDescription = "Search")
+                }
+            }
         }
 
+        val listOfContactMembers by viewModel.listOfContactMembers.collectAsState()
+        val listOfNonContactMembers by viewModel.listOfNonContactMembers.collectAsState()
+        val listOfOwners by viewModel.listOfOwners.collectAsState()
+        val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
         // LazyColumn
         LazyColumn(
             modifier = Modifier
@@ -113,7 +250,119 @@ fun GistSettings(navController: NavController, gistId: String) {
                 .weight(2f)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Lazy list content will be handled by you
+            item {
+                Headers("Owners")
+            }
+            items(listOfOwners) { member ->
+                MyMembersList(member)
+            }
+            item {
+                Headers("Speakers")
+            }
+            items(listOfSpeakers) { member ->
+                MyMembersList(member)
+            }
+            item {
+                Headers("Your Contacts")
+            }
+            items(listOfContactMembers) { member ->
+                MyMembersList(member)
+            }
+            item {
+                Headers("Non Contacts")
+            }
+            items(listOfNonContactMembers) { member ->
+                MyMembersList(member)
+            }
         }
     }
+}
+
+
+@Composable
+fun MyMembersList(member: Members) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showConfirmationDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .height(50.dp)
+        .padding(horizontal = 20.dp)
+        .clickable { showMenu = true }) {
+        Text(text = member.fullName)
+
+        Box(modifier = Modifier.align(Alignment.BottomStart)) {
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                if (member.isOwner) {
+                    DropdownMenuItem(onClick = {
+                        showMenu = false
+                    }, text = { Text("You can't change anything about owners") })
+                } else if (member.isSpeaker) {
+                    DropdownMenuItem(onClick = {
+                        // Handle Remove speaker action
+                        showMenu = false
+                        // Add your logic here
+                    }, text = { Text("Remove as Speaker") })
+                    DropdownMenuItem(onClick = {
+                        // Show confirmation dialog to make owner
+                        showMenu = false
+                        showConfirmationDialog = true
+                    }, text = { Text("Make Owner") })
+                } else {
+                    DropdownMenuItem(onClick = {
+                        // Show confirmation dialog to make owner
+                        showMenu = false
+                        showConfirmationDialog = true
+                    }, text = { Text("Make Owner") })
+                    DropdownMenuItem(onClick = {
+                        // Handle Make speaker action
+                        showMenu = false
+                        // Add your logic here
+                    }, text = { Text("Make Speaker") })
+                }
+            }
+        }
+
+        if (showConfirmationDialog) {
+            ConfirmationDialog(onConfirm = {
+                // Handle Make owner action
+                showConfirmationDialog = false
+                // Add your logic here
+            }, onDismiss = { showConfirmationDialog = false })
+        }
+    }
+}
+
+@Composable
+fun Headers(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 50.dp),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Text(text = text, style = MaterialTheme.typography.displayLarge)
+    }
+}
+
+@Composable
+fun ConfirmationDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(onDismissRequest = onDismiss,
+        title = { Text(text = "Confirmation", style = MaterialTheme.typography.displayLarge) },
+        text = {
+            Text(
+                "Are you sure you want to make this member an owner? This action is irreversible",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text("Yes")
+            }
+        },
+        dismissButton = {
+            Button(onClick = onDismiss) {
+                Text("No")
+            }
+        })
 }

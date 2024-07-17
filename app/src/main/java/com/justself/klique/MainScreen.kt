@@ -38,6 +38,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -60,6 +61,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -141,45 +143,62 @@ fun MainScreen(
     authViewModel: AuthViewModel = viewModel(),
     productViewModel: ProductViewModel = viewModel(),
     userDetailsViewModel: UserDetailsViewModel = viewModel()
-){
+) {
     val navController = rememberNavController()
     val leftDrawerState = remember { mutableStateOf(false) }
     val rightDrawerState = remember { mutableStateOf(false) }
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
     val cartItemCount by productViewModel.cartItemCount.observeAsState(0) // Ensure it's being observed here
-    Log.d("DebuggerCartItemCount", "Composable fully re-composed with Cart item count: $cartItemCount")
+    Log.d(
+        "DebuggerCartItemCount",
+        "Composable fully re-composed with Cart item count: $cartItemCount"
+    )
     // Track keyboard visibility
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    Log.d("ConditionalCheck", "State of imeVisible: $imeVisible")
-    var showEmojiPicker by remember { mutableStateOf(false)}
-    Log.d("ConditionalCheck", "State of showEmojiPicker: $showEmojiPicker")
-    var selectedEmoji by remember { mutableStateOf("")}
+    var showEmojiPicker by remember { mutableStateOf(false) }
+    var selectedEmoji by remember { mutableStateOf("") }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val messageScreenGuy = currentRoute?.startsWith("messageScreen/")  == true
-    val bioScreenGuy = currentRoute?.startsWith("bioScreen/")  == true
-    Log.d("ConditionalCheck","State of bioScreenGuy: $bioScreenGuy")
-
+    val messageScreenGuy = currentRoute?.startsWith("messageScreen/") == true
+    val bioScreenGuy = currentRoute?.startsWith("bioScreen/") == true
+    val imageViewer = currentRoute?.startsWith("fullScreenImage") == true
+    Log.d("Emoji", "Emoji Picker visibility $showEmojiPicker, ime visibility $imeVisible")
     if (isLoggedIn) {
+
         Scaffold(
             topBar = {
-                if (!(messageScreenGuy || bioScreenGuy)) {
+                if (!(messageScreenGuy || bioScreenGuy || imageViewer)) {
                     CustomAppBar(leftDrawerState, rightDrawerState, cartItemCount)
                 }
             },
             bottomBar = {
                 // Conditionally render the bottom navigation bar
-                if (!((imeVisible && showEmojiPicker) || messageScreenGuy || bioScreenGuy)) {
+                if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer)) {
                     BottomNavigationBar(navController)
                 }
             }
         ) { innerPadding ->
             MainContent(
-                navController, innerPadding, leftDrawerState, rightDrawerState,
-                productViewModel, authViewModel, userDetailsViewModel, imeVisible, isLoggedIn, showEmojiPicker,
-                onEmojiPickerVisibilityChange = { Log.d("EmojiVisibility", "To test visibility of: $it")
-                    showEmojiPicker = it}, onEmojiSelected = { emoji -> selectedEmoji = emoji}, selectedEmoji )
+                navController,
+                innerPadding,
+                leftDrawerState,
+                rightDrawerState,
+                productViewModel,
+                authViewModel,
+                userDetailsViewModel,
+                imeVisible,
+                isLoggedIn,
+                showEmojiPicker,
+                onEmojiPickerVisibilityChange = {
+                    Log.d("EmojiVisibility", "To test visibility of: $it")
+                    showEmojiPicker = it
+                },
+                onEmojiSelected = { emoji -> selectedEmoji = emoji },
+                selectedEmoji,
+                resetSelectedEmoji = {selectedEmoji = ""}
+            )
         }
+
     } else {
         LoginScreen(navController = navController)
     }
@@ -201,7 +220,8 @@ fun MainContent(
     showEmojiPicker: Boolean,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     onEmojiSelected: (String) -> Unit,
-    selectedEmoji: String
+    selectedEmoji: String,
+    resetSelectedEmoji: () -> Unit
 ) {
     val customerId = authViewModel.customerId.collectAsState().value
     val firstName = userDetailsViewModel.firstName.collectAsState().value
@@ -221,10 +241,19 @@ fun MainContent(
 
     LaunchedEffect(key1 = customerId, key2 = firstName, key3 = lastName) {
         if (customerId != 0 && firstName.isNotEmpty() && lastName.isNotEmpty()) {
-            Log.d("WebSocket", "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId")
+            Log.d(
+                "WebSocket",
+                "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
+            )
             WebSocketManager.connect(webSocketUrl, customerId, fullName)
         }
     }
+    Log.d(
+        "InnerPadding",
+        "start: ${innerPadding.calculateStartPadding(LocalLayoutDirection.current)}, top: ${innerPadding.calculateTopPadding()}, end: ${
+            innerPadding.calculateEndPadding(LocalLayoutDirection.current)
+        }, bottom: ${innerPadding.calculateBottomPadding()}"
+    )
     val bottomPadding = when {
         imeVisible -> 0.dp
         showEmojiPicker -> 0.dp
@@ -255,9 +284,11 @@ fun MainContent(
         val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
             factory = SharedCliqueViewModelFactory(application, customerId)
         )
-        NavigationHost(navController, isLoggedIn, productViewModel, customerId,
+        NavigationHost(
+            navController, isLoggedIn, productViewModel, customerId,
             fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel)
+            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
+        )
         LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart))
         RightDrawer(rightDrawerState, Modifier.align(Alignment.CenterEnd))
 
@@ -267,7 +298,6 @@ fun MainContent(
                     .fillMaxWidth()
                     .wrapContentHeight()
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(8.dp)
                     .align(Alignment.BottomCenter) // Align at the bottom center
             ) {
                 EmojiPickerView(onEmojiSelected = {
@@ -279,8 +309,6 @@ fun MainContent(
         }
     }
 }
-
-
 
 @Composable
 fun CustomAppBar(
@@ -396,7 +424,9 @@ fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
                     }
                 }
             },
-            modifier = Modifier.height(300.dp).fillMaxWidth()
+            modifier = Modifier
+                .height(300.dp)
+                .fillMaxWidth()
         )
     }
 }
