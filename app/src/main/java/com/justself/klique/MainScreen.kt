@@ -402,10 +402,7 @@ fun BottomNavigationBar(navController: NavController) {
 fun OrdersScreen() {
     Text("Dashboard boardyboard")
 }
-@Composable
-fun BookshelfScreen() {
-    Text("The Bookshelf, coming soon")
-}
+
 
 
 @Composable

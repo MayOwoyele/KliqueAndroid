@@ -60,6 +60,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.navigation.NavController
 import com.justself.klique.gists.ui.GistScreen
+import com.justself.klique.sharedUi.AddButton
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -150,8 +151,10 @@ fun HomeScreen(
                         interactionSource = remember { MutableInteractionSource() }
                     ),
             ) {
-
-                GistScreen(modifier=Modifier.padding(top = 15.dp).padding(horizontal = 16.dp).fillMaxSize(), customerId = customerId) // Display GistScreen behind the AddButton
+                GistScreen(modifier= Modifier
+                    .padding(top = 15.dp)
+                    .padding(horizontal = 16.dp)
+                    .fillMaxSize(), customerId = customerId) // Display GistScreen behind the AddButton
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -223,28 +226,6 @@ fun HomeScreen(
                 }
             }
         }
-    }
-}
-@Composable
-private fun AddButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    icon: ImageVector,
-    contentDescription: String? = null
-) {
-    Box(
-        modifier = modifier
-            .clip(MaterialTheme.shapes.small)
-            .clickable(onClick = onClick)
-            .background(MaterialTheme.colorScheme.primary)
-            .padding(12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(24.dp)
-        )
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.justself.klique.Bookshelf.ui.BookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 
