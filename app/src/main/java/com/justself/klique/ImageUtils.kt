@@ -20,6 +20,11 @@ object ImageUtils {
         val width: Int = bitmap.width
         val height: Int = bitmap.height
 
+        if (width <= maxSize && height <= maxSize) {
+            // No need to downscale
+            return bitmap
+        }
+
         val newWidth: Int
         val newHeight: Int
 

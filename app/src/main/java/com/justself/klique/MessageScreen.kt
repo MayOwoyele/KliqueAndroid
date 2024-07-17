@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -47,7 +48,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -56,25 +61,20 @@ import androidx.navigation.NavController
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MessageScreen(navController: NavController, enemyId: Int, contactName: String) {
-    Scaffold(
-        topBar = {
-            CustomTopAppBar(navController = navController, contactName = contactName, enemyId)
-        },
-        content = { innerPadding ->
-            MessageScreenContent(navController, enemyId, innerPadding)
-        },
-        bottomBar = {
-            TextBoxAndMedia(navController, enemyId)
-        },
-        modifier = Modifier.imePadding()
+    Scaffold(topBar = {
+        CustomTopAppBar(navController = navController, contactName = contactName, enemyId)
+    }, content = { innerPadding ->
+        MessageScreenContent(navController, enemyId, innerPadding)
+    }, bottomBar = {
+        TextBoxAndMedia(navController, enemyId)
+    }, modifier = Modifier.imePadding()
     )
 }
 
 @Composable
 fun CustomTopAppBar(navController: NavController, contactName: String, enemyId: Int) {
     Surface(
-        color = MaterialTheme.colorScheme.background,
-        modifier = Modifier.fillMaxWidth()
+        color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -131,6 +131,7 @@ fun TextBoxAndMedia(navController: NavController, enemyId: Int) {
         targetValue = if (textState.text.isEmpty()) 0f else 45f,
         animationSpec = tween(durationMillis = 300)
     )
+
 
     if (textState.text.isNotEmpty()) {
         expanded = false
@@ -213,7 +214,10 @@ fun TextBoxAndMedia(navController: NavController, enemyId: Int) {
                     }
                     innerTextField()
                 }
-            }
+            },
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences, keyboardType = KeyboardType.Text
+            )
         )
 
         if (textState.text.isEmpty()) {
