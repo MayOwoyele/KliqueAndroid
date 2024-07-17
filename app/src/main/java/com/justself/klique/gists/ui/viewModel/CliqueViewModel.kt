@@ -54,7 +54,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     init {
         WebSocketManager.registerListener(this)
         initializeMessageCounter()
-        simulateGistCreated()
+//        simulateGistCreated()
         //startUpdatingUserCount()
     }
     /**

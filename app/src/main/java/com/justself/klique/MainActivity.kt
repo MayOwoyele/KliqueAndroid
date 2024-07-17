@@ -14,9 +14,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.material3.Surface
 import androidx.core.content.ContextCompat
+import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
-import androidx.emoji2.bundled.BundledEmojiCompatConfig
 
 class MainActivity : ComponentActivity() {
 
@@ -24,12 +24,14 @@ class MainActivity : ComponentActivity() {
         arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
             Manifest.permission.READ_MEDIA_VIDEO,
-            Manifest.permission.READ_MEDIA_AUDIO
+            Manifest.permission.READ_MEDIA_AUDIO,
+            Manifest.permission.READ_CONTACTS,
         )
     } else {
         arrayOf(
             Manifest.permission.WRITE_EXTERNAL_STORAGE,
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.READ_CONTACTS,
         )
     }
 
@@ -43,7 +45,8 @@ class MainActivity : ComponentActivity() {
             if (allPermissionsGranted) {
                 Toast.makeText(this, "All permissions granted", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Permissions not granted by the user.", Toast.LENGTH_SHORT)
+                    .show()
                 finish()
             }
         }
@@ -74,7 +77,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun allPermissionsGranted(permissions: Array<String>) = permissions.all {
-        val granted = ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        val granted =
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         Log.d("Permissions", "$it granted: $granted")
         granted
     }
