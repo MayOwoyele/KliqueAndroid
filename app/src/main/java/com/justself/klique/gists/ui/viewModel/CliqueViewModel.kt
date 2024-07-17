@@ -57,7 +57,15 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val listOfSpeakers = _listOfSpeakers.asStateFlow()
 
     private val _gistTopRow =
-        MutableStateFlow(GistTopRow(gistId = "", topic = "", gistDescription = "", activeSpectators = ""))
+        MutableStateFlow(
+            GistTopRow(
+                gistId = "",
+                topic = "",
+                gistDescription = "This is a gist description",
+                activeSpectators = "",
+                gistImage = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg"
+            )
+        )
     val gistTopRow = _gistTopRow.asStateFlow()
 
     private val _bitmap = MutableLiveData<Bitmap?>()
@@ -80,13 +88,26 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val topic = "Kotlin"
         val gistId = "1b345kt"
         _gistCreatedOrJoined.postValue(Pair(topic, gistId))
-        _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic, gistDescription = "This is for further testing")
+        _gistTopRow.value = _gistTopRow.value.copy(
+            gistId = gistId,
+            topic = topic,
+            gistDescription = "This is to change the gist description"
+        )
+    }
+    fun doTheSearch(searchQuery: String) {
+        val searchMessage = """
+            "type": "GistSearch"
+            "searchQuery": "$searchQuery"
+        """.trimIndent()
+        Log.d("WebSocketManager", "Sending search message: $searchMessage")
+        send(searchMessage)
     }
 
     override fun onCleared() {
         super.onCleared()
         WebSocketManager.unregisterListener(this)
     }
+
     private var messageCounter = 0
     private fun initializeMessageCounter() {
         messageCounter = 0
@@ -105,6 +126,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 _gistCreatedOrJoined.postValue(Pair(topic, gistId))
                 _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic)
             }
+
             "previousMessages" -> {
                 val gistId = jsonObject.getString("gistId")
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
@@ -172,15 +194,19 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     fun sendBinary(
         data: ByteArray,
         type: String,
-        gistId: String,
-        messageId: Int,
-        customerId: Int,
-        fullName: String
+        gistId: String = "",
+        messageId: Int = 0,
+        customerId: Int = 0,
+        fullName: String = ""
     ) {
         val prefix = "$type:$gistId:$messageId:$customerId:$fullName".padEnd(50)
         val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
         val message = prefixBytes + data
         WebSocketManager.sendBinary(message)
+        Log.d(
+            "sendBinaryInputs",
+            "Data: ${data.size}, Type: $type, GistId: $gistId, MessageId: $messageId, CustomerId: $customerId, FullName: $fullName"
+        )
     }
 
     fun addMessage(message: GistMessage) {
@@ -211,9 +237,11 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         """.trimIndent()
         send(message)
     }
+
     fun setBitmap(bitmap: Bitmap) {
         _bitmap.value = bitmap
     }
+
     fun clearBitmap() {
         Log.d("Bitmap", "Bitmap cleared")
         _bitmap.value = null
@@ -255,13 +283,16 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     fun close() {
         WebSocketManager.close()
     }
+
     private val _myName = mutableStateOf("")
     private val myName: String
         get() = _myName.value
+
     fun setMyName(name: String) {
         _myName.value = name
         Log.d("MyName", "My name is: $myName")
     }
+
     fun handleTrimmedVideo(uri: Uri?) {
         uri?.let { validUri ->
             viewModelScope.launch {
@@ -296,9 +327,11 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             }
         }
     }
+
     fun updateSpectatorCount(newCount: Int) {
         _gistTopRow.value = _gistTopRow.value.copy(activeSpectators = (formatUserCount(newCount)))
     }
+
     var activeSpectatorsCount = 0
     fun startUpdatingActiveSpectators() {
         viewModelScope.launch {
@@ -310,13 +343,19 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             }
         }
     }
+
     private fun formatUserCount(count: Int): String {
         return when {
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
-            count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000) // Keep in thousands up to a million
+            count >= 1_000 -> String.format(
+                Locale.US,
+                "%dK",
+                count / 1_000
+            ) // Keep in thousands up to a million
             else -> count.toString()
         }
     }
+
     private fun sortMembersByContact(members: MutableList<Members>) {
         val contacts = members.filter { it.isContact }
         val nonContacts = members.filter { !it.isContact }

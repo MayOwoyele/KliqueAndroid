@@ -1,5 +1,12 @@
 package com.justself.klique
 
+import ImageUtils
+import android.Manifest
+import android.net.Uri
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,10 +27,10 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
@@ -38,7 +45,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,27 +57,61 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okio.IOException
 
 
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
-fun GistSettings(navController: NavController, gistId: String, viewModel: SharedCliqueViewModel) {
+fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel) {
     var isEditing by remember { mutableStateOf(false) }
-    var text by remember { mutableStateOf("Editable Text") }
+    val descriptionFromServer by viewModel.gistTopRow.collectAsState()
+    var text by remember { mutableStateOf(descriptionFromServer.gistDescription) }
     var editedText by remember { mutableStateOf(text) }
     var isSearchMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var hasPermissions by remember { mutableStateOf(false) }
+    val permissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            hasPermissions = permissions[Manifest.permission.READ_MEDIA_IMAGES] == true ||
+                    permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true
+        }
+    val gistTopRow by viewModel.gistTopRow.collectAsState()
+    val gistId = gistTopRow.gistId
+    val gistImage = gistTopRow.gistImage
+    val imagePickerLauncher =
+        rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
+            uri?.let {
+                coroutineScope.launch {
+                    try {
+                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri, maxSize = 1080)
+                        viewModel.sendBinary(data = imageByteArray, type = "GistProfileImage", gistId = gistId)
+                    } catch (e: IOException) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+        }
+    val requestPermissions: () -> Unit = {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.READ_MEDIA_IMAGES,
+                Manifest.permission.READ_EXTERNAL_STORAGE
+            )
+        )
+    }
+
 
     Column(
         modifier = Modifier
@@ -94,12 +134,17 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
                 contentAlignment = Alignment.Center
             ) {
                 Image(
-                    painter = rememberAsyncImagePainter("https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg"),
+                    painter = rememberAsyncImagePainter(gistImage),
                     contentDescription = "Image with Pencil Icon",
                     modifier = Modifier.fillMaxWidth()
                 )
                 IconButton(
-                    onClick = { //other things for picking image
+                    onClick = {
+                        if (hasPermissions) {
+                            imagePickerLauncher.launch("image/*")
+                        } else {
+                            requestPermissions()
+                        }
                         isSearchMode = false
                     }, modifier = Modifier
                         .size(24.dp)
@@ -208,7 +253,17 @@ fun GistSettings(navController: NavController, gistId: String, viewModel: Shared
                                 Icon(imageVector = Icons.Filled.Clear, contentDescription = "Clear")
                             }
                         }
-                    })
+                    },
+                    keyboardOptions = KeyboardOptions.Default.copy(
+                        imeAction = ImeAction.Search,
+                        keyboardType = KeyboardType.Text
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            viewModel.doTheSearch(searchQuery)
+                        }
+                    )
+                )
 
             } else {
                 IconButton(onClick = {

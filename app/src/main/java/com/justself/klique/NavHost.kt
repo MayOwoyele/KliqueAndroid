@@ -133,7 +133,7 @@ fun NavigationHost(
             val gistId = backStackEntry.arguments?.getString("gistId")
                 ?: throw IllegalStateException("where is the gistId")
             Log.d("GistId", "The gist Id is: $gistId")
-            GistSettings(navController, gistId, sharedCliqueViewModel)
+            GistSettings(navController, sharedCliqueViewModel)
         }
         composable("fullScreenImage") { backStackEntry ->
             FullScreenImage(viewModel = sharedCliqueViewModel, navController = navController)

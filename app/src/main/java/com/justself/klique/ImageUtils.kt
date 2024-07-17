@@ -44,7 +44,7 @@ object ImageUtils {
     }
 
     @Throws(IOException::class)
-    fun processImageToByteArray(context: Context, inputUri: Uri, maxSize: Int = 1080): ByteArray {
+    fun processImageToByteArray(context: Context, inputUri: Uri, maxSize: Int = 2064): ByteArray {
         val bitmap = getImageFromDevice(context, inputUri)
             ?: throw IOException("Failed to decode bitmap from URI: $inputUri")
 

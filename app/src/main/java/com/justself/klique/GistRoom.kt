@@ -114,6 +114,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.runtime.collectAsState
@@ -593,25 +594,40 @@ fun MessageContent(
                         "KVideo" -> {
                             message.binaryData?.let { binaryData ->
                                 val videoUri = getUriFromByteArray(binaryData, context)
-                                AndroidView(
-                                    factory = {
-                                        VideoView(context).apply {
-                                            setVideoURI(videoUri)
-                                            start()
-                                        }
-                                    }, modifier = Modifier
+                                Box(
+                                    modifier = Modifier
                                         .height(200.dp)
+                                        .wrapContentWidth()
                                         .clip(shape)
                                         .clickable {
                                             navController.navigate(
-                                                "fullScreenVideo/${
-                                                    Uri.encode(
-                                                        videoUri.toString()
-                                                    )
-                                                }"
+                                                "fullScreenVideo/${Uri.encode(videoUri.toString())}"
                                             )
                                         }
-                                )
+                                ) {
+                                    AndroidView(
+                                        factory = {
+                                            VideoView(context).apply {
+                                                setVideoURI(videoUri)
+                                                seekTo(1)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.PlayArrow,
+                                        contentDescription = "Play",
+                                        modifier = Modifier
+                                            .align(Alignment.Center)
+                                            .size(48.dp)
+                                            .clickable {
+                                                navController.navigate(
+                                                    "fullScreenVideo/${Uri.encode(videoUri.toString())}"
+                                                )
+                                            },
+                                        tint = Color.White
+                                    )
+                                }
                             } ?: Text(
                                 text = "Video not available",
                                 color = MaterialTheme.colorScheme.onPrimary

@@ -162,18 +162,19 @@ fun MainScreen(
     val messageScreenGuy = currentRoute?.startsWith("messageScreen/") == true
     val bioScreenGuy = currentRoute?.startsWith("bioScreen/") == true
     val imageViewer = currentRoute?.startsWith("fullScreenImage") == true
+    val videoViewer = currentRoute?.startsWith("fullScreenVideo") == true
     Log.d("Emoji", "Emoji Picker visibility $showEmojiPicker, ime visibility $imeVisible")
     if (isLoggedIn) {
 
         Scaffold(
             topBar = {
-                if (!(messageScreenGuy || bioScreenGuy || imageViewer)) {
+                if (!(messageScreenGuy || bioScreenGuy || imageViewer || videoViewer)) {
                     CustomAppBar(leftDrawerState, rightDrawerState, cartItemCount)
                 }
             },
             bottomBar = {
                 // Conditionally render the bottom navigation bar
-                if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer)) {
+                if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer || videoViewer)) {
                     BottomNavigationBar(navController)
                 }
             }
