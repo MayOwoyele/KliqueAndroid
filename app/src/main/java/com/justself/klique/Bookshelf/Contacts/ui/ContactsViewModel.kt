@@ -31,7 +31,7 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
     // Load contacts from the contacts repository
     fun refreshContacts() {
         viewModelScope.launch {
-            delay(2000)
+            delay(1000)
             Log.d("Klique Delay", "delay is over")
             val localContacts = _contactsRepository.getContacts()
             val batchSize = 100

@@ -42,17 +42,21 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import coil.compose.rememberImagePainter
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.size.Size
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import com.justself.klique.R
 import com.justself.klique.useful_extensions.initials
 
 @Composable
-fun ContactsScreen(){
+fun ContactsScreen() {
     Log.d("Check", "Check")
     Log.d("Check Permissions", "Check")
     val context = LocalContext.current
-    val repository = remember{ContactsRepository(context.contentResolver, context)}
-    val viewModel = remember{ ContactsViewModel(repository)};
+    val repository = remember { ContactsRepository(context.contentResolver, context) }
+    val viewModel = remember { ContactsViewModel(repository) };
     val contactList by viewModel.contacts.collectAsState()
 
 
@@ -71,6 +75,7 @@ fun ContactsScreen(){
                 viewModel.refreshContacts()
                 Log.d("Check Permissions", "Check")
             }
+
             else -> {
                 permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
                 Log.d("Check Permissions", "Check")
@@ -94,7 +99,11 @@ fun ContactTile(contact: Contact, onTap: () -> Unit) {
         modifier = Modifier
             .clickable { onTap() }
             .height(100.dp)
-            .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(bottomStart = 50.dp))
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.onPrimary,
+                RoundedCornerShape(bottomStart = 50.dp)
+            )
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
@@ -107,8 +116,33 @@ fun ContactTile(contact: Contact, onTap: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 if (contact.thumbnailUrl != null) {
+                    val painter = rememberAsyncImagePainter(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(contact.thumbnailUrl)
+                            .crossfade(true)
+                            .size(Size(50, 50)) // Adjust the size as needed
+                            .memoryCachePolicy(CachePolicy.ENABLED)
+                            .listener(onStart = {
+                                Log.d(
+                                    "Contact Tile",
+                                    "Image loading started for ${contact.thumbnailUrl}"
+                                )
+                            },
+                                onSuccess = { _, _ ->
+                                    Log.d(
+                                        "Contact Tile",
+                                        "Image successfully loaded for ${contact.thumbnailUrl}"
+                                    )
+                                }, onError = { _, result ->
+                                    Log.e(
+                                        "Contact Tile",
+                                        "Image loading failed for ${contact.thumbnailUrl}, ${result.throwable}"
+                                    )
+                                })
+                            .build()
+                    )
                     Image(
-                        painter = rememberAsyncImagePainter(contact.thumbnailUrl),
+                        painter = painter,
                         contentDescription = null,
                         modifier = Modifier
                             .size(50.dp) // Ensure the size matches the parent Box
@@ -123,13 +157,14 @@ fun ContactTile(contact: Contact, onTap: () -> Unit) {
                         shape = CircleShape
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.onPrimary),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = contact.name.initials(),
                                 textAlign = TextAlign.Center,
-                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 20.sp)
+                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 20.sp),
+                                color = MaterialTheme.colorScheme.background
                             )
                         }
                     }
