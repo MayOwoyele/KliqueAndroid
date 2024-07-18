@@ -35,7 +35,7 @@ fun NavigationHost(
     resetSelectedEmoji: () -> Unit
 ) {
 
-    val chatDao = remember { DatabaseProvider.getDatabase(application).chatDao() }
+    val chatDao = remember { DatabaseProvider.getChatListDatabase(application).chatDao() }
     val viewModelFactory = remember { ChatViewModelFactory(chatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
 

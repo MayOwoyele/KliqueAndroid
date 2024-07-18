@@ -24,7 +24,12 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository): Vi
     // Load contacts from the contacts repository
     fun loadContacts(){
         viewModelScope.launch {
-            _contacts.value = _contactsRepository.getContacts()
+            val localContacts = _contactsRepository.getContacts()
+            // server is supposed to return only contacts that are on Klique
+            val serverContacts = _contactsRepository.checkContactsOnServer(localContacts)
+            val mergedContacts = _contactsRepository.mergeContacts(localContacts, serverContacts)
+            _contactsRepository.storeContactsInDatabase(mergedContacts)
+                _contacts.value = _contactsRepository.getSortedContactsFromDatabase()
         }
     }
 

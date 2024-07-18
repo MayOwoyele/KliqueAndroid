@@ -36,6 +36,7 @@ emojicompat = "1.4.0"
 carUiLib = "2.6.0"
 emoji2 = "1.4.0"
 mobile-ffmpeg = "4.4"
+libphonenumber = "8.12.38"
 
 
 
@@ -98,6 +99,7 @@ emoji2-views = { group = "androidx.emoji2", name = "emoji2-views", version.ref =
 emoji2-views-helper = { group = "androidx.emoji2", name = "emoji2-views-helper", version.ref = "emoji2" }
 emoji2-emojipicker = { group = "androidx.emoji2", name = "emoji2-emojipicker", version.ref = "emoji2" }
 mobile-ffmpeg = { group = "com.arthenica", name = "mobile-ffmpeg-full", version.ref = "mobile-ffmpeg" }
+libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumber", version.ref = "libphonenumber" }
 
 
 [plugins]

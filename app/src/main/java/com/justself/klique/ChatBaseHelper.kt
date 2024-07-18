@@ -41,12 +41,12 @@ abstract class ChatListDatabase : RoomDatabase() {
 
 // Initialize Database
 object DatabaseProvider {
-    private var INSTANCE: ChatListDatabase? = null
+    private var CHATLIST_DATABASE_INSTANCE: ChatListDatabase? = null
 
-    fun getDatabase(context: Context): ChatListDatabase {
-        if (INSTANCE == null) {
+    fun getChatListDatabase(context: Context): ChatListDatabase {
+        if (CHATLIST_DATABASE_INSTANCE == null) {
             synchronized(ChatListDatabase::class) {
-                INSTANCE = Room.databaseBuilder(
+                CHATLIST_DATABASE_INSTANCE = Room.databaseBuilder(
                     context.applicationContext,
                     ChatListDatabase::class.java,
                     "chats.db"
@@ -55,6 +55,22 @@ object DatabaseProvider {
                     .build()
             }
         }
-        return INSTANCE!!
+        return CHATLIST_DATABASE_INSTANCE!!
+    }
+    private var CONTACTS_INSTANCE: ContactsDatabase? = null
+
+    fun getContactsDatabase(context: Context): ContactsDatabase {
+        if (CONTACTS_INSTANCE == null) {
+            synchronized(ContactsDatabase::class) {
+                CONTACTS_INSTANCE = Room.databaseBuilder(
+                    context.applicationContext,
+                    ContactsDatabase::class.java,
+                    "contacts_database"
+                )
+                    .fallbackToDestructiveMigration()  // Optional: Recreate the database if schema changes
+                    .build()
+            }
+        }
+        return CONTACTS_INSTANCE!!
     }
 }

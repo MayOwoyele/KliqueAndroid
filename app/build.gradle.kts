@@ -113,6 +113,7 @@ dependencies {
     implementation (libs.emoji2.views.helper)
     implementation (libs.emoji2.emojipicker)
     implementation(libs.mobile.ffmpeg)
+    implementation(libs.libphonenumber)
     implementation("org.jetbrains:annotations:23.0.0") // Ensure correct annotations version
 }
 

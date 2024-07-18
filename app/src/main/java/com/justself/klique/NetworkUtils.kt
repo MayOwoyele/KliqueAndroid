@@ -70,9 +70,11 @@ object NetworkUtils {
     suspend fun makeRequest(
         endpoint: String,
         method: String = "POST",
-        params: Map<String, String>
+        params: Map<String, String>,
+        jsonBody: String? = null
     ): String {
-        val baseUrl = baseUrl ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
+        val baseUrl = baseUrl
+            ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
 
         return withContext(Dispatchers.IO) {
             val query = if (method == "GET" && params.isNotEmpty()) {
@@ -87,12 +89,25 @@ object NetworkUtils {
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = method
                 if (method == "POST") {
-                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+                    setRequestProperty(
+                        "Content-Type",
+                        jsonBody?.let { "application/json; utf-8" }
+                            ?: "application/x-www-form-urlencoded")
                     doOutput = true
-                    BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
-                        writer.write(params.map { (key, value) ->
-                            "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
-                        }.joinToString("&"))
+                    if (jsonBody != null) {
+                        OutputStreamWriter(outputStream).use { writer ->
+                            writer.write(jsonBody)
+                        }
+                    } else {
+                        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+                            writer.write(params.map { (key, value) ->
+                                "${URLEncoder.encode(key, "UTF-8")}=${
+                                    URLEncoder.encode(
+                                        value, "UTF-8"
+                                    )
+                                }"
+                            }.joinToString("&"))
+                        }
                     }
                 }
             }

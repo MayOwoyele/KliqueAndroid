@@ -2,6 +2,7 @@ package com.justself.klique.Bookshelf.Contacts.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -43,10 +44,12 @@ import com.justself.klique.useful_extensions.initials
 
 @Composable
 fun ContactsScreen(){
-    val repository = ContactsRepository(LocalContext.current.contentResolver);
+    Log.d("Check", "Check")
+    val context = LocalContext.current
+    val repository = remember{ContactsRepository(context.contentResolver, context)}
     val viewModel = remember{ ContactsViewModel(repository)};
     val contactList by viewModel.contacts.collectAsState()
-    val context = LocalContext.current
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -94,8 +97,8 @@ fun ContactTile(contact: Contact, onTap: () -> Unit){
             }
 
             Column (modifier= Modifier.weight(9F)){
-                Text(text = "${contact.name}", style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4F))
-                Text(text = "${contact.phoneNumber}", style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4.5F))
+                Text(text = contact.name, style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4F))
+                Text(text = contact.phoneNumber, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4.5F))
             }
         }
     }
