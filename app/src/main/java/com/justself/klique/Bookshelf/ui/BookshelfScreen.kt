@@ -19,19 +19,10 @@ import com.justself.klique.sharedUi.AddButton
 fun BookshelfScreen() {
     Box (modifier = Modifier
         .fillMaxSize()
-        .padding(16.dp)){
+        .padding(horizontal = 16.dp)){
         Column {
             ContactsScreen()
         }
-        AddButton(
-                onClick = {
-
-                },
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .size(56.dp),
-        icon = Icons.Default.Add
-        )
     }
 
 }

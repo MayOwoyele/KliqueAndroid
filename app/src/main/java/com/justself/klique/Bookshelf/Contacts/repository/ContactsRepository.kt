@@ -17,6 +17,7 @@ import okio.IOException
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import kotlin.random.Random
 
 
 //Our repository class for managing and fetching of data from the content provider
@@ -76,32 +77,54 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
                 })
             }
         }
-        try{
-        val jsonResponse = makeRequest(
-            endpoint = "/checkContacts",
-            method = "POST",
-            jsonBody = jsonArray.toString(),
-            params = emptyMap()
-        )
-        val serverContacts = mutableListOf<ServerContactResponse>()
+
         try {
-            Log.d("checkContactsOnServer", "Received server response")
-            val responseArray = JSONArray(jsonResponse)
-            for (i in 0 until responseArray.length()) {
-                val jsonObject = responseArray.getJSONObject(i)
-                val phoneNumber = jsonObject.getString("phoneNumber")
-                val customerId = jsonObject.getInt("customerId")
-                val thumbnailUrl = jsonObject.getString("thumbnailUrl")
-                serverContacts.add(ServerContactResponse(phoneNumber, customerId, thumbnailUrl))
+            Log.d("checkContactsOnServer", "Preparing mock response")
+            val mockJsonResponse = JSONArray().apply {
+                localContacts.forEachIndexed { index, contact ->
+                    val isAppUser = Random.nextBoolean()
+                    Log.d("checkContactsOnServer", "Contact: ${contact.phoneNumber}, isAppUser: $isAppUser")
+                    if (isAppUser) {
+                        put(JSONObject().apply {
+                            put("phoneNumber", contact.phoneNumber)
+                            put("customerId", Random.nextInt(1000, 9999)) // Random customer ID
+                            put("thumbnailUrl", "https://picsum.photos/200/200?random=$index") // Mock thumbnail URL
+                        })
+                    }
+                }
+            }.toString()
+
+            // Simulate a network request using mock response instead of actual network call
+            // val jsonResponse = makeRequest(
+            //     endpoint = "/checkContacts",
+            //     method = "POST",
+            //     jsonBody = jsonArray.toString(),
+            //     params = emptyMap()
+            // )
+            val jsonResponse = mockJsonResponse // Use mock response directly
+
+            val serverContacts = mutableListOf<ServerContactResponse>()
+            try {
+                Log.d("checkContactsOnServer", "Received mock server response")
+                val responseArray = JSONArray(jsonResponse)
+                for (i in 0 until responseArray.length()) {
+                    val jsonObject = responseArray.getJSONObject(i)
+                    val phoneNumber = jsonObject.getString("phoneNumber")
+                    val customerId = jsonObject.getInt("customerId")
+                    val thumbnailUrl = jsonObject.getString("thumbnailUrl")
+                    Log.d("checkContactsOnServer", "Processing contact: $phoneNumber, customerId: $customerId")
+                    serverContacts.add(ServerContactResponse(phoneNumber, customerId, thumbnailUrl))
+                }
+            } catch (e: JSONException) {
+                Log.e("checkContactsOnServer", "Failed to parse server response", e)
+                return emptyList()
             }
-        }catch (e: JSONException){
-            Log.e("checkContactsOnServer", "Failed to parse server response", e)
-            return emptyList()
-            }
-        return serverContacts } catch (e:IOException){
+
+            return serverContacts
+        } catch (e: IOException) {
             Log.e("checkContactsOnServer", "Network Error", e)
             return emptyList()
-        }// Replace with actual server response
+        }
     }
 
     suspend fun mergeContacts(

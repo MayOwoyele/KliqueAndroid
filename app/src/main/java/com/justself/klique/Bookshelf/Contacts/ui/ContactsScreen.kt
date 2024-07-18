@@ -10,8 +10,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -38,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
+import coil.compose.rememberImagePainter
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
 import com.justself.klique.useful_extensions.initials
@@ -45,6 +49,7 @@ import com.justself.klique.useful_extensions.initials
 @Composable
 fun ContactsScreen(){
     Log.d("Check", "Check")
+    Log.d("Check Permissions", "Check")
     val context = LocalContext.current
     val repository = remember{ContactsRepository(context.contentResolver, context)}
     val viewModel = remember{ ContactsViewModel(repository)};
@@ -55,17 +60,20 @@ fun ContactsScreen(){
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            viewModel.loadContacts()
+            viewModel.refreshContacts()
         }
     }
 
     LaunchedEffect(Unit) {
+        Log.d("Check Permissions", "Check")
         when (PackageManager.PERMISSION_GRANTED) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) -> {
-                viewModel.loadContacts()
+                viewModel.refreshContacts()
+                Log.d("Check Permissions", "Check")
             }
             else -> {
                 permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                Log.d("Check Permissions", "Check")
             }
         }
     }
@@ -81,24 +89,75 @@ fun ContactsScreen(){
 }
 
 @Composable
-fun ContactTile(contact: Contact, onTap: () -> Unit){
-    Surface ( modifier = Modifier
-        .clickable { onTap }
-        .height(100.dp)
-        .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(bottomStart = 50.dp))
-    ){
-        Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-
-            Surface (modifier= Modifier
-                .size((150).dp)
-                .padding(vertical = 8.dp, horizontal = 8.dp)
-                .weight(3F), shape = CircleShape.copy(CornerSize(150.dp)), color = MaterialTheme.colorScheme.primary){
-                Text(modifier = Modifier.padding(10.dp,), textAlign = TextAlign.Center, style = MaterialTheme.typography.displayLarge,text = contact.name.initials())
+fun ContactTile(contact: Contact, onTap: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .clickable { onTap() }
+            .height(100.dp)
+            .border(1.dp, MaterialTheme.colorScheme.onPrimary, RoundedCornerShape(bottomStart = 50.dp))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(50.dp) // Ensure the size is consistent
+                    .weight(3F),
+                contentAlignment = Alignment.Center
+            ) {
+                if (contact.thumbnailUrl != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(contact.thumbnailUrl),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(50.dp) // Ensure the size matches the parent Box
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary),
+                        shape = CircleShape
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = contact.name.initials(),
+                                textAlign = TextAlign.Center,
+                                style = MaterialTheme.typography.displayLarge.copy(fontSize = 20.sp)
+                            )
+                        }
+                    }
+                }
             }
 
-            Column (modifier= Modifier.weight(9F)){
-                Text(text = contact.name, style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4F))
-                Text(text = contact.phoneNumber, style = MaterialTheme.typography.bodyMedium, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(4.5F))
+            Column(modifier = Modifier.weight(9F)) {
+                Text(
+                    text = contact.name,
+                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    text = contact.phoneNumber,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (contact.isAppUser) {
+                    Text(
+                        text = "is on klique",
+                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.secondary),
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         }
     }
