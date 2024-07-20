@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import coil.compose.rememberImagePainter
 import coil.request.CachePolicy
@@ -51,7 +52,7 @@ import com.justself.klique.R
 import com.justself.klique.useful_extensions.initials
 
 @Composable
-fun ContactsScreen() {
+fun ContactsScreen(navController: NavController) {
     Log.d("Check", "Check")
     Log.d("Check Permissions", "Check")
     val context = LocalContext.current
@@ -86,18 +87,28 @@ fun ContactsScreen() {
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         items(contactList.size) { index ->
-            ContactTile(contact = contactList[index]) {
-
-            }
+            ContactTile(contact = contactList[index], navController = navController)
         }
     }
 }
 
 @Composable
-fun ContactTile(contact: Contact, onTap: () -> Unit) {
+fun ContactTile(contact: Contact, navController: NavController) {
+    val isClickable = contact.isAppUser
+    val onTap: () -> Unit = {
+        if (isClickable) {
+            navController.navigate("messageScreen/${contact.customerId}")
+        }
+    }
     Surface(
         modifier = Modifier
-            .clickable { onTap() }
+            .let {
+                if (isClickable) {
+                    it.clickable { onTap() }
+                } else {
+                    it
+                }
+            }
             .height(100.dp)
             .border(
                 1.dp,

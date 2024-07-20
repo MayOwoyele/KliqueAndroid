@@ -27,12 +27,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Message
 import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Groups2
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocationCity
 import androidx.compose.material.icons.rounded.MarkChatUnread
+import androidx.compose.material.icons.rounded.Message
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wallet
@@ -94,18 +96,27 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                 }
                 LeftDrawerItem(
                     modifier = Modifier.padding(bottom = 16.dp),
-                    leading = { Surface (modifier= Modifier
-                        .size((60).dp)
-                        .clip(CircleShape.copy(CornerSize(150.dp)))){
-                        Image(painter = rememberAsyncImagePainter(model = "https://unsplash.com/photos/MP0IUfwrn0A/download?force=true&w=640", ) ,contentScale = ContentScale.Crop, contentDescription = "Logo")}},
+                    leading = {
+                        Surface(
+                            modifier = Modifier
+                                .size((60).dp)
+                                .clip(CircleShape.copy(CornerSize(150.dp)))
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(model = "https://unsplash.com/photos/MP0IUfwrn0A/download?force=true&w=640"),
+                                contentScale = ContentScale.Crop,
+                                contentDescription = "Logo"
+                            )
+                        }
+                    },
                     text = "Tatiana Manois",
-                    secondaryText= "+2341234567890",
+                    secondaryText = "+2341234567890",
                     trailing = {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Rounded.Wallet, contentDescription = "Profile")
-                            Text(text = "500KC", )
+                            Text(text = "500KC")
                         }
-                        
+
                     }
                 )
                 LeftDrawerItem(
@@ -115,13 +126,18 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.Rounded.MarkChatUnread, contentDescription = "Profile") },
+                    leading = {
+                        Icon(
+                            Icons.Rounded.MarkChatUnread,
+                            contentDescription = "Profile"
+                        )
+                    },
                     text = "Chatrooms",
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.Rounded.Settings, contentDescription = "Profile") },
-                    text = "Settings",
+                    leading = { Icon(Icons.AutoMirrored.Rounded.Message, contentDescription = "Direct Messages") },
+                    text = "Direct Messages",
                 )
                 /*Button(onClick = { drawerState.value = false }) {
                     Text("Close Drawer")
@@ -147,7 +163,7 @@ fun LeftDrawerItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             leading(
-                modifier = Modifier
+                Modifier
                     .weight(1f)
                     .clip(CircleShape.copy())
             )
@@ -161,7 +177,7 @@ fun LeftDrawerItem(
                     Text(text = secondaryText, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            trailing(modifier = Modifier.weight(1f))
+            trailing(Modifier.weight(1f))
 
 
         }
@@ -180,14 +196,20 @@ fun RightDrawer(
         exit = slideOutHorizontally { it }, // Slide out to the right
         modifier = modifier
     ) {
-        Box(modifier = Modifier.fillMaxSize().clickable(
-            indication = null,
-            interactionSource = remember { MutableInteractionSource() }) {
-            drawerState.value = false
-        }.background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))) {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() }) {
+                drawerState.value = false
+            }
+            .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
+        ) {
             Box(
-                modifier = Modifier.align(Alignment.TopEnd)
-                    .fillMaxHeight().clickable(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .fillMaxHeight()
+                    .clickable(
                         indication = null,
                         interactionSource = remember { MutableInteractionSource() }) {
 

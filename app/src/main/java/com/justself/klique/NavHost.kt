@@ -36,7 +36,8 @@ fun NavigationHost(
 ) {
 
     val chatDao = remember { DatabaseProvider.getChatListDatabase(application).chatDao() }
-    val viewModelFactory = remember { ChatViewModelFactory(chatDao) }
+    val personalChatDao = remember {DatabaseProvider.getPersonalChatDatabase(application).personalChatDao()}
+    val viewModelFactory = remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
 
     NavHost(
@@ -58,9 +59,9 @@ fun NavigationHost(
                 }, navController, resetSelectedEmoji
             )
         }
-        composable("chats") { ChatsScreen(navController, chatScreenViewModel, customerId) }
+        composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
-        composable("bookshelf") { BookshelfScreen() }
+        composable("bookshelf") { BookshelfScreen(navController) }
         composable("orders") { OrdersScreen() }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
@@ -95,13 +96,21 @@ fun NavigationHost(
         }
         composable(
             "messageScreen/{enemyId}/{contactName}",
-            arguments = listOf(navArgument("enemyId") { type = NavType.IntType })
+            arguments = listOf(navArgument("enemyId") { type = NavType.IntType }, navArgument("contactName") { type = NavType.StringType})
         ) { backStackEntry ->
             val enemyId = backStackEntry.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the enemyId?")
             val contactName = backStackEntry.arguments?.getString("contactName")
-                ?: throw IllegalStateException("where is the contactName")
-            MessageScreen(navController, enemyId, contactName)
+                ?: throw IllegalStateException("where is the contactName?")
+            MessageScreen(navController, enemyId, chatScreenViewModel, onNavigateToTrimScreen = { uri ->
+                navController.navigate(
+                    "VideoTrimScreen/${
+                        Uri.encode(
+                            uri
+                        )
+                    }"
+                )
+            }, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker, contactName)
         }
         composable(
             "VideoTrimScreen/{videoUri}",

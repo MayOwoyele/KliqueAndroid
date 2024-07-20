@@ -1,7 +1,7 @@
 package com.justself.klique
 
 data class GistMessage(
-    val id: Int,
+    val id: String,
     val gistId: String,
     val customerId: Int,
     val sender: String,

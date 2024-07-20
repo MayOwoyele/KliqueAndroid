@@ -12,16 +12,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import com.justself.klique.Bookshelf.Contacts.ui.ContactsScreen
 import com.justself.klique.sharedUi.AddButton
 
 @Composable
-fun BookshelfScreen() {
+fun BookshelfScreen(navController: NavController) {
     Box (modifier = Modifier
         .fillMaxSize()
         .padding(horizontal = 16.dp)){
         Column {
-            ContactsScreen()
+            ContactsScreen(navController)
         }
     }
 

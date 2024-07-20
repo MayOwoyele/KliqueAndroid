@@ -109,7 +109,6 @@ import java.io.File
 import java.io.IOException
 import android.Manifest
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -121,10 +120,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.selects.select
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalComposeUiApi::class)
@@ -775,7 +772,7 @@ fun InputRow(
                                 }
                             },
                             textStyle = LocalTextStyle.current.copy(color = MaterialTheme.colorScheme.onPrimary),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.onPrimary),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(alignment = Alignment.CenterVertically)

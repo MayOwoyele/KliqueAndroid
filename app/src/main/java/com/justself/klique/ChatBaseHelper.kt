@@ -3,7 +3,7 @@ package com.justself.klique
 import android.content.Context
 import androidx.room.*
 
-// Define Entity Class
+// ChatList Database Management
 @Entity(tableName = "chats")
 data class ChatList(
     @PrimaryKey val enemyId: Int,  // Primary key and integer
@@ -28,15 +28,51 @@ interface ChatDao {
     @Query("DELETE FROM chats WHERE enemyId = :enemyId")
     suspend fun deleteChat(enemyId: Int)
 
-    // Update getAllChats to accept myId as a parameter
     @Query("SELECT * FROM chats WHERE myId = :myId")
     fun getAllChats(myId: Int): List<ChatList>
+    @Query("UPDATE chats SET contactname = :contactName, profilePhoto = :profilePhoto WHERE enemyId = :enemyId")
+    suspend fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String)
+    @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + 1 WHERE enemyId = :enemyId")
+    suspend fun incrementUnreadMsgCounter(enemyId: Int)
+
+    @Query("UPDATE chats SET unreadMsgCounter = 0 WHERE enemyId = :enemyId")
+    suspend fun resetUnreadMsgCounter(enemyId: Int)
+
+    @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + :count WHERE enemyId = :enemyId")
+    suspend fun incrementUnreadMsgCounterBy(enemyId: Int, count: Int)
 }
 
 // Define Database Class
 @Database(entities = [ChatList::class], version = 1)  // Keeping version 1
 abstract class ChatListDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
+}
+// Personal Chats database Management
+@Entity(tableName = "personalChats")
+data class PersonalChat(
+    @PrimaryKey val messageId: String,  // Primary key with auto generation
+    val enemyId: Int,
+    val myId: Int,
+    val content: String,
+    val status: String,
+    val messageType: String,
+    val timeStamp: String,
+    val mediaContent: ByteArray? = null  // Nullable BinaryArray for non-text messages
+)
+@Dao
+interface PersonalChatDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addPersonalChat(personalChat: PersonalChat)
+    @Update
+    suspend fun updatePersonalChat(personalChat: PersonalChat)
+    @Query("DELETE FROM personalChats WHERE messageId = :messageId")
+    suspend fun deletePersonalChat(messageId: String)
+    @Query("SELECT * from personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
+    fun getPersonalChats(myId: Int, enemyId: Int): List<PersonalChat>
+}
+@Database(entities = [PersonalChat::class], version = 1)
+abstract class PersonalChatDatabase : RoomDatabase() {
+    abstract fun personalChatDao(): PersonalChatDao
 }
 
 // Initialize Database
@@ -72,5 +108,17 @@ object DatabaseProvider {
             }
         }
         return CONTACTS_INSTANCE!!
+    }
+    private var PERSONALCHAT_DATABASE_INSTANCE: PersonalChatDatabase? = null
+    fun getPersonalChatDatabase(context: Context): PersonalChatDatabase {
+        if (PERSONALCHAT_DATABASE_INSTANCE == null) {
+            synchronized(PersonalChatDatabase::class) {
+                PERSONALCHAT_DATABASE_INSTANCE = Room.databaseBuilder(
+                    context.applicationContext, PersonalChatDatabase::class.java, "personal_chats.db"
+                ).fallbackToDestructiveMigration()
+                    .build()
+            }
+        }
+        return PERSONALCHAT_DATABASE_INSTANCE!!
     }
 }

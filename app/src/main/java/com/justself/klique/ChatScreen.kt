@@ -27,8 +27,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +39,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -47,8 +47,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
-    val chats: List<ChatList> by chatScreenViewModel.chats.observeAsState(emptyList())
+fun ChatListScreen(navController: NavHostController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
+    val chats by chatScreenViewModel.chats.collectAsState()
+    LaunchedEffect(Unit){
+        chatScreenViewModel.startPeriodicOnlineStatusCheck()
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -75,10 +78,9 @@ fun ChatsScreen(navController: NavHostController, chatScreenViewModel: ChatScree
         )
     }
 
-
-
     // Load chats when the composable is first composed
     chatScreenViewModel.loadChats(customerId)
+    chatScreenViewModel.fetchNewMessagesFromServer()
 }
 @Composable
 private fun AddButton(

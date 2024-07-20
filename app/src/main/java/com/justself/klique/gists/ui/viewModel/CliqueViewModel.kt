@@ -21,13 +21,13 @@ import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
 import java.util.Locale
+import java.util.UUID
 import kotlin.random.Random
 
 
@@ -74,7 +74,6 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
     init {
         WebSocketManager.registerListener(this)
-        initializeMessageCounter()
         simulateGistCreated()
         generateMembersList()
         //startUpdatingActiveSpectators()
@@ -107,15 +106,9 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         super.onCleared()
         WebSocketManager.unregisterListener(this)
     }
-
-    private var messageCounter = 0
-    private fun initializeMessageCounter() {
-        messageCounter = 0
-    }
-
-    fun generateMessageId(): Int {
-        messageCounter += 1
-        return messageCounter
+    fun generateMessageId(): String {
+        val randomUUID = UUID.randomUUID().toString()
+        return randomUUID
     }
 
     override fun onMessageReceived(type: String, jsonObject: JSONObject) {
@@ -133,7 +126,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 val messages = (0 until messagesJsonArray.length()).map { i ->
                     val msg = messagesJsonArray.getJSONObject(i)
                     GistMessage(
-                        id = msg.getInt("id"),
+                        id = msg.getString("id"),
                         gistId = msg.getString("gistId"),
                         customerId = msg.getInt("customerId"),
                         sender = msg.getString("fullName"),
@@ -147,7 +140,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
             "message" -> {
                 val gistId = jsonObject.getString("gistId")
-                val messageId = jsonObject.getInt("id")
+                val messageId = jsonObject.getString("id")
                 val customerId = jsonObject.getInt("customerId")
                 val fullName = jsonObject.getString("fullName")
                 val content = deEscapeContent(jsonObject.getString("content"))
@@ -164,7 +157,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
             "messageAck" -> {
                 val gistId = jsonObject.getString("gistId")
-                val messageId = jsonObject.getInt("id")
+                val messageId = jsonObject.getString("id")
                 val ackMessage = jsonObject.getString("message")
                 val messageType = jsonObject.optString("messageType", "text")
                 Log.i("WebSocketManager", "Message acknowledged: $ackMessage")
@@ -178,7 +171,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     }
 
     private fun handleBinaryMessage(type: String, jsonObject: JSONObject) {
-        val messageId = jsonObject.getInt("id")
+        val messageId = jsonObject.getString("id")
         println("Received message with Id: $messageId")
         val binaryData = jsonObject.getString("binaryData")
 
@@ -195,7 +188,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         data: ByteArray,
         type: String,
         gistId: String = "",
-        messageId: Int = 0,
+        messageId: String = "",
         customerId: Int = 0,
         fullName: String = ""
     ) {
@@ -251,7 +244,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         return _gistCreatedOrJoined.value != null
     }
 
-    private fun messageAcknowledged(gistId: String, messageId: Int, messageType: String = "text") {
+    private fun messageAcknowledged(gistId: String, messageId: String, messageType: String = "text") {
         Log.d(
             "WebSocketManager",
             "Message acknowledged: gistId=$gistId, messageId=$messageId, messageType=$messageType"
