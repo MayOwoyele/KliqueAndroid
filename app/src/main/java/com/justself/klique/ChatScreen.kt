@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,10 +48,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatListScreen(navController: NavHostController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
-    val chats by chatScreenViewModel.chats.collectAsState()
+fun ChatListScreen(navController: NavHostController, viewModel: ChatScreenViewModel, customerId: Int) {
+    val chats by viewModel.chats.collectAsState()
     LaunchedEffect(Unit){
-        chatScreenViewModel.startPeriodicOnlineStatusCheck()
+        viewModel.startPeriodicOnlineStatusCheck()
+    }
+    LaunchedEffect(Unit) {
+        if (chats.isEmpty()) {
+            viewModel.loadChats(customerId)
+            viewModel.fetchNewMessagesFromServer()
+            Log.d("loadChats", "Chat has been loaded")
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -59,17 +67,16 @@ fun ChatListScreen(navController: NavHostController, chatScreenViewModel: ChatSc
                 ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
 
                     navController.navigate("messageScreen/${chat.enemyId}/${chat.contactName}")
-
                 })
             }
         }
-        val databaseInjection: List<ChatList> = chatScreenViewModel.getMockChats(customerId)
+        val databaseInjection: List<ChatList> = viewModel.getMockChats(customerId)
         val coroutineScope = rememberCoroutineScope()
         // Floating Action Button at the bottom right
         AddButton(
             onClick = {  coroutineScope.launch(Dispatchers.IO) {
                 databaseInjection.forEach {chat ->
-                chatScreenViewModel.addChat(chat)} } },
+                viewModel.addChat(chat)} } },
             icon = Icons.Default.Add,
             contentDescription = "Add Chat",
             modifier = Modifier
@@ -78,9 +85,6 @@ fun ChatListScreen(navController: NavHostController, chatScreenViewModel: ChatSc
         )
     }
 
-    // Load chats when the composable is first composed
-    chatScreenViewModel.loadChats(customerId)
-    chatScreenViewModel.fetchNewMessagesFromServer()
 }
 @Composable
 private fun AddButton(

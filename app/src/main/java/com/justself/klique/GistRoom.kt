@@ -109,6 +109,7 @@ import java.io.File
 import java.io.IOException
 import android.Manifest
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -118,6 +119,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Job
@@ -135,7 +137,9 @@ fun GistRoom(
     showEmojiPicker: Boolean,
     onNavigateToTrimScreen: (String) -> Unit,
     navController: NavController,
-    resetSelectedEmoji: () -> Unit
+    resetSelectedEmoji: () -> Unit,
+    mediaViewModel: MediaViewModel,
+    emojiPickerHeight: (Dp) -> Unit
 ) {
     val gistId = viewModel.gistTopRow.collectAsState().value.gistId
     var message by remember { mutableStateOf(TextFieldValue("")) }
@@ -230,7 +234,7 @@ fun GistRoom(
     LaunchedEffect(key1 = keyboardHeightDp) {
         if (keyboardHeightDp > maxKeyboardHeightDp) maxKeyboardHeightDp = keyboardHeightDp
     }
-
+    emojiPickerHeight(maxKeyboardHeightDp)
     // Handle Emoji Selection
     LaunchedEffect(selectedEmoji) {
         if (selectedEmoji.isNotEmpty()) {
@@ -349,7 +353,8 @@ fun GistRoom(
                     .weight(1f)
                     .fillMaxWidth(),
                 navController = navController,
-                viewModel = viewModel
+                viewModel = viewModel,
+                mediaViewModel = mediaViewModel
             )
             Spacer(modifier = Modifier.height(5.dp))
 
@@ -533,7 +538,8 @@ fun MessageContent(
     scrollState: LazyListState,
     modifier: Modifier = Modifier,
     navController: NavController,
-    viewModel: SharedCliqueViewModel
+    viewModel: SharedCliqueViewModel,
+    mediaViewModel: MediaViewModel
 ) {
     LazyColumn(
         state = scrollState,
@@ -548,6 +554,7 @@ fun MessageContent(
                 16.dp, 0.dp, 16.dp, 16.dp
             ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
             var isExpanded by remember { mutableStateOf(false) }
+            val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -578,7 +585,7 @@ fun MessageContent(
                                         .height(200.dp)
                                         .clip(shape)
                                         .clickable {
-                                            viewModel.setBitmap(bitmap)
+                                            mediaViewModel.setBitmap(bitmap)
                                             navController.navigate("fullScreenImage")
                                         }
                                 )
@@ -591,43 +598,46 @@ fun MessageContent(
                         "KVideo" -> {
                             message.binaryData?.let { binaryData ->
                                 val videoUri = getUriFromByteArray(binaryData, context)
-                                Box(
-                                    modifier = Modifier
-                                        .height(200.dp)
-                                        .wrapContentWidth()
-                                        .clip(shape)
-                                        .clickable {
-                                            navController.navigate(
-                                                "fullScreenVideo/${Uri.encode(videoUri.toString())}"
-                                            )
-                                        }
-                                ) {
-                                    AndroidView(
-                                        factory = {
-                                            VideoView(context).apply {
-                                                setVideoURI(videoUri)
-                                                seekTo(1)
-                                            }
-                                        },
-                                        modifier = Modifier
-                                    )
+                                val thumbnail = VideoUtils.getVideoThumbnail(context, videoUri)
+                                val placeholder = createPlaceholderImage(200, 200, Color.Gray.toArgb(), onPrimaryColor)
+                                val aspectRatio = thumbnail?.let {
+                                    it.width.toFloat() / it.height.toFloat()
+                                } ?: 1f
+                                Box(modifier = Modifier
+                                    .height(200.dp)
+                                    .wrapContentWidth()
+                                    .aspectRatio(aspectRatio)
+                                    .clip(shape)
+                                    .clickable {
+                                        navController.navigate(
+                                            "fullScreenVideo/${Uri.encode(videoUri.toString())}"
+                                        )
+                                    }) {
+                                    if (thumbnail != null) {
+                                        Image(
+                                            bitmap = thumbnail.asImageBitmap(),
+                                            contentDescription = "Video Thumbnail",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    } else {
+                                        Image(
+                                            bitmap = placeholder.asImageBitmap(),
+                                            contentDescription = "Video Thumbnail",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
                                     Icon(
                                         imageVector = Icons.Default.PlayArrow,
                                         contentDescription = "Play",
                                         modifier = Modifier
                                             .align(Alignment.Center)
-                                            .size(48.dp)
-                                            .clickable {
-                                                navController.navigate(
-                                                    "fullScreenVideo/${Uri.encode(videoUri.toString())}"
-                                                )
-                                            },
-                                        tint = Color.White
+                                            .size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
                             } ?: Text(
                                 text = "Video not available",
-                                color = MaterialTheme.colorScheme.onPrimary
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
 

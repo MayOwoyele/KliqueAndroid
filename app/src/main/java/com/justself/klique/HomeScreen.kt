@@ -54,6 +54,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -76,7 +77,9 @@ fun HomeScreen(
     showEmojiPicker: Boolean,
     onNavigateToTrimScreen: (String) -> Unit,
     navController: NavController,
-    resetSelectedEmoji: () -> Unit
+    resetSelectedEmoji: () -> Unit,
+    mediaViewModel: MediaViewModel,
+    emojiPickerHeight: (Dp) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -139,7 +142,9 @@ fun HomeScreen(
                 showEmojiPicker = showEmojiPicker,
                 onNavigateToTrimScreen = onNavigateToTrimScreen,
                 navController = navController,
-                resetSelectedEmoji = resetSelectedEmoji
+                resetSelectedEmoji = resetSelectedEmoji,
+                mediaViewModel = mediaViewModel,
+                emojiPickerHeight = emojiPickerHeight
             )
         } else {
             Box(

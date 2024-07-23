@@ -33,7 +33,7 @@ import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 @Composable
-fun FullScreenImage(viewModel: SharedCliqueViewModel, navController: NavController) {
+fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
     val bitmap by viewModel.bitmap.observeAsState()
     val scale = remember { mutableStateOf(1f) }
     val offsetX = remember { mutableStateOf(0f) }
@@ -170,8 +170,8 @@ fun FullScreenImage(viewModel: SharedCliqueViewModel, navController: NavControll
                 ) {
                     IconButton(
                         onClick = {
-                            viewModel.clearBitmap()
-                            navController.popBackStack() },
+                            navController.popBackStack()
+                            viewModel.clearBitmap()},
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,

@@ -6,8 +6,12 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -32,13 +36,18 @@ fun NavigationHost(
     showEmojiPicker: Boolean,
     application: Application,
     sharedCliqueViewModel: SharedCliqueViewModel,
-    resetSelectedEmoji: () -> Unit
+    resetSelectedEmoji: () -> Unit,
+    emojiPickerHeight: (Dp) -> Unit
 ) {
 
     val chatDao = remember { DatabaseProvider.getChatListDatabase(application).chatDao() }
-    val personalChatDao = remember {DatabaseProvider.getPersonalChatDatabase(application).personalChatDao()}
-    val viewModelFactory = remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
+    val personalChatDao =
+        remember { DatabaseProvider.getPersonalChatDatabase(application).personalChatDao() }
+    val viewModelFactory =
+        remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
+    val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
+    var theTrimmedUri by remember { mutableStateOf<Uri?>(null) }
 
     NavHost(
         navController = navController,
@@ -54,15 +63,15 @@ fun NavigationHost(
                             Uri.encode(
                                 uri
                             )
-                        }"
+                        }/HomeScreen"
                     )
-                }, navController, resetSelectedEmoji
+                }, navController, resetSelectedEmoji, mediaViewModel, emojiPickerHeight
             )
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen(navController) }
-        composable("orders") { OrdersScreen() }
+        composable("orders") { OrdersScreen(navController, chatScreenViewModel,) }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
                 ?: throw IllegalStateException("Product must be provided")
@@ -96,38 +105,56 @@ fun NavigationHost(
         }
         composable(
             "messageScreen/{enemyId}/{contactName}",
-            arguments = listOf(navArgument("enemyId") { type = NavType.IntType }, navArgument("contactName") { type = NavType.StringType})
+            arguments = listOf(
+                navArgument("enemyId") { type = NavType.IntType },
+                navArgument("contactName") { type = NavType.StringType })
         ) { backStackEntry ->
             val enemyId = backStackEntry.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the enemyId?")
             val contactName = backStackEntry.arguments?.getString("contactName")
                 ?: throw IllegalStateException("where is the contactName?")
-            MessageScreen(navController, enemyId, chatScreenViewModel, onNavigateToTrimScreen = { uri ->
-                navController.navigate(
-                    "VideoTrimScreen/${
-                        Uri.encode(
-                            uri
-                        )
-                    }"
-                )
-            }, onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker, contactName)
+            MessageScreen(
+                navController,
+                enemyId,
+                chatScreenViewModel,
+                onNavigateToTrimScreen = { uri ->
+                    navController.navigate(
+                        "VideoTrimScreen/${
+                            Uri.encode(
+                                uri
+                            )
+                        }/MessageScreen"
+                    )
+                },
+                onEmojiPickerVisibilityChange,
+                selectedEmoji,
+                showEmojiPicker,
+                contactName, mediaViewModel, resetSelectedEmoji, emojiPickerHeight, theTrimmedUri, { theTrimmedUri = null}
+            )
         }
         composable(
-            "VideoTrimScreen/{videoUri}",
-            arguments = listOf(navArgument("videoUri") { type = NavType.StringType })
+            "VideoTrimScreen/{videoUri}/{sourceScreen}",
+            arguments = listOf(
+                navArgument("videoUri") { type = NavType.StringType },
+                navArgument("sourceScreen") {type = NavType.StringType
+                })
         ) { backStackEntry ->
             val videoUri = Uri.parse(backStackEntry.arguments?.getString("videoUri"))
+            val sourceScreen = backStackEntry.arguments?.getString("sourceScreen")?: ""
             VideoTrimmingScreen(
                 appContext = LocalContext.current,
                 uri = videoUri,
-                onTrimComplete = { trimmedUri ->
-                    // Navigate back to the chat room and handle the trimmed video
+                onTrimComplete = { trimmedUri, screen ->
+                    when (screen) {
+                        "HomeScreen" -> {sharedCliqueViewModel.handleTrimmedVideo(trimmedUri)}
+                        "MessageScreen" -> {theTrimmedUri = trimmedUri}
+                }
                     navController.popBackStack()
-                    sharedCliqueViewModel.handleTrimmedVideo(trimmedUri)
                 },
                 onCancel = {
                     navController.popBackStack()
-                }
+                },
+                sourceScreen = sourceScreen
             )
         }
         composable(
@@ -145,7 +172,7 @@ fun NavigationHost(
             GistSettings(navController, sharedCliqueViewModel)
         }
         composable("fullScreenImage") { backStackEntry ->
-            FullScreenImage(viewModel = sharedCliqueViewModel, navController = navController)
+            FullScreenImage(viewModel = mediaViewModel, navController = navController)
         }
         composable("fullScreenVideo/{videoUri}") { backStackEntry ->
             val videoUriString = backStackEntry.arguments?.getString("videoUri")

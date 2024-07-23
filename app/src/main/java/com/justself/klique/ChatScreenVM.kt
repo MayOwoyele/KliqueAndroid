@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
@@ -22,8 +23,8 @@ class ChatScreenViewModel(
 
     val myUserId = MutableStateFlow(0)
 
-    private val _personalChats = MutableStateFlow<List<PersonalChat>>(emptyList())
-    val personalChats: StateFlow<List<PersonalChat>> get() = _personalChats
+    private val _personalChats = MutableLiveData<List<PersonalChat>>(emptyList())
+    val personalChats: LiveData<List<PersonalChat>> get() = _personalChats
 
     private val _onlineStatuses = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
     val onlineStatuses: StateFlow<Map<Int, Boolean>> get() = _onlineStatuses
@@ -31,7 +32,7 @@ class ChatScreenViewModel(
     private val _currentChat = MutableStateFlow<Int?>(null)
     val currentChat: StateFlow<Int?> get() = _currentChat
     init {
-        simulateOnlineStatusOscillation()
+        // simulateOnlineStatusOscillation()
     }
 
 
@@ -120,7 +121,7 @@ class ChatScreenViewModel(
     // Apparently, the server needs to be keep delivery statuses of messages. Remember to do this
     private fun bulkUpdateUnreadMessageCounters(newMessages: List<PersonalChat>) {
         viewModelScope.launch(Dispatchers.IO) {
-            val unreadCounts = newMessages.groupBy { it.enemyId }.mapValues { it.value.size }
+            val unreadCounts = newMessages.groupBy { val enemy = it.myId; enemy }.mapValues { it.value.size }
             for ((enemyId, count) in unreadCounts) {
                 chatDao.incrementUnreadMsgCounterBy(enemyId, count)
             }
@@ -130,38 +131,47 @@ class ChatScreenViewModel(
     // Use this as a baseline to build message receipt of all types
     // This function is supposed to be called from the Websocket Parser
     // Remember to also implement a function to let the websocket know it has been delivered
+    // The Media types will come in as binary. Implement a function to save to device using File Utils before storing Uri in db
+    // Use Dispatcher.IO to do this
     fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
         Log.d("Incoming", "newMessage is $newMessage")
         viewModelScope.launch(Dispatchers.IO) {
             personalChatDao.addPersonalChat(newMessage)
             singleMessageUpdate(newMessage.myId, newMessage)
             // in the incoming message, myId is the enemyId
+            val enemyId = newMessage.myId
+            chatDao.updateLastMessage(
+                enemyId = enemyId,
+                lastMsg = newMessage.content,
+                timeStamp = newMessage.timeStamp
+            )
         }
     }
     private fun singleMessageUpdate(enemyId: Int, newMessage: PersonalChat) {
         if (_currentChat.value != enemyId) {
             incrementUnreadMsgCounter(enemyId)
         } else {
-            val updatedList = _personalChats.value.toMutableList().apply{
+            val updatedList = _personalChats.value?.toMutableList()?.apply {
                 add(newMessage)
             }
-            _personalChats.value = updatedList
+            _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData
         }
     }
     fun addPersonalChat(personalChat: PersonalChat) {
         viewModelScope.launch(Dispatchers.IO) {
             personalChatDao.addPersonalChat(personalChat)
-            val updatedList = _personalChats.value.toMutableList().apply {
+            val updatedList = _personalChats.value?.toMutableList()?.apply {
                 add(personalChat)
+                Log.d("Add Personal", "Add Personal called ${personalChat.messageId}")
             }
-            _personalChats.value = updatedList
+            _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData using postValue
         }
     }
     fun loadPersonalChats(myId: Int, enemyId: Int) {
         Log.d("Database", "Loading Database")
         viewModelScope.launch(Dispatchers.IO) {
             val personalChatList = personalChatDao.getPersonalChats(myId, enemyId)
-            _personalChats.value = personalChatList
+            _personalChats.postValue(personalChatList)
             Log.d("Database", "Extracted from database is $personalChatList")
         }
     }
@@ -179,6 +189,7 @@ class ChatScreenViewModel(
     fun generateMessageId(): String {
         return UUID.randomUUID().toString()
     }
+    // Provision should be made and thought of, on how such a message should be received
     private fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.updateProfile(enemyId, contactName, profilePhoto)
@@ -186,12 +197,29 @@ class ChatScreenViewModel(
     }
 
     fun sendBinary(
-        data: ByteArray, type: String, enemyId: Int, messageId: String, myId: Int, fullName: String
+        data: ByteArray, type: String, enemyId: Int, messageId: String, myId: Int, fullName: String, context: Context
     ) {
         val prefix = "$type:$enemyId:$messageId:$myId:$fullName".padEnd(50)
         val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
         val message = prefixBytes + data
         WebSocketManager.sendBinary(message)
+        val mediaUri = when (type) {
+            "PImage" -> FileUtils.saveImage(context, data)
+            "PVideo" -> FileUtils.saveVideo(context, data)
+            "PAudio" -> FileUtils.saveAudio(context, data)
+            else -> null
+        }
+        val personalChat = PersonalChat(
+            messageId = messageId,
+            enemyId = enemyId,
+            myId = myId,
+            content = "",
+            status = "pending",
+            messageType = type,
+            timeStamp = System.currentTimeMillis().toString(),
+            mediaUri = mediaUri?.toString()
+        )
+        addPersonalChat(personalChat)
         Log.d(
             "sendBinaryInputs",
             "Data: ${data.size}, Type: $type, EnemyId: $enemyId, MessageId: $messageId, MyId: $myId, FullName: $fullName"
@@ -266,8 +294,16 @@ class ChatScreenViewModel(
     // This is for handling the websocket response type for 'fetch new messages' function
     private fun handleBulkMessagesRefresh(newBulkMessages: List<PersonalChat>){
         viewModelScope.launch(Dispatchers.IO) {
-            newBulkMessages.forEach{personalChatDao.addPersonalChat(it)}
+            newBulkMessages.forEach{message ->
+                personalChatDao.addPersonalChat(message)
+                val enemyId = message.myId
+                chatDao.updateLastMessage(
+                    enemyId = enemyId,
+                    lastMsg = message.content,
+                    timeStamp = message.timeStamp
+                )}
             bulkUpdateUnreadMessageCounters(newBulkMessages)
+            Log.d("Add Personal", "Add Personal handlebulk ")
         }
     }
     private fun parseNewMessages(jsonObject: JSONObject): List<PersonalChat> {
@@ -302,7 +338,7 @@ class ChatScreenViewModel(
         return statusMap
     }
 
-    fun handleRecordedAudio(file: File, enemyId: Int, myId: Int, fullName: String) {
+    fun handleRecordedAudio(file: File, enemyId: Int, myId: Int, fullName: String, context: Context) {
         viewModelScope.launch {
             try {
                 val audioByteArray = FileUtils.fileToByteArray(file)
@@ -310,21 +346,9 @@ class ChatScreenViewModel(
 
                 val messageId = generateMessageId()
                 sendBinary(
-                    audioByteArray, "PAudio", enemyId, messageId, myId, fullName
+                    audioByteArray, "PAudio", enemyId, messageId, myId, fullName, context
                 )
 
-                val personalChat = PersonalChat(
-                    messageId = messageId,
-                    enemyId = enemyId,
-                    myId = myId,
-                    content = "",
-                    status = "pending",
-                    messageType = "PAudio",
-                    timeStamp = System.currentTimeMillis()
-                        .toString(),  // Use appropriate time format
-                    mediaContent = audioByteArray
-                )
-                addPersonalChat(personalChat)
             } catch (e: IOException) {
                 Log.e("ChatRoom", "Error processing audio: ${e.message}", e)
             }

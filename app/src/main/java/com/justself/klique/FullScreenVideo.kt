@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,13 +52,14 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
     }
 
     // Variables to hold the video duration and current position
-    var duration by remember { mutableStateOf(0) }
-    var position by remember { mutableStateOf(0) }
+    var duration by remember { mutableIntStateOf(0) }
+    var position by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         // Set up the video listener to get the duration when the video is prepared
         videoView.setOnPreparedListener {
             duration = it.duration
+            videoView.start()
         }
         onDispose {
             videoView.stopPlayback()

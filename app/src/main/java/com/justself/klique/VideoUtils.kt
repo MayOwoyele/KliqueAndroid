@@ -1,6 +1,10 @@
 package com.justself.klique
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
 import android.widget.VideoView
@@ -106,14 +110,41 @@ object VideoUtils {
             return null
         }
     }
+    fun getVideoThumbnail(context: Context, videoUri: Uri): Bitmap? {
+        val retriever = MediaMetadataRetriever()
+        return try{
+            retriever.setDataSource(context, videoUri)
+            retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }finally {
+            retriever.release()
+        }
+    }
+}
+fun createPlaceholderImage(width: Int, height: Int, backgroundColor: Int, textColor: Int): Bitmap {
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+    val paint = Paint().apply {
+        color = backgroundColor
+        style = Paint.Style.FILL
+    }
+    canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    paint.color = textColor
+    paint.textAlign = Paint.Align.CENTER
+    paint.textSize = 50f
+    canvas.drawText("Video", width / 2f, height / 2f, paint)
+    return bitmap
 }
 
 @Composable
 fun VideoTrimmingScreen(
     appContext: Context,
     uri: Uri,
-    onTrimComplete: (Uri?) -> Unit,
-    onCancel: () -> Unit
+    onTrimComplete: (Uri?, String) -> Unit,
+    onCancel: () -> Unit,
+    sourceScreen: String
 ) {
     val coroutineScope = rememberCoroutineScope()
     var videoDuration by remember { mutableStateOf(0L) }
@@ -224,7 +255,7 @@ fun VideoTrimmingScreen(
             onClick = {
                 coroutineScope.launch {
                     val trimmedUri = performTrimming(appContext, uri, startMs, endMs)
-                    onTrimComplete(trimmedUri)
+                    onTrimComplete(trimmedUri, sourceScreen)
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),

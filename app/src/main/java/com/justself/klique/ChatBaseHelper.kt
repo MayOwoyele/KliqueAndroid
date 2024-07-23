@@ -40,6 +40,8 @@ interface ChatDao {
 
     @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + :count WHERE enemyId = :enemyId")
     suspend fun incrementUnreadMsgCounterBy(enemyId: Int, count: Int)
+    @Query("UPDATE chats SET lastMsg = :lastMsg, lastMsgAddtime = :timeStamp WHERE enemyId = :enemyId")
+    suspend fun updateLastMessage(enemyId: Int, lastMsg: String, timeStamp: String)
 }
 
 // Define Database Class
@@ -57,7 +59,7 @@ data class PersonalChat(
     val status: String,
     val messageType: String,
     val timeStamp: String,
-    val mediaContent: ByteArray? = null  // Nullable BinaryArray for non-text messages
+    val mediaUri: String? = null  // Nullable BinaryArray for non-text messages
 )
 @Dao
 interface PersonalChatDao {

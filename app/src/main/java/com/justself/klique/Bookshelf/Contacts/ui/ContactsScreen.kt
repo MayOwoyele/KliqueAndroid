@@ -97,7 +97,7 @@ fun ContactTile(contact: Contact, navController: NavController) {
     val isClickable = contact.isAppUser
     val onTap: () -> Unit = {
         if (isClickable) {
-            navController.navigate("messageScreen/${contact.customerId}")
+            navController.navigate("messageScreen/${contact.customerId}/${contact.name}")
         }
     }
     Surface(

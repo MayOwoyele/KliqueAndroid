@@ -1,7 +1,6 @@
 package com.justself.klique
 
 import android.app.Application
-import android.net.Uri
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -38,7 +37,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -61,19 +59,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.screens.LoginScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
@@ -285,10 +279,11 @@ fun MainContent(
         val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
             factory = SharedCliqueViewModelFactory(application, customerId)
         )
+        var emojiPickerHeight by remember {mutableStateOf(0.dp)}
         NavigationHost(
             navController, isLoggedIn, productViewModel, customerId,
             fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
+            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji, {height -> emojiPickerHeight = height}
         )
         LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart))
         RightDrawer(rightDrawerState, Modifier.align(Alignment.CenterEnd))
@@ -305,7 +300,7 @@ fun MainContent(
                     Log.d("EmojiVisibility", "The emojiVisible: $it")
                     onEmojiSelected(it)
                     onEmojiPickerVisibilityChange(true)
-                })
+                }, emojiPickerHeight = emojiPickerHeight)
             }
         }
     }
@@ -399,21 +394,14 @@ fun BottomNavigationBar(navController: NavController) {
     }
 }
 
-@Composable
-fun OrdersScreen() {
-    Text("Dashboard boardyboard")
-}
-
-
 
 @Composable
-fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
+fun EmojiPickerView(onEmojiSelected: (String) -> Unit, emojiPickerHeight: Dp) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(8.dp),
+            .background(MaterialTheme.colorScheme.surface),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -426,7 +414,7 @@ fun EmojiPickerView(onEmojiSelected: (String) -> Unit) {
                 }
             },
             modifier = Modifier
-                .height(300.dp)
+                .height(emojiPickerHeight)
                 .fillMaxWidth()
         )
     }
