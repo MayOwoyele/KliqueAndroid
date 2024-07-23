@@ -42,6 +42,8 @@ interface ChatDao {
     suspend fun incrementUnreadMsgCounterBy(enemyId: Int, count: Int)
     @Query("UPDATE chats SET lastMsg = :lastMsg, lastMsgAddtime = :timeStamp WHERE enemyId = :enemyId")
     suspend fun updateLastMessage(enemyId: Int, lastMsg: String, timeStamp: String)
+    @Query("SELECT EXISTS(SELECT 1 FROM chats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))")
+    suspend fun chatExists(myId: Int, enemyId: Int): Boolean
 }
 
 // Define Database Class

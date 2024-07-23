@@ -31,11 +31,13 @@ class ChatScreenViewModel(
 
     private val _currentChat = MutableStateFlow<Int?>(null)
     val currentChat: StateFlow<Int?> get() = _currentChat
+    private val _isNewChat = MutableStateFlow<Boolean>(false)
     init {
         // simulateOnlineStatusOscillation()
     }
-
-
+    fun setIsNewChat(isNew: Boolean) {
+        _isNewChat.value = isNew
+    }
     fun addChat(chat: ChatList) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.addChat(chat)
@@ -62,8 +64,10 @@ class ChatScreenViewModel(
             val chatList = chatDao.getAllChats(myId)/* mockData is for testing. chatList is from the real database
             val mockData = getMockChats(myId) */
             _chats.value = chatList
-            myUserId.value = myId
         }
+    }
+    fun setMyUserId(userId: Int) {
+        myUserId.value = userId
     }
     fun enterChat(enemyId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -135,36 +139,49 @@ class ChatScreenViewModel(
     // Use Dispatcher.IO to do this
     fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
         Log.d("Incoming", "newMessage is $newMessage")
+        addAndProcessPersonalChat(newMessage)
+    }
+    private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
+        val enemyId = if (newMessage.myId == myUserId.value) newMessage.enemyId else newMessage.myId
+        val lastMsg = newMessage.content
+        val timeStamp = newMessage.timeStamp
+
         viewModelScope.launch(Dispatchers.IO) {
-            personalChatDao.addPersonalChat(newMessage)
-            singleMessageUpdate(newMessage.myId, newMessage)
-            // in the incoming message, myId is the enemyId
-            val enemyId = newMessage.myId
-            chatDao.updateLastMessage(
-                enemyId = enemyId,
-                lastMsg = newMessage.content,
-                timeStamp = newMessage.timeStamp
-            )
-        }
-    }
-    private fun singleMessageUpdate(enemyId: Int, newMessage: PersonalChat) {
-        if (_currentChat.value != enemyId) {
-            incrementUnreadMsgCounter(enemyId)
-        } else {
-            val updatedList = _personalChats.value?.toMutableList()?.apply {
-                add(newMessage)
+            if (_currentChat.value != enemyId) {
+                incrementUnreadMsgCounter(enemyId)
+            } else {
+                val updatedList = _personalChats.value?.toMutableList()?.apply {
+                    add(newMessage)
+                }
+                _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData
             }
-            _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData
+            val chat = ChatList(
+                enemyId = enemyId,
+                contactName = "Your NewFriend", // Set a default or fetch the actual name
+                lastMsg = lastMsg,
+                lastMsgAddtime = timeStamp,
+                profilePhoto = "", // Placeholder or actual profile photo
+                myId = myUserId.value,
+                unreadMsgCounter = if (_currentChat.value != enemyId) 1 else 0
+            )
+
+            if (_isNewChat.value) {
+                chatDao.addChat(chat)
+                Log.d("isNewChat", "add chat called with $chat")
+                setIsNewChat(false) // Reset after adding
+            } else {
+                chatDao.updateLastMessage(
+                    enemyId = enemyId,
+                    lastMsg = lastMsg,
+                    timeStamp = timeStamp
+                )
+            }
         }
     }
-    fun addPersonalChat(personalChat: PersonalChat) {
+    fun addAndProcessPersonalChat(personalChat: PersonalChat) {
         viewModelScope.launch(Dispatchers.IO) {
             personalChatDao.addPersonalChat(personalChat)
-            val updatedList = _personalChats.value?.toMutableList()?.apply {
-                add(personalChat)
-                Log.d("Add Personal", "Add Personal called ${personalChat.messageId}")
-            }
-            _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData using postValue
+            updateChatListWithNewMessage(personalChat)
         }
     }
     fun loadPersonalChats(myId: Int, enemyId: Int) {
@@ -175,7 +192,11 @@ class ChatScreenViewModel(
             Log.d("Database", "Extracted from database is $personalChatList")
         }
     }
-
+    suspend fun checkChatExistsSync(myId: Int, enemyId: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            chatDao.chatExists(myId, enemyId)
+        }
+    }
 
     fun fetchNewMessagesFromServer(){
         val jsonData = """
@@ -219,7 +240,7 @@ class ChatScreenViewModel(
             timeStamp = System.currentTimeMillis().toString(),
             mediaUri = mediaUri?.toString()
         )
-        addPersonalChat(personalChat)
+        addAndProcessPersonalChat(personalChat)
         Log.d(
             "sendBinaryInputs",
             "Data: ${data.size}, Type: $type, EnemyId: $enemyId, MessageId: $messageId, MyId: $myId, FullName: $fullName"
@@ -368,7 +389,7 @@ class ChatScreenViewModel(
         )
         viewModelScope.launch(Dispatchers.IO) {
             // personalChatDao.addPersonalChat(personalChat)
-            addPersonalChat(personalChat)
+            addAndProcessPersonalChat(personalChat)
 
         }
         val messageJson = """

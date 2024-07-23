@@ -48,11 +48,12 @@ import coil.request.ImageRequest
 import coil.size.Size
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import com.justself.klique.ChatScreenViewModel
 import com.justself.klique.R
 import com.justself.klique.useful_extensions.initials
 
 @Composable
-fun ContactsScreen(navController: NavController) {
+fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
     Log.d("Check", "Check")
     Log.d("Check Permissions", "Check")
     val context = LocalContext.current
@@ -87,18 +88,21 @@ fun ContactsScreen(navController: NavController) {
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         items(contactList.size) { index ->
-            ContactTile(contact = contactList[index], navController = navController)
+            ContactTile(contact = contactList[index], navController = navController, chatScreenViewModel, customerId)
         }
     }
 }
 
 @Composable
-fun ContactTile(contact: Contact, navController: NavController) {
+fun ContactTile(contact: Contact, navController: NavController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
     val isClickable = contact.isAppUser
     val onTap: () -> Unit = {
         if (isClickable) {
             navController.navigate("messageScreen/${contact.customerId}/${contact.name}")
         }
+    }
+    LaunchedEffect(Unit) {
+        chatScreenViewModel.setMyUserId(customerId)
     }
     Surface(
         modifier = Modifier
@@ -168,7 +172,9 @@ fun ContactTile(contact: Contact, navController: NavController) {
                         shape = CircleShape
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.onPrimary),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.onPrimary),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(

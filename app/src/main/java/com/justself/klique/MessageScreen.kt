@@ -365,8 +365,10 @@ fun MessageScreenContent(
     val context = LocalContext.current
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
     LaunchedEffect(key1 = enemyId) {
-            Log.d("Personal Chats", "Loading chats for enemyId: $enemyId")
             viewModel.loadPersonalChats(myId, enemyId)
+        val isNewChat = viewModel.checkChatExistsSync(myId, enemyId).not()
+        viewModel.setIsNewChat(isNewChat)
+        Log.d("isNewChat", "$isNewChat")
     }
     LazyColumn(
         state = scrollState,

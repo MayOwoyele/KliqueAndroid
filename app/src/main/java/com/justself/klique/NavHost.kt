@@ -70,7 +70,7 @@ fun NavigationHost(
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
-        composable("bookshelf") { BookshelfScreen(navController) }
+        composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
         composable("orders") { OrdersScreen(navController, chatScreenViewModel,) }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()

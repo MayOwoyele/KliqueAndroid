@@ -48,17 +48,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChatListScreen(navController: NavHostController, viewModel: ChatScreenViewModel, customerId: Int) {
+fun ChatListScreen(
+    navController: NavHostController,
+    viewModel: ChatScreenViewModel,
+    customerId: Int
+) {
     val chats by viewModel.chats.collectAsState()
-    LaunchedEffect(Unit){
+    LaunchedEffect(Unit) {
         viewModel.startPeriodicOnlineStatusCheck()
     }
     LaunchedEffect(Unit) {
-        if (chats.isEmpty()) {
-            viewModel.loadChats(customerId)
-            viewModel.fetchNewMessagesFromServer()
-            Log.d("loadChats", "Chat has been loaded")
-        }
+        viewModel.loadChats(customerId)
+        viewModel.setMyUserId(customerId)
+        viewModel.fetchNewMessagesFromServer()
+        Log.d("loadChats", "Chat has been loaded")
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -74,9 +77,13 @@ fun ChatListScreen(navController: NavHostController, viewModel: ChatScreenViewMo
         val coroutineScope = rememberCoroutineScope()
         // Floating Action Button at the bottom right
         AddButton(
-            onClick = {  coroutineScope.launch(Dispatchers.IO) {
-                databaseInjection.forEach {chat ->
-                viewModel.addChat(chat)} } },
+            onClick = {
+                coroutineScope.launch(Dispatchers.IO) {
+                    databaseInjection.forEach { chat ->
+                        viewModel.addChat(chat)
+                    }
+                }
+            },
             icon = Icons.Default.Add,
             contentDescription = "Add Chat",
             modifier = Modifier
@@ -86,6 +93,7 @@ fun ChatListScreen(navController: NavHostController, viewModel: ChatScreenViewMo
     }
 
 }
+
 @Composable
 private fun AddButton(
     onClick: () -> Unit,
@@ -112,7 +120,8 @@ private fun AddButton(
 
 @Composable
 fun ChatItem(chat: ChatList, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 25.dp)
+    val shape =
+        RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 25.dp)
     val borderColor = MaterialTheme.colorScheme.primary
 
     Card(
