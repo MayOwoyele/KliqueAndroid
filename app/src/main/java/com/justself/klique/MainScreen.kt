@@ -276,8 +276,9 @@ fun MainContent(
             )
     ) {
         val application = LocalContext.current.applicationContext as Application
+        val contactDao = remember {DatabaseProvider.getContactsDatabase(application).contactDao()}
         val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-            factory = SharedCliqueViewModelFactory(application, customerId)
+            factory = SharedCliqueViewModelFactory(application, customerId, contactDao)
         )
         var emojiPickerHeight by remember {mutableStateOf(0.dp)}
         NavigationHost(

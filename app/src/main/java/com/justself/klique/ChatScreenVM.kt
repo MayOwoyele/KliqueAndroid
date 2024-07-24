@@ -31,6 +31,8 @@ class ChatScreenViewModel(
 
     private val _currentChat = MutableStateFlow<Int?>(null)
     val currentChat: StateFlow<Int?> get() = _currentChat
+    private val _searchResults = MutableStateFlow<List<ChatList>>(emptyList())
+    val searchResults: StateFlow<List<ChatList>> get() = _searchResults
     private val _isNewChat = MutableStateFlow<Boolean>(false)
     init {
         // simulateOnlineStatusOscillation()
@@ -55,7 +57,8 @@ class ChatScreenViewModel(
     fun deleteChat(enemyId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.deleteChat(enemyId)
-            loadChats(myUserId.value!!)
+            personalChatDao.deletePersonalChatsForEnemy(myId = myUserId.value, enemyId = enemyId)
+            loadChats(myUserId.value)
         }
     }
 
@@ -143,7 +146,12 @@ class ChatScreenViewModel(
     }
     private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
         val enemyId = if (newMessage.myId == myUserId.value) newMessage.enemyId else newMessage.myId
-        val lastMsg = newMessage.content
+        val lastMsg = when (newMessage.messageType) {
+            "PImage" -> "Photo"
+            "PVideo" -> "Video"
+            "PAudio" -> "Audio"
+            else -> newMessage.content
+        }
         val timeStamp = newMessage.timeStamp
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -406,7 +414,16 @@ class ChatScreenViewModel(
         """.trimIndent()
         send(messageJson)
     }
-
+    fun searchChats(query: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = if (query.isEmpty()) {
+                chatDao.getAllChats(myUserId.value)
+            } else {
+                chatDao.searchChats(myUserId.value, "%$query%")
+            }
+            _searchResults.value = result
+        }
+    }
     // Send JSON message
     private fun send(message: String) {
         WebSocketManager.send(message)

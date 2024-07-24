@@ -44,6 +44,8 @@ interface ChatDao {
     suspend fun updateLastMessage(enemyId: Int, lastMsg: String, timeStamp: String)
     @Query("SELECT EXISTS(SELECT 1 FROM chats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))")
     suspend fun chatExists(myId: Int, enemyId: Int): Boolean
+    @Query("SELECT * FROM chats WHERE myId = :myId AND contactName LIKE :query")
+    fun searchChats(myId: Int, query: String): List<ChatList>
 }
 
 // Define Database Class
@@ -73,6 +75,8 @@ interface PersonalChatDao {
     suspend fun deletePersonalChat(messageId: String)
     @Query("SELECT * from personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
     fun getPersonalChats(myId: Int, enemyId: Int): List<PersonalChat>
+    @Query("DELETE FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
+    suspend fun deletePersonalChatsForEnemy(myId: Int, enemyId: Int)
 }
 @Database(entities = [PersonalChat::class], version = 1)
 abstract class PersonalChatDatabase : RoomDatabase() {

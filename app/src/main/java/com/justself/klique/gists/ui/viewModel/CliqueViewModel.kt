@@ -12,6 +12,8 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.justself.klique.Bookshelf.Contacts.data.Contact
+import com.justself.klique.ContactDao
 import com.justself.klique.GistMessage
 import com.justself.klique.GistTopRow
 import com.justself.klique.Members
@@ -19,6 +21,7 @@ import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
+import com.justself.klique.toContact
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +35,7 @@ import kotlin.random.Random
 
 
 //TODO: Discuss with May about the List of Gists, How we are getting gists from server,
-class SharedCliqueViewModel(application: Application, private val customerId: Int) :
+class SharedCliqueViewModel(application: Application, private val customerId: Int, private val contactDao: ContactDao) :
     AndroidViewModel(application), WebSocketListener {
     override val listenerId: String = "SharedCliqueViewModel"
 
@@ -56,6 +59,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val listOfOwners = _listOfOwners.asStateFlow()
     val listOfSpeakers = _listOfSpeakers.asStateFlow()
 
+    // this val should be replaced by server info someway, somehow
     private val _gistTopRow =
         MutableStateFlow(
             GistTopRow(
@@ -70,6 +74,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
     private val _bitmap = MutableLiveData<Bitmap?>()
     val bitmap: LiveData<Bitmap?> get() = _bitmap
+    private val _searchResults = MutableLiveData<List<Members>>()
+    val searchResults: LiveData<List<Members>> = _searchResults
+    private val _searchPerformed = MutableLiveData(false)
+    val searchPerformed: LiveData<Boolean> = _searchPerformed
 
 
     init {
@@ -79,10 +87,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         //startUpdatingActiveSpectators()
     }
 
-    /**
-    remove this function later here and in the init block, it is simply for simulation purpose
-     * @property simulateGistCreated
-     */
+    // remove this function later here and in the init block, it is simply for simulation purpose
     fun simulateGistCreated() {
         val topic = "Kotlin"
         val gistId = "1b345kt"
@@ -93,13 +98,29 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             gistDescription = "This is to change the gist description"
         )
     }
+    // remember to handle the websocket receipt message
+    // use this to update _searchResults state variable
     fun doTheSearch(searchQuery: String) {
+        _searchPerformed.value = true
         val searchMessage = """
-            "type": "GistSearch"
+            "type": "GistSearch",
             "searchQuery": "$searchQuery"
         """.trimIndent()
         Log.d("WebSocketManager", "Sending search message: $searchMessage")
         send(searchMessage)
+    }
+    fun turnSearchPerformedOff(){
+        _searchPerformed.value = false
+    }
+    // This simulation can be used as a data structure template for the server
+    fun simulateSearchResults() {
+        val simulatedMembers = listOf(
+            Members(1, "May Owoyele", isContact = true, isOwner = false, isSpeaker = false),
+            Members(2, "Wale Adams", isContact = true, isOwner = false, isSpeaker = true),
+            Members(3, "John Doe", isContact = false, isOwner = true, isSpeaker = true),
+            // Add more simulated members as needed
+        )
+        _searchResults.postValue(simulatedMembers)
     }
 
     override fun onCleared() {
@@ -231,14 +252,6 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         send(message)
     }
 
-    fun setBitmap(bitmap: Bitmap) {
-        _bitmap.value = bitmap
-    }
-
-    fun clearBitmap() {
-        Log.d("Bitmap", "Bitmap cleared")
-        _bitmap.value = null
-    }
 
     fun isGistActive(): Boolean {
         return _gistCreatedOrJoined.value != null
@@ -348,7 +361,41 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             else -> count.toString()
         }
     }
-
+    private suspend fun loadContacts(): List<Contact> {
+        return contactDao.getSortedContacts().map { it.toContact() }
+    }
+    fun compareAndUpdateMembers(members: List<Members>, contacts: List<Contact>) {
+        val contactSet = contacts.mapNotNull {it.customerId}.toSet()
+        val updatedMembers = members.map {member ->
+            member.copy(isContact = contactSet.contains(member.customerId))
+        }
+        sortMembersByContact(updatedMembers.toMutableList())
+    }
+    // this function will be changed to react to the websocket on Message instead..
+    // fetchMembersFromServer will eventually have no return type
+    fun fetchMembersAndCompare(members: List<Members>) {
+        viewModelScope.launch {
+            val contacts = loadContacts()
+            Log.d("Contacts", "$contacts")
+            compareAndUpdateMembers(members, contacts)
+        }
+    }
+    // trigger the fetchMembersFromServer function first using the existing LaunchedEffect
+    // Use the onMessage function to trigger fetchMembersAndCompare
+    // Pass the membersFromServer List to fetchMembersAndCompare
+    fun fetchMembersFromServer(gistId: String) {
+        try {
+            val fetchRequest = """
+            {
+            "type": "fetchMembersFromServer",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+            send(fetchRequest)
+        } catch (e: Exception) {
+            Log.e("SharedCliqueViewModel", "Failed to send fetch request: ${e.message}")
+        }
+    }
     private fun sortMembersByContact(members: MutableList<Members>) {
         val contacts = members.filter { it.isContact }
         val nonContacts = members.filter { !it.isContact }
@@ -360,9 +407,11 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         _listOfSpeakers.value = speakers
     }
 
+    //This is a test function for testing the sorting power
+
     fun generateMembersList() {
         val membersList = mutableListOf<Members>()
-        for (i in 1..40) { // Generate 100 members
+        for (i in 1..40) { // Generate 40 members
             val owner = Random.nextFloat() < 0.3
             val speaker = if (owner) true else Random.nextFloat() < 0.45
             membersList.add(
@@ -378,11 +427,11 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 }
 
 class SharedCliqueViewModelFactory(
-    private val application: Application, private val customerId: Int
+    private val application: Application, private val customerId: Int, private val contactDao: ContactDao
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SharedCliqueViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST") return SharedCliqueViewModel(application, customerId) as T
+            @Suppress("UNCHECKED_CAST") return SharedCliqueViewModel(application, customerId, contactDao) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

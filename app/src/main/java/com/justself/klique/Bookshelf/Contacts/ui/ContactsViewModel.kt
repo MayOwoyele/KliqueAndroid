@@ -1,17 +1,14 @@
 package com.justself.klique.Bookshelf.Contacts.ui
 
-import android.content.ContentResolver
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.CreationExtras
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class ContactsViewModel(private val _contactsRepository: ContactsRepository) : ViewModel() {
@@ -30,7 +27,7 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
 
     // Load contacts from the contacts repository
     fun refreshContacts() {
-        viewModelScope.launch {
+        viewModelScope.launch (Dispatchers.IO){
             delay(1000)
             Log.d("Klique Delay", "delay is over")
             val localContacts = _contactsRepository.getContacts()

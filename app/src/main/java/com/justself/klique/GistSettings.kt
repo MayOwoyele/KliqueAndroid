@@ -4,6 +4,7 @@ import ImageUtils
 import android.Manifest
 import android.net.Uri
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
@@ -48,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -90,13 +92,19 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
     val gistTopRow by viewModel.gistTopRow.collectAsState()
     val gistId = gistTopRow.gistId
     val gistImage = gistTopRow.gistImage
+    val searchResults by viewModel.searchResults.observeAsState(emptyList())
     val imagePickerLauncher =
         rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let {
                 coroutineScope.launch {
                     try {
-                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri, maxSize = 1080)
-                        viewModel.sendBinary(data = imageByteArray, type = "GistProfileImage", gistId = gistId)
+                        val imageByteArray =
+                            ImageUtils.processImageToByteArray(context, uri, maxSize = 1080)
+                        viewModel.sendBinary(
+                            data = imageByteArray,
+                            type = "GistProfileImage",
+                            gistId = gistId
+                        )
                     } catch (e: IOException) {
                         e.printStackTrace()
                     }
@@ -111,7 +119,13 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
             )
         )
     }
-
+    BackHandler {
+        navController.popBackStack()
+        viewModel.turnSearchPerformedOff()
+    }
+    LaunchedEffect(gistId) {
+        viewModel.fetchMembersFromServer(gistId)
+    }
 
     Column(
         modifier = Modifier
@@ -233,7 +247,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                         .focusRequester(focusRequester)
                         .clip(RoundedCornerShape(16.dp)),
                     singleLine = true,
-                    placeholder = { Text("Search...") },
+                    placeholder = { Text("search using their alias, not contact name...") },
                     leadingIcon = {
                         IconButton(onClick = {
                             isSearchMode = false
@@ -269,6 +283,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                 IconButton(onClick = {
                     // Handle back navigation
                     navController.popBackStack()
+                    viewModel.turnSearchPerformedOff()
                 }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -298,6 +313,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
         val listOfNonContactMembers by viewModel.listOfNonContactMembers.collectAsState()
         val listOfOwners by viewModel.listOfOwners.collectAsState()
         val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
+        val searchPerformed by viewModel.searchPerformed.observeAsState(false)
         // LazyColumn
         LazyColumn(
             modifier = Modifier
@@ -305,29 +321,46 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                 .weight(2f)
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            item {
-                Headers("Owners")
-            }
-            items(listOfOwners) { member ->
-                MyMembersList(member)
-            }
-            item {
-                Headers("Speakers")
-            }
-            items(listOfSpeakers) { member ->
-                MyMembersList(member)
-            }
-            item {
-                Headers("Your Contacts")
-            }
-            items(listOfContactMembers) { member ->
-                MyMembersList(member)
-            }
-            item {
-                Headers("Non Contacts")
-            }
-            items(listOfNonContactMembers) { member ->
-                MyMembersList(member)
+            if (isSearchMode) {
+                if (searchPerformed && searchResults.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Contact isn't in gist",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                } else  {
+                    items(searchResults) {member ->
+                        MyMembersList(member = member)
+                    }
+                }
+            } else {
+                item {
+                    Headers("Owners")
+                }
+                items(listOfOwners) { member ->
+                    MyMembersList(member)
+                }
+                item {
+                    Headers("Speakers")
+                }
+                items(listOfSpeakers) { member ->
+                    MyMembersList(member)
+                }
+                item {
+                    Headers("Your Contacts")
+                }
+                items(listOfContactMembers) { member ->
+                    MyMembersList(member)
+                }
+                item {
+                    Headers("Non Contacts")
+                }
+                items(listOfNonContactMembers) { member ->
+                    MyMembersList(member)
+                }
             }
         }
     }
