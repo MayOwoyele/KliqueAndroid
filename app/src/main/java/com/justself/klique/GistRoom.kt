@@ -139,7 +139,8 @@ fun GistRoom(
     navController: NavController,
     resetSelectedEmoji: () -> Unit,
     mediaViewModel: MediaViewModel,
-    emojiPickerHeight: (Dp) -> Unit
+    emojiPickerHeight: (Dp) -> Unit,
+    chatScreenViewModel: ChatScreenViewModel
 ) {
     val gistId = viewModel.gistTopRow.collectAsState().value.gistId
     var message by remember { mutableStateOf(TextFieldValue("")) }
@@ -339,6 +340,7 @@ fun GistRoom(
                     viewModel = viewModel,
                     userStatus = userStatus,
                     navController = navController,
+                    chatScreenViewModel = chatScreenViewModel
                 )
             }
 
@@ -429,6 +431,7 @@ fun GistTitleRow(
     viewModel: SharedCliqueViewModel,
     userStatus: UserStatus,
     navController: NavController,
+    chatScreenViewModel: ChatScreenViewModel
 ) {
     val isOwner = userStatus.isOwner
     val showDialog = remember { mutableStateOf(false) }
@@ -479,7 +482,11 @@ fun GistTitleRow(
                                 onClick = { navController.navigate("gistSettings/$id") })
                         }
                         DropdownMenuItem(text = { Text("Share") },
-                            onClick = { /* Handle option 1 click */ })
+                            onClick = {
+                                chatScreenViewModel.addGistInviteToForward(gistTopic, id)
+                                onExpandChange(false)
+                                navController.navigate("forwardChatsScreen")
+                            })
                         DropdownMenuItem(text = { Text("Exit") },
                             onClick = { /* Handle option 2 click */ })
                     }

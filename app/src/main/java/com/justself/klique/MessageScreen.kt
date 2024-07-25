@@ -1,35 +1,45 @@
 package com.justself.klique
 
+import ImageUtils
+import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.support.annotation.RequiresApi
 import android.util.Log
+import android.view.MotionEvent
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,87 +50,72 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
-import android.Manifest
-import android.content.pm.PackageManager
-import android.graphics.Rect
-import android.view.MotionEvent
-import android.view.ViewTreeObserver
-import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.ime
-import androidx.compose.material.icons.filled.Keyboard
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.ui.ExperimentalComposeUiApi
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.platform.SoftwareKeyboardController
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.unit.Dp
-import androidx.core.content.ContextCompat
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import kotlinx.coroutines.delay
-import androidx.core.view.WindowInsetsCompat.Type.ime
-import kotlinx.coroutines.Dispatchers
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -135,13 +130,13 @@ fun MessageScreen(
     contactName: String,
     mediaViewModel: MediaViewModel,
     resetSelectedEmoji: () -> Unit,
-    emojiPikerHeight: (Dp) -> Unit,
+    emojiPickerHeight: (Dp) -> Unit,
     theTrimmedUri: Uri?,
     onResetTrimmed: () -> Unit
 ) {
     DisposableEffect(Unit) {
         viewModel.enterChat(enemyId)
-        onDispose { viewModel.leaveChat() }
+        onDispose { viewModel.leaveChat(); viewModel.clearSelection() }
     }
     val myId by viewModel.myUserId.collectAsState()
     val context = LocalContext.current
@@ -253,46 +248,109 @@ fun MessageScreen(
     LaunchedEffect(key1 = keyboardHeightDp) {
         if (keyboardHeightDp > maxKeyboardHeightDp) maxKeyboardHeightDp = keyboardHeightDp
     }
-    emojiPikerHeight(maxKeyboardHeightDp)
+    emojiPickerHeight(maxKeyboardHeightDp)
+    val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
+    val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
+    val personalChat by viewModel.personalChats.observeAsState(emptyList())
+    val containsMediaMessages = selectedMessages.any { messageId ->
+        val messageType = personalChat.find { it.messageId == messageId }?.messageType
+        messageType != "PText" && messageType != "text"
+    }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    val onShowDeleteDialog = { showDeleteDialog = false }
     Scaffold(topBar = {
-        CustomTopAppBar(
-            navController = navController,
-            contactName = contactName,
-            enemyId,
-            viewModel,
-            onEmojiPickerVisibilityChange
+        val targetHeight = if (selectedMessages.isNotEmpty()) 56.dp else 0.dp
+        val animatedHeight by animateDpAsState(
+            targetValue = targetHeight,
+            animationSpec = tween(durationMillis = 300)
         )
-    }, content = { innerPadding ->
-        MessageScreenContent(
-            navController,
-            enemyId,
-            innerPadding,
-            viewModel,
-            myId,
-            mediaViewModel
-        )
-    }, bottomBar = {
-        TextBoxAndMedia(
-            navController = navController,
-            enemyId = enemyId,
-            context = context,
-            imagePickerLauncher = imagePickerLauncher,
-            videoPickerLauncher = videoPickerLauncher,
-            permissionLauncherImages = permissionLauncherImages,
-            permissionLauncherVideos = permissionLauncherVideos,
-            audioPermissionLauncher = audioPermissionLauncher,
-            onSendMessage = onSendMessage,
-            onStopRecording = stopRecording,
-            onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
-            selectedEmoji = selectedEmoji,
-            showEmojiPicker = showEmojiPicker,
-            isRecording = isRecording,
-            imeVisible = imeVisible,
-            maxKeyboardHeightDp = maxKeyboardHeightDp,
-            resetSelectedEmoji = resetSelectedEmoji,
-            keyboardController = keyboardController
-        )
-    }, modifier = Modifier.imePadding()
+        Box(modifier = Modifier.fillMaxWidth()) {
+            if (animatedHeight < 56.dp) {
+                CustomTopAppBar(
+                    navController = navController,
+                    contactName = contactName,
+                    enemyId = enemyId,
+                    viewModel = viewModel,
+                    onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(animatedHeight)
+            ) {
+                if (selectedMessages.isNotEmpty() || animatedHeight > 0.dp) {
+                    MessageContextMenu(
+                        selectedMessages = selectedMessages,
+                        onDelete = { showDeleteDialog = true },
+                        onCopy = { sortedMessages ->
+                            val textMessages = sortedMessages.mapNotNull { messageId ->
+                                personalChat.find { it.messageId == messageId }?.takeIf {
+                                    it.messageType == "PText" || it.messageType == "text"
+                                }?.content
+                            }
+                            val copiedText = if (textMessages.size > 1) {
+                                textMessages.joinToString("\n")
+                            } else {
+                                textMessages.firstOrNull().orEmpty()
+                            }
+
+                            val clipboard =
+                                context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("Copied Messages", copiedText)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, "Messages copied", Toast.LENGTH_SHORT).show()
+                        },
+                        onDismiss = { viewModel.clearSelection() },
+                        showCopyOption = !containsMediaMessages,
+                        onForward = { sortedMessages ->
+                            sortedMessages.forEach { messageId ->
+                                val message = personalChat.find { it.messageId == messageId }
+                                message?.let {
+                                    viewModel.addMessageToForward(it)
+                                }
+                            }
+                            navController.navigate("forwardChatsScreen")
+                        },
+                        personalChat = personalChat
+                    )
+                }
+            }
+        }
+    },
+        content = { innerPadding ->
+            MessageScreenContent(
+                navController,
+                enemyId,
+                innerPadding,
+                viewModel,
+                myId,
+                mediaViewModel,
+                showDeleteDialog,
+                onShowDeleteDialog
+            )
+        }, bottomBar = {
+            TextBoxAndMedia(
+                navController = navController,
+                enemyId = enemyId,
+                context = context,
+                imagePickerLauncher = imagePickerLauncher,
+                videoPickerLauncher = videoPickerLauncher,
+                permissionLauncherImages = permissionLauncherImages,
+                permissionLauncherVideos = permissionLauncherVideos,
+                audioPermissionLauncher = audioPermissionLauncher,
+                onSendMessage = onSendMessage,
+                onStopRecording = stopRecording,
+                onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+                selectedEmoji = selectedEmoji,
+                showEmojiPicker = showEmojiPicker,
+                isRecording = isRecording,
+                imeVisible = imeVisible,
+                maxKeyboardHeightDp = maxKeyboardHeightDp,
+                resetSelectedEmoji = resetSelectedEmoji,
+                keyboardController = keyboardController
+            )
+        }, modifier = Modifier.imePadding()
     )
 }
 
@@ -321,7 +379,8 @@ fun CustomTopAppBar(
         ) {
             IconButton(onClick = {
                 onEmojiPickerVisibilityChange(false)
-                navController.popBackStack() }) {
+                navController.popBackStack()
+            }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
@@ -357,78 +416,210 @@ fun MessageScreenContent(
     innerPadding: PaddingValues,
     viewModel: ChatScreenViewModel,
     myId: Int,
-    mediaViewModel: MediaViewModel
+    mediaViewModel: MediaViewModel,
+    showDeleteDialog: Boolean,
+    onShowDeleteDialog: () -> Unit
 ) {
     val personalChat by viewModel.personalChats.observeAsState(emptyList())
     Log.d("Personal Chats", "The value of personalChats $personalChat")
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
+    val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
+    val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
+    val topPadding = innerPadding.calculateTopPadding()
+
+    fun toggleMessageSelection(messageId: String) {
+        viewModel.toggleMessageSelection(messageId)
+    }
     LaunchedEffect(key1 = enemyId) {
-            viewModel.loadPersonalChats(myId, enemyId)
+        viewModel.loadPersonalChats(myId, enemyId)
         val isNewChat = viewModel.checkChatExistsSync(myId, enemyId).not()
         viewModel.setIsNewChat(isNewChat)
         Log.d("isNewChat", "$isNewChat")
     }
-    LazyColumn(
-        state = scrollState,
-        modifier = Modifier
-            .padding(innerPadding)
-            .padding(horizontal = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(personalChat) { message ->
-            val isCurrentUser = message.myId == myId
-            val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
-            val shape = if (isCurrentUser) RoundedCornerShape(
-                16.dp, 0.dp, 16.dp, 16.dp
-            ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
-            ) {
-                Column(
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            state = scrollState,
+            modifier = Modifier
+                .padding(innerPadding)
+                .padding(horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(personalChat, key = { it.messageId }) { message ->
+                val isCurrentUser = message.myId == myId
+                val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
+                val shape = if (isCurrentUser) RoundedCornerShape(
+                    16.dp, 0.dp, 16.dp, 16.dp
+                ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
+                val onLongPressLambda =
+                    { toggleMessageSelection(message.messageId) }
+                val onTapLambda = {
+                    if (isSelectionMode) {
+                        toggleMessageSelection(message.messageId)
+                    } else {
+                        // Navigation logic when not in selection mode
+                        when (message.messageType) {
+                            "PImage" -> {
+                                message.mediaUri?.let {
+                                    mediaViewModel.setBitmapFromUri(
+                                        it,
+                                        context
+                                    )
+                                }
+                                navController.navigate("fullScreenImage")
+                            }
+
+                            "PVideo" -> {
+                                navController.navigate("fullScreenVideo/${Uri.encode(message.mediaUri)}")
+                            }
+                        }
+                    }
+                }
+                Box(
                     modifier = Modifier
-                        .background(Color.Gray, shape)
-                        .padding(8.dp),
-                    horizontalAlignment = alignment
+                        .fillMaxWidth()
+                        .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = { onLongPressLambda() },
+                                onTap = { onTapLambda() }
+                            )
+                        }
                 ) {
-                    /*if (!isCurrentUser) {
-                        Text(
-                            text = "Sender",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
-                    } */
-                    when (message.messageType) {
-                        "PImage" -> {
-                            DisplayImage(message.mediaUri, shape, navController, mediaViewModel)
-                        }
+                    Column(
+                        modifier = Modifier
+                            .background(Color.Gray, shape)
+                            .padding(8.dp),
+                        horizontalAlignment = alignment
+                    ) {
+                        when (message.messageType) {
+                            "PImage" -> {
+                                DisplayImage(
+                                    message.mediaUri,
+                                    shape,
+                                    navController,
+                                    mediaViewModel,
+                                    onLongPressLambda,
+                                    isSelectionMode,
+                                    onTapLambda
+                                )
+                            }
 
-                        "PVideo" -> {
-                            DisplayVideo(message.mediaUri, shape, navController)
-                        }
+                            "PVideo" -> {
+                                Log.d("isSelectionMode", "is now $isSelectionMode")
+                                DisplayVideo(
+                                    message.mediaUri,
+                                    shape,
+                                    navController,
+                                    onLongPressLambda,
+                                    isSelectionMode,
+                                    onTapLambda
+                                )
+                            }
 
-                        "PAudio" -> {
-                            DisplayAudio(message.mediaUri, context)
-                        }
+                            "PAudio" -> {
+                                Log.d("isSelectionMode", "is now $isSelectionMode")
+                                DisplayAudio(
+                                    message.mediaUri,
+                                    context,
+                                    onLongPressLambda,
+                                    isSelectionMode,
+                                    onTapLambda
+                                )
+                            }
 
-                        else -> {
-                            Text(
-                                text = message.content, color = MaterialTheme.colorScheme.onPrimary
+                            "PGistInvite" -> {
+                                DisplayGistInvite(
+                                    topic = message.topic,
+                                    shape = shape,
+                                    onLongPressLambda = onLongPressLambda,
+                                    isSelectionMode = isSelectionMode,
+                                    onTapLambda = onTapLambda
+                                )
+                                {
+                                    message.gistId?.let { viewModel.joinGist(it) }
+                                    navController.navigate("home")
+                                }
+                            }
+
+                            else -> {
+                                Box(
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures(
+                                                onLongPress = { onLongPressLambda() },
+                                                onTap = { onTapLambda() }
+                                            )
+                                        }
+                                ) {
+                                    Text(
+                                        text = message.content,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
+                            }
+                        }
+                        if (isCurrentUser) {
+                            Icon(
+                                imageVector = getPersonChatStatusIcon(status = message.status),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
-                    if (isCurrentUser) {
-                        Icon(
-                            imageVector = getPersonChatStatusIcon(status = message.status),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                    Log.d(
+                        "Selection Debug Outside",
+                        "isSelectionMode: $isSelectionMode, messageId: ${message.messageId}, selectedMessages: $selectedMessages"
+                    )
+                    if (isSelectionMode && selectedMessages.contains(message.messageId)) {
+                        Log.d(
+                            "Selection Debug Inside",
+                            "isSelectionMode: $isSelectionMode, messageId: ${message.messageId}, selectedMessages: $selectedMessages"
+                        )
+                        Box(
+                            modifier = Modifier
+                                .matchParentSize()
+                                .background(MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.5f))
                         )
                     }
+                }
+
+                if (showDeleteDialog) {
+                    AlertDialog(
+                        onDismissRequest = onShowDeleteDialog,
+                        confirmButton = {
+                            TextButton(onClick = {
+                                // Delete selected messages logic
+                                selectedMessages.forEach { messageId ->
+                                    viewModel.deleteMessage(
+                                        messageId, context
+                                    )
+                                }
+                                viewModel.clearSelection()
+                                onShowDeleteDialog()
+                            }) {
+                                Text("Delete")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                viewModel.clearSelection()
+                                onShowDeleteDialog()
+                            }) {
+                                Text("Cancel")
+                            }
+                        },
+                        title = {
+                            Text(
+                                "Confirm Deletion",
+                                style = MaterialTheme.typography.displayLarge
+                            )
+                        },
+                        text = { Text("Are you sure you want to delete the selected messages?") }
+                    )
                 }
             }
         }
@@ -705,4 +896,72 @@ fun getPersonChatStatusIcon(status: String): ImageVector {
         // "read" -> Icons.Filled.Visibility Eye icon for read (optional, if you want to differentiate read status)
         else -> Icons.Filled.Schedule // Clock icon for pending or unknown status
     }
+}
+
+@Composable
+fun MessageContextMenu(
+    selectedMessages: List<String>,
+    onDelete: () -> Unit,
+    onCopy: (List<String>) -> Unit,
+    onDismiss: () -> Unit,
+    showCopyOption: Boolean,
+    onForward: (List<String>) -> Unit,
+    personalChat: List<PersonalChat>
+) {
+    val sortedSelectedMessages = selectedMessages.sortedBy { messageId ->
+        personalChat.indexOfFirst { it.messageId == messageId }
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize() // Apply the top padding here
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(MaterialTheme.colorScheme.primary),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "${selectedMessages.size} selected",
+                color = MaterialTheme.colorScheme.onPrimary,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Row {
+                if (showCopyOption) {
+                    IconButton(onClick = { onCopy(sortedSelectedMessages) }) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy",
+                            tint = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                IconButton(onClick = { onForward(sortedSelectedMessages) }) {  // Add this IconButton
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Forward,  // Use a forward icon
+                        contentDescription = "Forward",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+        }
+    }
+
 }

@@ -6,17 +6,24 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -31,14 +38,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
-fun DisplayImage(mediaUri: String?, shape: Shape, navController: NavController, mediaViewModel: MediaViewModel) {
+fun DisplayImage(
+    mediaUri: String?,
+    shape: Shape,
+    navController: NavController,
+    mediaViewModel: MediaViewModel,
+    onLongPressLambda: () -> Unit,
+    isSelectionMode: Boolean,
+    onTapLambda: () -> Unit
+) {
+    LaunchedEffect(key1 = isSelectionMode) {
+        while (true) {
+            Log.d("isSelectionMode", "isSelectionModeImageLogger: $isSelectionMode")
+            delay(3000) // Log every 3 seconds
+        }
+    }
     mediaUri?.let {
         val context = LocalContext.current
         var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -46,21 +69,37 @@ fun DisplayImage(mediaUri: String?, shape: Shape, navController: NavController, 
         LaunchedEffect(mediaUri) {
             withContext(Dispatchers.IO) {
                 val uri = Uri.parse(it)
-                val decodedBitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri))
+                val decodedBitmap = ImageDecoder.decodeBitmap(
+                    ImageDecoder.createSource(
+                        context.contentResolver,
+                        uri
+                    )
+                )
                 bitmap = decodedBitmap
             }
         }
+        LaunchedEffect(key1 = isSelectionMode) {
+            while (true) {
+                Log.d("isSelectionMode", "isSelectionModeImageLogger if Uri: $isSelectionMode")
+                delay(3000) // Log every 3 seconds
+            }
+        }
 
-        bitmap?.let {
+        bitmap?.let { bmp ->
+            Log.d("isSelectionMode", "isSelectionModeImageLogger if Bitmap: $isSelectionMode")
             Image(
-                bitmap = it.asImageBitmap(),
+                bitmap = bmp.asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier
                     .height(200.dp)
                     .clip(shape)
-                    .clickable {
-                        mediaViewModel.setBitmap(it)
-                        navController.navigate("fullScreenImage")
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = { onLongPressLambda() },
+                            onTap = {Log.d("isSelectionMode", "Image Selected $isSelectionMode")
+                                onTapLambda()
+                            }
+                        )
                     }
             )
         } ?: Text(
@@ -71,7 +110,14 @@ fun DisplayImage(mediaUri: String?, shape: Shape, navController: NavController, 
 }
 
 @Composable
-fun DisplayVideo(mediaUri: String?, shape: Shape, navController: NavController) {
+fun DisplayVideo(
+    mediaUri: String?,
+    shape: Shape,
+    navController: NavController,
+    onLongPressLambda: () -> Unit,
+    isSelectionMode: Boolean,
+    onTapLambda: () -> Unit
+) {
     mediaUri?.let { videoUriString ->
         val context = LocalContext.current
         var thumbnail by remember { mutableStateOf<Bitmap?>(null) }
@@ -92,8 +138,13 @@ fun DisplayVideo(mediaUri: String?, shape: Shape, navController: NavController) 
                 .wrapContentWidth()
                 .aspectRatio(aspectRatio)
                 .clip(shape)
-                .clickable {
-                    navController.navigate("fullScreenVideo/${Uri.encode(videoUriString)}")
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = { onLongPressLambda() },
+                        onTap = {Log.d("isSelectionMode", "Video Selected $isSelectionMode")
+                            onTapLambda()
+                        }
+                    )
                 }
         ) {
             if (thumbnail != null) {
@@ -121,15 +172,65 @@ fun DisplayVideo(mediaUri: String?, shape: Shape, navController: NavController) 
 }
 
 @Composable
-fun DisplayAudio(mediaUri: String?, context: Context) {
+fun DisplayAudio(mediaUri: String?, context: Context, onLongPressLambda: () -> Unit, isSelectionMode: Boolean, onTapLambda: () -> Unit) {
     mediaUri?.let { audioUriString ->
         val audioUri = Uri.parse(audioUriString)
         AudioPlayer(
             audioUri = audioUri,
-            modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp)
+            modifier = Modifier
+                .widthIn(min = 300.dp, max = 1000.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onLongPress = { onLongPressLambda() },
+                        onTap = {
+                            onTapLambda()
+                        }
+                    )
+                }
         )
     } ?: Text(
         text = "Audio not available",
         color = MaterialTheme.colorScheme.onPrimary
     )
+}
+@Composable
+fun DisplayGistInvite(
+    topic: String?,
+    shape: Shape,
+    onLongPressLambda: () -> Unit,
+    isSelectionMode: Boolean,
+    onTapLambda: () -> Unit,
+    onJoinClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = { onLongPressLambda() },
+                    onTap = { onTapLambda() }
+                )
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.background, shape)
+                .padding(8.dp)
+        ) {
+            if (topic != null) {
+                Text(
+                    text = "Gist Invite: $topic",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            Text(
+                text = "Join",
+                style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary), // Pink color
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .clickable(onClick = { onJoinClick() })
+            )
+        }
+    }
 }

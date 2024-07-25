@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -86,6 +87,7 @@ fun ChatListScreen(
             easing = FastOutSlowInEasing // Easing function for the animation
         )
     )
+    val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         viewModel.startPeriodicOnlineStatusCheck()
@@ -164,7 +166,7 @@ fun ChatListScreen(
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                items(if (isSearchVisible) searchResults else chats) { chat ->
+                items(if (isSearchVisible) searchResults else chats, key = {chat -> chat.enemyId}) { chat ->
                     ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
                         if (isSelectionMode) {
                             toggleSelection(chat.enemyId)
@@ -185,7 +187,7 @@ fun ChatListScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                selectedChats.forEach { enemyId -> viewModel.deleteChat(enemyId) }
+                                selectedChats.forEach { enemyId -> viewModel.deleteChat(enemyId, context) }
                                 isSelectionMode = false
                                 selectedChats.clear()
                                 showDialog = false

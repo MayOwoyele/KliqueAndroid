@@ -148,6 +148,14 @@ object FileUtils {
             null
         }
     }
+    fun loadFileAsByteArray(context: Context, uri: Uri): ByteArray? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.readBytes()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     fun getMimeType(fileName: String): String {
         val extension = fileName.substringAfterLast('.', "")

@@ -1,6 +1,8 @@
 package com.justself.klique
 
+import android.adservices.topics.Topic
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.*
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +35,16 @@ class ChatScreenViewModel(
     val currentChat: StateFlow<Int?> get() = _currentChat
     private val _searchResults = MutableStateFlow<List<ChatList>>(emptyList())
     val searchResults: StateFlow<List<ChatList>> get() = _searchResults
+    private val _messagesToForward = MutableLiveData<List<PersonalChat>>(emptyList())
+    val messagesToForward: LiveData<List<PersonalChat>> get() = _messagesToForward
+
     private val _isNewChat = MutableStateFlow<Boolean>(false)
+    private val _selectedMessages = MutableLiveData<List<String>>(emptyList())
+    val selectedMessages: LiveData<List<String>> get() = _selectedMessages
+
+    private val _isSelectionMode = MutableLiveData<Boolean>(false)
+    val isSelectionMode: LiveData<Boolean> get() = _isSelectionMode
+
     init {
         // simulateOnlineStatusOscillation()
     }
@@ -54,11 +65,35 @@ class ChatScreenViewModel(
         }
     }
 
-    fun deleteChat(enemyId: Int) {
+    fun deleteChat(enemyId: Int, context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            chatDao.deleteChat(enemyId)
+            val messages = personalChatDao.getPersonalChatsByEnemyId(myUserId.value, enemyId)
+            messages.forEach { message ->
+                message.mediaUri?.let { deleteMediaFile(context, it) }
+            }
             personalChatDao.deletePersonalChatsForEnemy(myId = myUserId.value, enemyId = enemyId)
+            chatDao.deleteChat(enemyId)
             loadChats(myUserId.value)
+        }
+    }
+    fun deleteMessage(messageId: String, context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val message = personalChatDao.getPersonalChatById(messageId)
+            message?.let {
+                if (it.mediaUri != null) {
+                    deleteMediaFile(context, it.mediaUri)
+                }
+                personalChatDao.deletePersonalChat(messageId)
+                loadPersonalChats(myUserId.value, currentChat.value!!)
+            }
+        }
+    }
+    private fun deleteMediaFile(context: Context, mediaUri: String) {
+        val uri = Uri.parse(mediaUri)
+        try {
+            context.contentResolver.delete(uri, null, null)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -77,6 +112,21 @@ class ChatScreenViewModel(
             chatDao.resetUnreadMsgCounter(enemyId)
         }
         _currentChat.value = enemyId
+    }
+    fun toggleMessageSelection(messageId: String) {
+        val currentSelection = _selectedMessages.value?.toMutableList() ?: mutableListOf()
+        if (currentSelection.contains(messageId)) {
+            currentSelection.remove(messageId)
+        } else {
+            currentSelection.add(messageId)
+        }
+        _selectedMessages.value = currentSelection
+        _isSelectionMode.value = currentSelection.isNotEmpty()
+    }
+
+    fun clearSelection() {
+        _selectedMessages.value = emptyList()
+        _isSelectionMode.value = false
     }
     /*
     fun simulateDelayedWebSocketMessages(enemyId: Int, delayMillis: Long = 15000) {
@@ -392,7 +442,7 @@ class ChatScreenViewModel(
             myId = myId,
             content = message,
             status = "pending",
-            messageType = "text",
+            messageType = "PText",
             timeStamp = System.currentTimeMillis().toString()  // Use appropriate time format
         )
         viewModelScope.launch(Dispatchers.IO) {
@@ -424,11 +474,90 @@ class ChatScreenViewModel(
             _searchResults.value = result
         }
     }
+    fun addMessageToForward(message: PersonalChat) {
+        _messagesToForward.value = _messagesToForward.value?.plus(message)
+    }
+
+    fun clearMessagesToForward() {
+        _messagesToForward.value = emptyList()
+    }
+
+    fun forwardMessagesToRecipients(recipients: List<Int>, myId: Int, context: Context) {
+        _messagesToForward.value?.let { messages ->
+            recipients.forEach { enemyId ->
+                messages.forEach { message ->
+                    when (message.messageType) {
+                        "PText", "text" -> sendTextMessage(message.content, enemyId, myId)
+                        "PImage", "PVideo", "PAudio" -> {
+                            message.mediaUri?.let { uri ->
+                                val data = FileUtils.loadFileAsByteArray(context, Uri.parse(uri))
+                                data?.let {
+                                    sendBinary(it, message.messageType, enemyId, message.messageId, myId, "MyName", context)
+                                }
+                            }
+                        }
+                        "PGistInvite" -> message.gistId?.let {
+                            sendGistInvite(message.content,
+                                it, enemyId, myId)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private fun sendGistInvite(topic: String, gistId: String, enemyId: Int, myId: Int) {
+        val messageId = generateMessageId()
+        val personalChat = PersonalChat(
+            messageId = messageId,
+            enemyId = enemyId,
+            myId = myId,
+            content = topic,
+            status = "pending",
+            messageType = "PGistInvite",
+            timeStamp = System.currentTimeMillis().toString(),
+            mediaUri = null,
+            gistId = gistId,
+            topic = topic
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            personalChatDao.addPersonalChat(personalChat)
+            // Optionally, you can also send this message to the server here
+        }
+    }
+    // Remember to implement an onMessage to attach people to gists
+    fun joinGist(gistId: String){
+        val joinGistJson = """
+            {
+            "type": "joinGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        send(joinGistJson)
+    }
     // Send JSON message
     private fun send(message: String) {
         WebSocketManager.send(message)
         Log.d("send", message)
     }
+    fun addGistInviteToForward(topic: String, gistId: String) {
+        val messageId = generateMessageId()
+        val personalChat = PersonalChat(
+            messageId = messageId,
+            enemyId = 0, // This will be set when forwarding
+            myId = myUserId.value,
+            content = topic,
+            status = "pending",
+            messageType = "PGistInvite",
+            timeStamp = System.currentTimeMillis().toString(),
+            mediaUri = null,
+            gistId = gistId,
+            topic = topic
+        )
+        val currentMessages = _messagesToForward.value?.toMutableList() ?: mutableListOf()
+        currentMessages.add(personalChat)
+        _messagesToForward.value = currentMessages
+    }
+
 
     fun getMockChats(myId: Int): List<ChatList> {
         return listOf(

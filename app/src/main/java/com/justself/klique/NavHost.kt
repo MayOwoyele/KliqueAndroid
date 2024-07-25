@@ -55,8 +55,12 @@ fun NavigationHost(
     ) {
         composable("home") {
             HomeScreen(
-                customerId, fullName, sharedCliqueViewModel,
-                onEmojiPickerVisibilityChange, selectedEmoji, showEmojiPicker,
+                customerId,
+                fullName,
+                sharedCliqueViewModel,
+                onEmojiPickerVisibilityChange,
+                selectedEmoji,
+                showEmojiPicker,
                 onNavigateToTrimScreen = { uri ->
                     navController.navigate(
                         "VideoTrimScreen/${
@@ -65,13 +69,18 @@ fun NavigationHost(
                             )
                         }/HomeScreen"
                     )
-                }, navController, resetSelectedEmoji, mediaViewModel, emojiPickerHeight
+                },
+                navController,
+                resetSelectedEmoji,
+                mediaViewModel,
+                emojiPickerHeight,
+                chatScreenViewModel
             )
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("orders") { OrdersScreen(navController, chatScreenViewModel,) }
+        composable("orders") { OrdersScreen(navController, chatScreenViewModel, customerId) }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
                 ?: throw IllegalStateException("Product must be provided")
@@ -129,26 +138,37 @@ fun NavigationHost(
                 onEmojiPickerVisibilityChange,
                 selectedEmoji,
                 showEmojiPicker,
-                contactName, mediaViewModel, resetSelectedEmoji, emojiPickerHeight, theTrimmedUri, { theTrimmedUri = null}
+                contactName,
+                mediaViewModel,
+                resetSelectedEmoji,
+                emojiPickerHeight,
+                theTrimmedUri,
+                { theTrimmedUri = null }
             )
         }
         composable(
             "VideoTrimScreen/{videoUri}/{sourceScreen}",
             arguments = listOf(
                 navArgument("videoUri") { type = NavType.StringType },
-                navArgument("sourceScreen") {type = NavType.StringType
+                navArgument("sourceScreen") {
+                    type = NavType.StringType
                 })
         ) { backStackEntry ->
             val videoUri = Uri.parse(backStackEntry.arguments?.getString("videoUri"))
-            val sourceScreen = backStackEntry.arguments?.getString("sourceScreen")?: ""
+            val sourceScreen = backStackEntry.arguments?.getString("sourceScreen") ?: ""
             VideoTrimmingScreen(
                 appContext = LocalContext.current,
                 uri = videoUri,
                 onTrimComplete = { trimmedUri, screen ->
                     when (screen) {
-                        "HomeScreen" -> {sharedCliqueViewModel.handleTrimmedVideo(trimmedUri)}
-                        "MessageScreen" -> {theTrimmedUri = trimmedUri}
-                }
+                        "HomeScreen" -> {
+                            sharedCliqueViewModel.handleTrimmedVideo(trimmedUri)
+                        }
+
+                        "MessageScreen" -> {
+                            theTrimmedUri = trimmedUri
+                        }
+                    }
                     navController.popBackStack()
                 },
                 onCancel = {
@@ -178,6 +198,13 @@ fun NavigationHost(
             val videoUriString = backStackEntry.arguments?.getString("videoUri")
                 ?: throw IllegalStateException("where is the videoUri")
             FullScreenVideo(videoUri = videoUriString, navController = navController)
+        }
+        composable("forwardChatsScreen") {
+            ForwardChatsScreen(
+                navController = navController,
+                viewModel = chatScreenViewModel,
+                customerId = customerId
+            )
         }
     }
 }

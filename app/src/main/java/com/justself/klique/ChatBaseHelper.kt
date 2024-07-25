@@ -63,7 +63,9 @@ data class PersonalChat(
     val status: String,
     val messageType: String,
     val timeStamp: String,
-    val mediaUri: String? = null  // Nullable BinaryArray for non-text messages
+    val mediaUri: String? = null,
+    val gistId: String? = null,
+    val topic: String? = null// Nullable BinaryArray for non-text messages
 )
 @Dao
 interface PersonalChatDao {
@@ -77,6 +79,11 @@ interface PersonalChatDao {
     fun getPersonalChats(myId: Int, enemyId: Int): List<PersonalChat>
     @Query("DELETE FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
     suspend fun deletePersonalChatsForEnemy(myId: Int, enemyId: Int)
+    @Query("SELECT * FROM personalChats WHERE messageId = :messageId LIMIT 1")
+    suspend fun getPersonalChatById(messageId: String): PersonalChat?
+
+    @Query("SELECT * from personalChats WHERE myId = :myId AND enemyId = :enemyId")
+    suspend fun getPersonalChatsByEnemyId(myId: Int, enemyId: Int): List<PersonalChat>
 }
 @Database(entities = [PersonalChat::class], version = 1)
 abstract class PersonalChatDatabase : RoomDatabase() {
