@@ -80,10 +80,12 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -94,7 +96,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -131,17 +132,28 @@ fun MessageScreen(
     mediaViewModel: MediaViewModel,
     resetSelectedEmoji: () -> Unit,
     emojiPickerHeight: (Dp) -> Unit,
-    theTrimmedUri: Uri?,
-    onResetTrimmed: () -> Unit
 ) {
     DisposableEffect(Unit) {
         viewModel.enterChat(enemyId)
-        onDispose { viewModel.leaveChat(); viewModel.clearSelection() }
+        onDispose {
+            viewModel.leaveChat(); viewModel.clearSelection(); onEmojiPickerVisibilityChange(
+            false
+        )
+        }
     }
     val myId by viewModel.myUserId.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isRecording = remember { mutableStateOf(false) }
+    var theRealTrimmedUri by remember { mutableStateOf<Uri?>(null) }
+    val messageScreenUri by mediaViewModel.messageScreenUri.observeAsState()
+    LaunchedEffect(messageScreenUri){
+        Log.d("onTrim", "ontrim triggered again with value $messageScreenUri")
+        messageScreenUri?.let{
+            Log.d("onTrim", "ontrim triggered again 2 with value $messageScreenUri")
+            theRealTrimmedUri = messageScreenUri
+        }
+    }
     BackHandler {
         onEmojiPickerVisibilityChange(false)
         Log.d("BackHandler", "BackHandler")
@@ -166,8 +178,10 @@ fun MessageScreen(
                 }
             }
         }
-    LaunchedEffect(theTrimmedUri) {
-        theTrimmedUri?.let { uri ->
+    LaunchedEffect(theRealTrimmedUri) {
+        Log.d("onTrim", "ontrim triggered again 3 with value $messageScreenUri")
+        theRealTrimmedUri?.let { uri ->
+            Log.d("onTrim", "ontrim triggered again 4 with value $theRealTrimmedUri")
             coroutineScope.launch(Dispatchers.IO) {
                 val videoByteArray = context.contentResolver.openInputStream(uri)?.readBytes()
                 if (videoByteArray != null) {
@@ -184,25 +198,16 @@ fun MessageScreen(
                 }
             }
         }
-        onResetTrimmed()
+        mediaViewModel.clearUris()
     }
     val videoPickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
             uri?.let { selectedUri ->
-                coroutineScope.launch(Dispatchers.IO) {
+                coroutineScope.launch {
                     val filePath = FileUtils.getPath(context, selectedUri)
                     filePath?.let { path ->
                         val fileUri = Uri.fromFile(File(path))
-                        val downscaledUri = VideoUtils.downscaleVideo(context, fileUri)
-                        Log.d("VideoProcessing", "Downscaled URI: $downscaledUri")
-                        coroutineScope.launch(Dispatchers.Main) {
-                            if (downscaledUri == null) {
-                                Log.e("VideoProcessing", "Downscaling failed, using original file.")
-                                onNavigateToTrimScreen(fileUri.toString())  // Use the original file URI if downscaling fails
-                            } else {
-                                onNavigateToTrimScreen(downscaledUri.toString())  // Use the downscaled URI if successful
-                            }
-                        }
+                        onNavigateToTrimScreen(fileUri.toString())
                     } ?: run {
                         Log.e("ChatRoom", "Error getting video path")
                     }
@@ -394,7 +399,10 @@ fun CustomTopAppBar(
                 modifier = Modifier
                     .padding(start = 20.dp)
                     .clickable(enabled = true,
-                        onClick = { navController.navigate("bioScreen/$enemyId") })
+                        onClick = {
+                            navController.navigate("bioScreen/$enemyId")
+                            onEmojiPickerVisibilityChange(false)
+                        })
             )
             Box(
                 modifier = Modifier
@@ -424,10 +432,10 @@ fun MessageScreenContent(
     Log.d("Personal Chats", "The value of personalChats $personalChat")
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
-    val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
     val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
-    val topPadding = innerPadding.calculateTopPadding()
+    var firstVisibleItem by remember { mutableIntStateOf(0) }
+    var firstVisibleItemOffset by remember { mutableIntStateOf(0) }
 
     fun toggleMessageSelection(messageId: String) {
         viewModel.toggleMessageSelection(messageId)
@@ -438,13 +446,32 @@ fun MessageScreenContent(
         viewModel.setIsNewChat(isNewChat)
         Log.d("isNewChat", "$isNewChat")
     }
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.firstVisibleItemIndex }
+            .collect { index ->
+                if (index == 0 && !viewModel.isLoading.value!!) {
+                    firstVisibleItem = scrollState.firstVisibleItemIndex
+                    firstVisibleItemOffset = scrollState.firstVisibleItemScrollOffset
+                    viewModel.loadPersonalChats(myId, enemyId, loadMore = true)
+                }
+            }
+    }
+    LaunchedEffect(personalChat.size) {
+        if (personalChat.isNotEmpty()) {
+            val newItemsCount = personalChat.size - (firstVisibleItem + 1)
+            scrollState.scrollToItem(
+                index = firstVisibleItem + newItemsCount,
+                scrollOffset = firstVisibleItemOffset
+            )
+        }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = scrollState,
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(personalChat, key = { it.messageId }) { message ->
                 val isCurrentUser = message.myId == myId
@@ -570,15 +597,7 @@ fun MessageScreenContent(
                             )
                         }
                     }
-                    Log.d(
-                        "Selection Debug Outside",
-                        "isSelectionMode: $isSelectionMode, messageId: ${message.messageId}, selectedMessages: $selectedMessages"
-                    )
                     if (isSelectionMode && selectedMessages.contains(message.messageId)) {
-                        Log.d(
-                            "Selection Debug Inside",
-                            "isSelectionMode: $isSelectionMode, messageId: ${message.messageId}, selectedMessages: $selectedMessages"
-                        )
                         Box(
                             modifier = Modifier
                                 .matchParentSize()
@@ -625,7 +644,6 @@ fun MessageScreenContent(
         }
     }
 }
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TextBoxAndMedia(
@@ -963,5 +981,4 @@ fun MessageContextMenu(
             }
         }
     }
-
 }

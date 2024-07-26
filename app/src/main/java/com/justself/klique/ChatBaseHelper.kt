@@ -75,8 +75,8 @@ interface PersonalChatDao {
     suspend fun updatePersonalChat(personalChat: PersonalChat)
     @Query("DELETE FROM personalChats WHERE messageId = :messageId")
     suspend fun deletePersonalChat(messageId: String)
-    @Query("SELECT * from personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
-    fun getPersonalChats(myId: Int, enemyId: Int): List<PersonalChat>
+    @Query("SELECT * FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId) ORDER BY timeStamp DESC LIMIT :pageSize OFFSET :offset")
+    fun getPersonalChats(myId: Int, enemyId: Int, pageSize: Int, offset: Int): List<PersonalChat>
     @Query("DELETE FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
     suspend fun deletePersonalChatsForEnemy(myId: Int, enemyId: Int)
     @Query("SELECT * FROM personalChats WHERE messageId = :messageId LIMIT 1")

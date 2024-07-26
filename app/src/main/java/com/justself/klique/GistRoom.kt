@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import ImageUtils
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -10,11 +11,11 @@ import android.os.Build
 import android.util.Log
 import android.view.MotionEvent
 import android.widget.Toast
-import android.widget.VideoView
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,14 +26,18 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -41,6 +46,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Comment
@@ -52,9 +58,12 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Keyboard
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VideoLibrary
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -65,8 +74,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -82,6 +93,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -93,37 +105,25 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.PermissionChecker
 import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
-import java.io.File
-import java.io.IOException
-import android.Manifest
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.IOException
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @OptIn(ExperimentalComposeUiApi::class)
@@ -155,10 +155,8 @@ fun GistRoom(
     val focusRequester = remember { FocusRequester() }
     val isFocused = remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    Log.d("MyName", "Slim Shady's name is: $myName")
+    val homeScreenUri by mediaViewModel.homeScreenUri.observeAsState()
     viewModel.setMyName(myName)
-
-
     // Image Picker Launcher
     val imagePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -199,14 +197,7 @@ fun GistRoom(
                     val filePath = FileUtils.getPath(context, selectedUri)
                     filePath?.let { path ->
                         val fileUri = Uri.fromFile(File(path))
-                        val downscaledUri = VideoUtils.downscaleVideo(context, fileUri)
-                        Log.d("VideoProcessing", "Downscaled URI: $downscaledUri")
-                        if (downscaledUri == null) {
-                            Log.e("VideoProcessing", "Downscaling failed, using original file.")
-                            onNavigateToTrimScreen(fileUri.toString())  // Use the original file URI if downscaling fails
-                        } else {
-                            onNavigateToTrimScreen(downscaledUri.toString())  // Use the downscaled URI if successful
-                        }
+                        onNavigateToTrimScreen(fileUri.toString())
                     } ?: run {
                         Log.e("ChatRoom", "Error getting video path")
                     }
@@ -255,6 +246,14 @@ fun GistRoom(
             } catch (e: Exception) {
                 viewModel.close()
             }
+        }
+    }
+    LaunchedEffect(homeScreenUri) {
+        Log.d("onTrim", "ontrim triggered again with value $homeScreenUri")
+        homeScreenUri?.let {
+            Log.d("onTrim", "ontrim 2 triggered again with value $homeScreenUri")
+            viewModel.handleTrimmedVideo(it)
+            mediaViewModel.clearUris()
         }
     }
     // Scroll State to handle Gist Title visibility
@@ -583,16 +582,19 @@ fun MessageContent(
                     }
                     when (message.messageType) {
                         "KImage" -> {
-                            message.binaryData?.let { binaryData ->
-                                val bitmap = decodeBinaryToBitmap(binaryData)
+                            var bitmap by remember { mutableStateOf<Bitmap?>(null)}
+                            LaunchedEffect(message.binaryData) {
+                                bitmap = message.binaryData?.let { decodeBinaryToBitmap(it)}
+                            }
+                            bitmap?.let {
                                 Image(
-                                    bitmap = bitmap.asImageBitmap(),
+                                    bitmap = it.asImageBitmap(),
                                     contentDescription = null,
                                     modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
                                         .clickable {
-                                            mediaViewModel.setBitmap(bitmap)
+                                            mediaViewModel.setBitmap(it)
                                             navController.navigate("fullScreenImage")
                                         }
                                 )
@@ -603,9 +605,13 @@ fun MessageContent(
                         }
 
                         "KVideo" -> {
-                            message.binaryData?.let { binaryData ->
-                                val videoUri = getUriFromByteArray(binaryData, context)
-                                val thumbnail = VideoUtils.getVideoThumbnail(context, videoUri)
+                            var videoUri by remember { mutableStateOf<Uri?>(null)}
+                            LaunchedEffect(message.binaryData) {
+                                videoUri = message.binaryData?.let { getUriFromByteArray(it, context)}
+                            }
+                            videoUri?.let {
+                                //val videoUri = getUriFromByteArray(binaryData, context)
+                                val thumbnail = VideoUtils.getVideoThumbnail(context, it)
                                 val placeholder = createPlaceholderImage(200, 200, Color.Gray.toArgb(), onPrimaryColor)
                                 val aspectRatio = thumbnail?.let {
                                     it.width.toFloat() / it.height.toFloat()
@@ -649,10 +655,14 @@ fun MessageContent(
                         }
 
                         "KAudio" -> {
-                            message.binaryData?.let { binaryData ->
-                                val audioUri = getUriFromByteArray(binaryData, context)
+                            var audioUri by remember {
+                                mutableStateOf<Uri?>(null)}
+                            LaunchedEffect(message.binaryData) {
+                                audioUri = message.binaryData?.let{ getUriFromByteArray(it, context)}
+                            }
+                            audioUri?.let {
                                 AudioPlayer(
-                                    audioUri = audioUri,
+                                    audioUri = it,
                                     modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp)
                                 )
                             } ?: Text(
@@ -993,19 +1003,23 @@ fun getStatusIcon(status: String): ImageVector {
     return if (status == "sent") Icons.Filled.Done else Icons.Filled.Schedule
 }
 
-fun decodeBinaryToBitmap(binaryData: ByteArray): Bitmap {
-    return try {
-        BitmapFactory.decodeByteArray(binaryData, 0, binaryData.size).also {
-            Log.d("ChatRoom", "Bitmap Decoded: ${it.width}x${it.height}")
+suspend fun decodeBinaryToBitmap(binaryData: ByteArray): Bitmap {
+    return withContext(Dispatchers.IO) {
+        try {
+            BitmapFactory.decodeByteArray(binaryData, 0, binaryData.size).also {
+                Log.d("ChatRoom", "Bitmap Decoded: ${it.width}x${it.height}")
+            }
+        } catch (e: Exception) {
+            Log.e("ChatRoom", "Error decoding binary data: ${e.message}", e)
+            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
         }
-    } catch (e: Exception) {
-        Log.e("ChatRoom", "Error decoding binary data: ${e.message}", e)
-        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
     }
 }
 
-fun getUriFromByteArray(byteArray: ByteArray, context: Context): Uri {
-    val file = File(context.cacheDir, "video.mp4")
-    file.writeBytes(byteArray)
-    return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+suspend fun getUriFromByteArray(byteArray: ByteArray, context: Context): Uri {
+    return withContext(Dispatchers.IO) {
+        val file = File(context.cacheDir, "video.mp4")
+        file.writeBytes(byteArray)
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    }
 }

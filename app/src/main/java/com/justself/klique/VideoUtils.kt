@@ -33,7 +33,9 @@ import com.arthenica.mobileffmpeg.FFmpeg
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import com.arthenica.mobileffmpeg.LogCallback
+import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 object VideoUtils {
@@ -43,8 +45,12 @@ object VideoUtils {
         val retriever = android.media.MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
-            val width = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
-            val height = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
+            val width =
+                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                    ?.toInt()
+            val height =
+                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                    ?.toInt()
             return if (width != null && height != null) {
                 Log.i(TAG, "Video resolution retrieved: Width=$width, Height=$height")
                 Pair(width, height)
@@ -61,6 +67,7 @@ object VideoUtils {
     }
 
     fun downscaleVideo(context: Context, uri: Uri): Uri? {
+        Log.d("onTrim", "downscaling called")
         val resolution = getVideoResolution(context, uri)
         if (resolution == null) {
             Log.e(TAG, "No resolution found, cannot downscale.")
@@ -104,25 +111,28 @@ object VideoUtils {
         val rc = FFmpeg.execute(command)
         if (rc == Config.RETURN_CODE_SUCCESS) {
             Log.i(TAG, "Video downscaling successful. Output: $outputPath")
+            Log.d("onTrim", "Success! $outputPath")
             return Uri.fromFile(outputFile)
         } else {
             Log.e(TAG, "Video downscaling failed. FFmpeg return code: $rc")
             return null
         }
     }
+
     fun getVideoThumbnail(context: Context, videoUri: Uri): Bitmap? {
         val retriever = MediaMetadataRetriever()
-        return try{
+        return try {
             retriever.setDataSource(context, videoUri)
             retriever.getFrameAtTime(1000000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
         } catch (e: Exception) {
             e.printStackTrace()
             null
-        }finally {
+        } finally {
             retriever.release()
         }
     }
 }
+
 fun createPlaceholderImage(width: Int, height: Int, backgroundColor: Int, textColor: Int): Bitmap {
     val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
@@ -142,9 +152,10 @@ fun createPlaceholderImage(width: Int, height: Int, backgroundColor: Int, textCo
 fun VideoTrimmingScreen(
     appContext: Context,
     uri: Uri,
-    onTrimComplete: (Uri?, String) -> Unit,
     onCancel: () -> Unit,
-    sourceScreen: String
+    sourceScreen: String,
+    mediaViewModel: MediaViewModel,
+    navController: NavController
 ) {
     val coroutineScope = rememberCoroutineScope()
     var videoDuration by remember { mutableStateOf(0L) }
@@ -160,7 +171,10 @@ fun VideoTrimmingScreen(
                 setVideoURI(uri)
                 setOnPreparedListener { mp ->
                     videoDuration = mp.duration.toLong()
-                    endMs = minOf(maxTrimDuration, videoDuration) // Adjust endMs based on video duration
+                    endMs = minOf(
+                        maxTrimDuration,
+                        videoDuration
+                    ) // Adjust endMs based on video duration
                 }
             }
         },
@@ -254,8 +268,16 @@ fun VideoTrimmingScreen(
         Button(
             onClick = {
                 coroutineScope.launch {
-                    val trimmedUri = performTrimming(appContext, uri, startMs, endMs)
-                    onTrimComplete(trimmedUri, sourceScreen)
+                    launch{
+                    mediaViewModel.preparePerformTrimmingAndDownscaling(
+                        appContext,
+                        uri,
+                        startMs,
+                        endMs,
+                        sourceScreen
+                    )}
+                    //onTrimComplete(null, sourceScreen)
+                    navController.popBackStack()
                 }
             },
             colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
@@ -270,6 +292,20 @@ fun VideoTrimmingScreen(
             colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)
         ) {
             Text(text = "Cancel", color = onPrimaryColor)
+        }
+    }
+}
+
+suspend fun performTrimmingAndDownscaling(
+    context: Context,
+    uri: Uri,
+    startMs: Long,
+    endMs: Long
+): Uri? {
+    return withContext(Dispatchers.IO) {
+        val trimmedUri = performTrimming(context, uri, startMs, endMs)
+        trimmedUri?.let {
+            VideoUtils.downscaleVideo(context, it)
         }
     }
 }

@@ -159,22 +159,12 @@ fun NavigationHost(
             VideoTrimmingScreen(
                 appContext = LocalContext.current,
                 uri = videoUri,
-                onTrimComplete = { trimmedUri, screen ->
-                    when (screen) {
-                        "HomeScreen" -> {
-                            sharedCliqueViewModel.handleTrimmedVideo(trimmedUri)
-                        }
-
-                        "MessageScreen" -> {
-                            theTrimmedUri = trimmedUri
-                        }
-                    }
-                    navController.popBackStack()
-                },
                 onCancel = {
                     navController.popBackStack()
                 },
-                sourceScreen = sourceScreen
+                sourceScreen = sourceScreen,
+                mediaViewModel = mediaViewModel,
+                navController = navController
             )
         }
         composable(

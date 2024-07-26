@@ -44,13 +44,19 @@ class ChatScreenViewModel(
 
     private val _isSelectionMode = MutableLiveData<Boolean>(false)
     val isSelectionMode: LiveData<Boolean> get() = _isSelectionMode
+    private val _pageSize = 20
+    private var _currentPage = 0
+    private var _isLoading = MutableLiveData(false)
+    val isLoading: LiveData<Boolean> get() = _isLoading
 
     init {
         // simulateOnlineStatusOscillation()
     }
+
     fun setIsNewChat(isNew: Boolean) {
         _isNewChat.value = isNew
     }
+
     fun addChat(chat: ChatList) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.addChat(chat)
@@ -76,6 +82,7 @@ class ChatScreenViewModel(
             loadChats(myUserId.value)
         }
     }
+
     fun deleteMessage(messageId: String, context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val message = personalChatDao.getPersonalChatById(messageId)
@@ -84,10 +91,13 @@ class ChatScreenViewModel(
                     deleteMediaFile(context, it.mediaUri)
                 }
                 personalChatDao.deletePersonalChat(messageId)
-                loadPersonalChats(myUserId.value, currentChat.value!!)
+                withContext(Dispatchers.Main) {
+                    loadPersonalChats(myUserId.value, currentChat.value!!)
+                }
             }
         }
     }
+
     private fun deleteMediaFile(context: Context, mediaUri: String) {
         val uri = Uri.parse(mediaUri)
         try {
@@ -99,20 +109,23 @@ class ChatScreenViewModel(
 
     fun loadChats(myId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            val chatList = chatDao.getAllChats(myId)/* mockData is for testing. chatList is from the real database
-            val mockData = getMockChats(myId) */
+            val chatList = chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddtime }
             _chats.value = chatList
         }
     }
+
     fun setMyUserId(userId: Int) {
         myUserId.value = userId
     }
+
     fun enterChat(enemyId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.resetUnreadMsgCounter(enemyId)
         }
         _currentChat.value = enemyId
+        _currentPage = 0
     }
+
     fun toggleMessageSelection(messageId: String) {
         val currentSelection = _selectedMessages.value?.toMutableList() ?: mutableListOf()
         if (currentSelection.contains(messageId)) {
@@ -128,6 +141,7 @@ class ChatScreenViewModel(
         _selectedMessages.value = emptyList()
         _isSelectionMode.value = false
     }
+
     /*
     fun simulateDelayedWebSocketMessages(enemyId: Int, delayMillis: Long = 15000) {
         viewModelScope.launch {
@@ -170,21 +184,25 @@ class ChatScreenViewModel(
     fun leaveChat() {
         _currentChat.value = null
     }
+
     private fun incrementUnreadMsgCounter(enemyId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.incrementUnreadMsgCounter(enemyId)
         }
     }
+
     // Apparently, the server needs to be keep delivery statuses of messages. Remember to do this
     private fun bulkUpdateUnreadMessageCounters(newMessages: List<PersonalChat>) {
         viewModelScope.launch(Dispatchers.IO) {
-            val unreadCounts = newMessages.groupBy { val enemy = it.myId; enemy }.mapValues { it.value.size }
+            val unreadCounts =
+                newMessages.groupBy { val enemy = it.myId; enemy }.mapValues { it.value.size }
             for ((enemyId, count) in unreadCounts) {
                 chatDao.incrementUnreadMsgCounterBy(enemyId, count)
             }
             loadChats(myUserId.value)
         }
     }
+
     // Use this as a baseline to build message receipt of all types
     // This function is supposed to be called from the Websocket Parser
     // Remember to also implement a function to let the websocket know it has been delivered
@@ -194,6 +212,7 @@ class ChatScreenViewModel(
         Log.d("Incoming", "newMessage is $newMessage")
         addAndProcessPersonalChat(newMessage)
     }
+
     private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
         val enemyId = if (newMessage.myId == myUserId.value) newMessage.enemyId else newMessage.myId
         val lastMsg = when (newMessage.messageType) {
@@ -236,27 +255,49 @@ class ChatScreenViewModel(
             }
         }
     }
+
     fun addAndProcessPersonalChat(personalChat: PersonalChat) {
         viewModelScope.launch(Dispatchers.IO) {
             personalChatDao.addPersonalChat(personalChat)
             updateChatListWithNewMessage(personalChat)
         }
     }
-    fun loadPersonalChats(myId: Int, enemyId: Int) {
+
+    fun loadPersonalChats(myId: Int, enemyId: Int, loadMore: Boolean = false) {
         Log.d("Database", "Loading Database")
+        if (_isLoading.value == true) return
+
+        _isLoading.value = true
+        Log.d("Database", "Still executing")
         viewModelScope.launch(Dispatchers.IO) {
-            val personalChatList = personalChatDao.getPersonalChats(myId, enemyId)
-            _personalChats.postValue(personalChatList)
-            Log.d("Database", "Extracted from database is $personalChatList")
+            val offset = if (loadMore) _currentPage * _pageSize else 0
+            val personalChatList =
+                personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset)
+            if (loadMore) {
+                Log.d("Database", "Still even executing")
+                val currentList = _personalChats.value.orEmpty().toMutableList()
+                currentList.addAll(0, personalChatList)
+                _personalChats.postValue(currentList)
+                Log.d("Database", "Still even even executing")
+                Log.d("Database", "Currenlt list size: ${currentList.size}")
+            } else {
+                _personalChats.postValue(personalChatList)
+            }
+
+            if (personalChatList.isNotEmpty()) {
+                _currentPage++
+            }
+            _isLoading.postValue(false)
         }
     }
+
     suspend fun checkChatExistsSync(myId: Int, enemyId: Int): Boolean {
         return withContext(Dispatchers.IO) {
             chatDao.chatExists(myId, enemyId)
         }
     }
 
-    fun fetchNewMessagesFromServer(){
+    fun fetchNewMessagesFromServer() {
         val jsonData = """
             {
             "type": "fetchUndelivered"
@@ -268,6 +309,7 @@ class ChatScreenViewModel(
     fun generateMessageId(): String {
         return UUID.randomUUID().toString()
     }
+
     // Provision should be made and thought of, on how such a message should be received
     private fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -276,7 +318,13 @@ class ChatScreenViewModel(
     }
 
     fun sendBinary(
-        data: ByteArray, type: String, enemyId: Int, messageId: String, myId: Int, fullName: String, context: Context
+        data: ByteArray,
+        type: String,
+        enemyId: Int,
+        messageId: String,
+        myId: Int,
+        fullName: String,
+        context: Context
     ) {
         val prefix = "$type:$enemyId:$messageId:$myId:$fullName".padEnd(50)
         val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
@@ -306,7 +354,7 @@ class ChatScreenViewModel(
     }
 
     fun startPeriodicOnlineStatusCheck() {
-        viewModelScope.launch{
+        viewModelScope.launch {
             while (true) {
                 val relevantIds = fetchRelevantIds()
                 informServerOfOnlineStatusRequest(relevantIds)
@@ -318,6 +366,7 @@ class ChatScreenViewModel(
     private suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
     }
+
     private fun informServerOfOnlineStatusRequest(relevantIds: List<Int>) {
         val idsJsonArray = relevantIds.joinToString(prefix = "[", postfix = "]") { it.toString() }
         val jsonString = """
@@ -328,6 +377,7 @@ class ChatScreenViewModel(
     """.trimIndent()
         send(jsonString)
     }
+
     // This simulation should be replaced by the onMessage logic from the websocket
     private fun simulateOnlineStatusOscillation() {
         viewModelScope.launch {
@@ -354,6 +404,7 @@ class ChatScreenViewModel(
         }
         return jsonObject.toString()
     }
+
     // This might be replaced by a differnt but similar websocket parsing logic
     private fun handleWebSocketMessage(websocketMessage: String) {
         val jsonObject = JSONObject(websocketMessage)
@@ -364,27 +415,31 @@ class ChatScreenViewModel(
                 updatedStatuses.putAll(onlineStatusUpdates)
                 _onlineStatuses.value = updatedStatuses
             }
+
             "bulkMessageSync" -> {
                 val newMessages = parseNewMessages(jsonObject)
                 handleBulkMessagesRefresh(newMessages)
             }
         }
     }
+
     // This is for handling the websocket response type for 'fetch new messages' function
-    private fun handleBulkMessagesRefresh(newBulkMessages: List<PersonalChat>){
+    private fun handleBulkMessagesRefresh(newBulkMessages: List<PersonalChat>) {
         viewModelScope.launch(Dispatchers.IO) {
-            newBulkMessages.forEach{message ->
+            newBulkMessages.forEach { message ->
                 personalChatDao.addPersonalChat(message)
                 val enemyId = message.myId
                 chatDao.updateLastMessage(
                     enemyId = enemyId,
                     lastMsg = message.content,
                     timeStamp = message.timeStamp
-                )}
+                )
+            }
             bulkUpdateUnreadMessageCounters(newBulkMessages)
             Log.d("Add Personal", "Add Personal handlebulk ")
         }
     }
+
     private fun parseNewMessages(jsonObject: JSONObject): List<PersonalChat> {
         val messages = mutableListOf<PersonalChat>()
         val messagesArray = jsonObject.getJSONArray("messages")
@@ -408,7 +463,7 @@ class ChatScreenViewModel(
     private fun parseOnlineStatusMessage(jsonObject: JSONObject): Map<Int, Boolean> {
         val statusMap = mutableMapOf<Int, Boolean>()
         val statuses = jsonObject.getJSONArray("statuses")
-        for (i in 0 until statuses.length()){
+        for (i in 0 until statuses.length()) {
             val status = statuses.getJSONObject(i)
             val userId = status.getInt("userId")
             val onlineStatus = status.getBoolean("onlineStatus")
@@ -417,7 +472,13 @@ class ChatScreenViewModel(
         return statusMap
     }
 
-    fun handleRecordedAudio(file: File, enemyId: Int, myId: Int, fullName: String, context: Context) {
+    fun handleRecordedAudio(
+        file: File,
+        enemyId: Int,
+        myId: Int,
+        fullName: String,
+        context: Context
+    ) {
         viewModelScope.launch {
             try {
                 val audioByteArray = FileUtils.fileToByteArray(file)
@@ -464,6 +525,7 @@ class ChatScreenViewModel(
         """.trimIndent()
         send(messageJson)
     }
+
     fun searchChats(query: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val result = if (query.isEmpty()) {
@@ -474,6 +536,7 @@ class ChatScreenViewModel(
             _searchResults.value = result
         }
     }
+
     fun addMessageToForward(message: PersonalChat) {
         _messagesToForward.value = _messagesToForward.value?.plus(message)
     }
@@ -492,19 +555,31 @@ class ChatScreenViewModel(
                             message.mediaUri?.let { uri ->
                                 val data = FileUtils.loadFileAsByteArray(context, Uri.parse(uri))
                                 data?.let {
-                                    sendBinary(it, message.messageType, enemyId, message.messageId, myId, "MyName", context)
+                                    sendBinary(
+                                        it,
+                                        message.messageType,
+                                        enemyId,
+                                        message.messageId,
+                                        myId,
+                                        "MyName",
+                                        context
+                                    )
                                 }
                             }
                         }
+
                         "PGistInvite" -> message.gistId?.let {
-                            sendGistInvite(message.content,
-                                it, enemyId, myId)
+                            sendGistInvite(
+                                message.content,
+                                it, enemyId, myId
+                            )
                         }
                     }
                 }
             }
         }
     }
+
     private fun sendGistInvite(topic: String, gistId: String, enemyId: Int, myId: Int) {
         val messageId = generateMessageId()
         val personalChat = PersonalChat(
@@ -524,8 +599,9 @@ class ChatScreenViewModel(
             // Optionally, you can also send this message to the server here
         }
     }
+
     // Remember to implement an onMessage to attach people to gists
-    fun joinGist(gistId: String){
+    fun joinGist(gistId: String) {
         val joinGistJson = """
             {
             "type": "joinGist",
@@ -534,11 +610,13 @@ class ChatScreenViewModel(
         """.trimIndent()
         send(joinGistJson)
     }
+
     // Send JSON message
     private fun send(message: String) {
         WebSocketManager.send(message)
         Log.d("send", message)
     }
+
     fun addGistInviteToForward(topic: String, gistId: String) {
         val messageId = generateMessageId()
         val personalChat = PersonalChat(
