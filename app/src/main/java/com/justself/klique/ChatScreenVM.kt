@@ -107,10 +107,19 @@ class ChatScreenViewModel(
         }
     }
 
-    fun loadChats(myId: Int) {
+    fun loadChats(myId: Int, updateSearchResults: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val chatList = chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddtime }
+            Log.d("ChatList", "Fetched chat list: $chatList")
+
             _chats.value = chatList
+            if (updateSearchResults) {
+                Log.d("ChatList", "Updating searchResults with: $chatList")
+                _searchResults.value = chatList
+            }
+
+            Log.d("ChatList", "_chats value after update: ${_chats.value}")
+            Log.d("ChatList", "_searchResults value after update: ${_searchResults.value}")
         }
     }
 
@@ -219,6 +228,7 @@ class ChatScreenViewModel(
             "PImage" -> "Photo"
             "PVideo" -> "Video"
             "PAudio" -> "Audio"
+            "PGistInvite" -> "Gist Invite..."
             else -> newMessage.content
         }
         val timeStamp = newMessage.timeStamp
@@ -272,7 +282,8 @@ class ChatScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val offset = if (loadMore) _currentPage * _pageSize else 0
             val personalChatList =
-                personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset)
+                personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset).sortedBy { it.timeStamp }
+            Log.d("MessageLoading", "Loaded ${personalChatList.size} messages, first message timestamp: ${personalChatList.firstOrNull()?.timeStamp}, last message timestamp: ${personalChatList.lastOrNull()?.timeStamp}")
             if (loadMore) {
                 Log.d("Database", "Still even executing")
                 val currentList = _personalChats.value.orEmpty().toMutableList()
@@ -528,15 +539,13 @@ class ChatScreenViewModel(
 
     fun searchChats(query: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val result = if (query.isEmpty()) {
-                chatDao.getAllChats(myUserId.value)
-            } else {
-                chatDao.searchChats(myUserId.value, "%$query%")
+            if (query.isNotEmpty()) {
+                val result = chatDao.searchChats(myUserId.value, "%$query%")
+                Log.d("ChatList", "Search result for query '$query': $result")
+                _searchResults.value = result
             }
-            _searchResults.value = result
         }
     }
-
     fun addMessageToForward(message: PersonalChat) {
         _messagesToForward.value = _messagesToForward.value?.plus(message)
     }
@@ -549,17 +558,19 @@ class ChatScreenViewModel(
         _messagesToForward.value?.let { messages ->
             recipients.forEach { enemyId ->
                 messages.forEach { message ->
+                    val newMessageId = generateMessageId()
                     when (message.messageType) {
                         "PText", "text" -> sendTextMessage(message.content, enemyId, myId)
                         "PImage", "PVideo", "PAudio" -> {
                             message.mediaUri?.let { uri ->
                                 val data = FileUtils.loadFileAsByteArray(context, Uri.parse(uri))
                                 data?.let {
+                                    Log.d("ForwardedMessage", "Forwarding messageId: $newMessageId, type: ${message.messageType}, enemyId: $enemyId, timeStamp: ${System.currentTimeMillis()}")
                                     sendBinary(
                                         it,
                                         message.messageType,
                                         enemyId,
-                                        message.messageId,
+                                        newMessageId,
                                         myId,
                                         "MyName",
                                         context
@@ -577,6 +588,7 @@ class ChatScreenViewModel(
                     }
                 }
             }
+            clearMessagesToForward()
         }
     }
 
@@ -595,7 +607,7 @@ class ChatScreenViewModel(
             topic = topic
         )
         viewModelScope.launch(Dispatchers.IO) {
-            personalChatDao.addPersonalChat(personalChat)
+            addAndProcessPersonalChat(personalChat)
             // Optionally, you can also send this message to the server here
         }
     }
@@ -635,7 +647,6 @@ class ChatScreenViewModel(
         currentMessages.add(personalChat)
         _messagesToForward.value = currentMessages
     }
-
 
     fun getMockChats(myId: Int): List<ChatList> {
         return listOf(

@@ -80,7 +80,7 @@ fun NavigationHost(
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("orders") { OrdersScreen(navController, chatScreenViewModel, customerId) }
+        composable("orders") { OrdersScreen(navController, chatScreenViewModel, customerId, mediaViewModel) }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
                 ?: throw IllegalStateException("Product must be provided")
@@ -141,9 +141,7 @@ fun NavigationHost(
                 contactName,
                 mediaViewModel,
                 resetSelectedEmoji,
-                emojiPickerHeight,
-                theTrimmedUri,
-                { theTrimmedUri = null }
+                emojiPickerHeight
             )
         }
         composable(

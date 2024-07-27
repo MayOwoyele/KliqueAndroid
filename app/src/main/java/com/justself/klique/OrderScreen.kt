@@ -12,6 +12,6 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 
 @Composable
-fun OrdersScreen( navController: NavController, viewModel: ChatScreenViewModel, customerId: Int) {
-    ForwardChatsScreen(navController = navController, viewModel = viewModel, customerId = customerId)
+fun OrdersScreen( navController: NavController, viewModel: ChatScreenViewModel, customerId: Int, mediaViewModel: MediaViewModel) {
+    StatusSelectionScreen(navController = navController, mediaViewModel = mediaViewModel)
 }

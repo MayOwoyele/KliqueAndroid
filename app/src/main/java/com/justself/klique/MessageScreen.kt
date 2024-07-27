@@ -32,14 +32,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -78,6 +81,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
@@ -90,12 +94,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -113,6 +119,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -147,9 +154,9 @@ fun MessageScreen(
     val isRecording = remember { mutableStateOf(false) }
     var theRealTrimmedUri by remember { mutableStateOf<Uri?>(null) }
     val messageScreenUri by mediaViewModel.messageScreenUri.observeAsState()
-    LaunchedEffect(messageScreenUri){
+    LaunchedEffect(messageScreenUri) {
         Log.d("onTrim", "ontrim triggered again with value $messageScreenUri")
-        messageScreenUri?.let{
+        messageScreenUri?.let {
             Log.d("onTrim", "ontrim triggered again 2 with value $messageScreenUri")
             theRealTrimmedUri = messageScreenUri
         }
@@ -187,12 +194,7 @@ fun MessageScreen(
                 if (videoByteArray != null) {
                     val messageId = viewModel.generateMessageId()
                     viewModel.sendBinary(
-                        videoByteArray,
-                        "PVideo",
-                        enemyId,
-                        messageId,
-                        myId,
-                        contactName, context
+                        videoByteArray, "PVideo", enemyId, messageId, myId, contactName, context
                     )
                     Log.d("Add Personal", "This has been called again")
                 }
@@ -266,8 +268,7 @@ fun MessageScreen(
     Scaffold(topBar = {
         val targetHeight = if (selectedMessages.isNotEmpty()) 56.dp else 0.dp
         val animatedHeight by animateDpAsState(
-            targetValue = targetHeight,
-            animationSpec = tween(durationMillis = 300)
+            targetValue = targetHeight, animationSpec = tween(durationMillis = 300)
         )
         Box(modifier = Modifier.fillMaxWidth()) {
             if (animatedHeight < 56.dp) {
@@ -322,40 +323,39 @@ fun MessageScreen(
                 }
             }
         }
-    },
-        content = { innerPadding ->
-            MessageScreenContent(
-                navController,
-                enemyId,
-                innerPadding,
-                viewModel,
-                myId,
-                mediaViewModel,
-                showDeleteDialog,
-                onShowDeleteDialog
-            )
-        }, bottomBar = {
-            TextBoxAndMedia(
-                navController = navController,
-                enemyId = enemyId,
-                context = context,
-                imagePickerLauncher = imagePickerLauncher,
-                videoPickerLauncher = videoPickerLauncher,
-                permissionLauncherImages = permissionLauncherImages,
-                permissionLauncherVideos = permissionLauncherVideos,
-                audioPermissionLauncher = audioPermissionLauncher,
-                onSendMessage = onSendMessage,
-                onStopRecording = stopRecording,
-                onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
-                selectedEmoji = selectedEmoji,
-                showEmojiPicker = showEmojiPicker,
-                isRecording = isRecording,
-                imeVisible = imeVisible,
-                maxKeyboardHeightDp = maxKeyboardHeightDp,
-                resetSelectedEmoji = resetSelectedEmoji,
-                keyboardController = keyboardController
-            )
-        }, modifier = Modifier.imePadding()
+    }, content = { innerPadding ->
+        MessageScreenContent(
+            navController,
+            enemyId,
+            innerPadding,
+            viewModel,
+            myId,
+            mediaViewModel,
+            showDeleteDialog,
+            onShowDeleteDialog
+        )
+    }, bottomBar = {
+        TextBoxAndMedia(
+            navController = navController,
+            enemyId = enemyId,
+            context = context,
+            imagePickerLauncher = imagePickerLauncher,
+            videoPickerLauncher = videoPickerLauncher,
+            permissionLauncherImages = permissionLauncherImages,
+            permissionLauncherVideos = permissionLauncherVideos,
+            audioPermissionLauncher = audioPermissionLauncher,
+            onSendMessage = onSendMessage,
+            onStopRecording = stopRecording,
+            onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+            selectedEmoji = selectedEmoji,
+            showEmojiPicker = showEmojiPicker,
+            isRecording = isRecording,
+            imeVisible = imeVisible,
+            maxKeyboardHeightDp = maxKeyboardHeightDp,
+            resetSelectedEmoji = resetSelectedEmoji,
+            keyboardController = keyboardController
+        )
+    }, modifier = Modifier.imePadding()
     )
 }
 
@@ -398,19 +398,17 @@ fun CustomTopAppBar(
                 style = MaterialTheme.typography.displayLarge,
                 modifier = Modifier
                     .padding(start = 20.dp)
-                    .clickable(enabled = true,
-                        onClick = {
-                            navController.navigate("bioScreen/$enemyId")
-                            onEmojiPickerVisibilityChange(false)
-                        })
+                    .clickable(enabled = true, onClick = {
+                        navController.navigate("bioScreen/$enemyId")
+                        onEmojiPickerVisibilityChange(false)
+                    })
             )
             Box(
                 modifier = Modifier
                     .padding(start = 20.dp)
                     .size(10.dp)
                     .background(
-                        color = if (isOnline) Color(0xFFFF69B4) else Color.Gray,
-                        shape = CircleShape
+                        color = if (isOnline) Color(0xFFFF69B4) else Color.Gray, shape = CircleShape
                     )
             )
         }
@@ -429,13 +427,19 @@ fun MessageScreenContent(
     onShowDeleteDialog: () -> Unit
 ) {
     val personalChat by viewModel.personalChats.observeAsState(emptyList())
-    Log.d("Personal Chats", "The value of personalChats $personalChat")
+    Log.d("MessageLoading", "Displaying ${personalChat.size} messages in LazyColumn")
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
     val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
-    var firstVisibleItem by remember { mutableIntStateOf(0) }
-    var firstVisibleItemOffset by remember { mutableIntStateOf(0) }
+    var firstVisibleItem by remember { mutableStateOf(0) }
+    var firstVisibleItemOffset by remember { mutableStateOf(0) }
+    var initialLoad by remember { mutableStateOf(true) }
+    var debounceJob: Job? = null
+    val coroutineScope = rememberCoroutineScope()
+    val previousChatSize = remember { mutableStateOf(personalChat.size) }
+    var isInitialLoad = remember { mutableStateOf(true) }
+    val density = LocalDensity.current
 
     fun toggleMessageSelection(messageId: String) {
         viewModel.toggleMessageSelection(messageId)
@@ -445,24 +449,74 @@ fun MessageScreenContent(
         val isNewChat = viewModel.checkChatExistsSync(myId, enemyId).not()
         viewModel.setIsNewChat(isNewChat)
         Log.d("isNewChat", "$isNewChat")
+        initialLoad = true
     }
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.firstVisibleItemIndex }
-            .collect { index ->
+        snapshotFlow { scrollState.firstVisibleItemIndex to scrollState.firstVisibleItemScrollOffset }.collect { (index, offset) ->
+            firstVisibleItem = index
+            firstVisibleItemOffset = offset
+            if (debounceJob?.isActive == true) debounceJob?.cancel()
+            debounceJob = coroutineScope.launch {
+                delay(100) // Adjust the debounce delay as needed
                 if (index == 0 && !viewModel.isLoading.value!!) {
-                    firstVisibleItem = scrollState.firstVisibleItemIndex
-                    firstVisibleItemOffset = scrollState.firstVisibleItemScrollOffset
                     viewModel.loadPersonalChats(myId, enemyId, loadMore = true)
                 }
             }
+        }
     }
     LaunchedEffect(personalChat.size) {
         if (personalChat.isNotEmpty()) {
-            val newItemsCount = personalChat.size - (firstVisibleItem + 1)
-            scrollState.scrollToItem(
-                index = firstVisibleItem + newItemsCount,
-                scrollOffset = firstVisibleItemOffset
-            )
+            if (isInitialLoad.value) {
+                scrollState.scrollToItem(personalChat.size - 1)
+                isInitialLoad.value = false
+            } else {
+                val newItemsCount = personalChat.size - previousChatSize.value
+                Log.d(
+                    "Scroll tracker",
+                    "New items count, $newItemsCount, newIndex: $firstVisibleItem, personalChat size ${personalChat.size}"
+                )
+                if (newItemsCount > 0) {
+                    val newIndex = firstVisibleItem + newItemsCount
+                    val newOffset = firstVisibleItemOffset
+                    scrollState.scrollToItem(index = newIndex, scrollOffset = newOffset)
+                }
+            }
+        }
+        previousChatSize.value = personalChat.size
+    }
+    val contentHeight = remember { mutableStateOf(0) }
+    val viewportHeight = remember { mutableStateOf(0) }
+
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.layoutInfo }.collect { layoutInfo ->
+            contentHeight.value =
+                layoutInfo.totalItemsCount * layoutInfo.viewportSize.height / (layoutInfo.visibleItemsInfo.size.takeIf { it > 0 }
+                    ?: 1)
+            viewportHeight.value = layoutInfo.viewportSize.height
+        }
+    }
+
+    val scrollBarHeight = remember {
+        derivedStateOf {
+            if (contentHeight.value > 0 && viewportHeight.value > 0) {
+                (viewportHeight.value.toFloat() / contentHeight.value * viewportHeight.value).coerceAtLeast(
+                    with(density) { 20.dp.toPx() })
+            } else {
+                with(density) { 20.dp.toPx() }
+            }
+        }
+    }
+
+    val scrollBarOffset = remember {
+        derivedStateOf {
+            if (contentHeight.value > 0) {
+                (scrollState.firstVisibleItemIndex.toFloat() / (personalChat.size - 1).toFloat() * (viewportHeight.value - scrollBarHeight.value)).coerceIn(
+                    0f,
+                    viewportHeight.value - scrollBarHeight.value
+                )
+            } else {
+                0f
+            }
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
@@ -474,13 +528,16 @@ fun MessageScreenContent(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(personalChat, key = { it.messageId }) { message ->
+                Log.d(
+                    "MessageLoading",
+                    "Displaying messageId: ${message.messageId}, type: ${message.messageType}, timeStamp: ${message.timeStamp}, content ${message.content}"
+                )
                 val isCurrentUser = message.myId == myId
                 val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
                 val shape = if (isCurrentUser) RoundedCornerShape(
                     16.dp, 0.dp, 16.dp, 16.dp
                 ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-                val onLongPressLambda =
-                    { toggleMessageSelection(message.messageId) }
+                val onLongPressLambda = { toggleMessageSelection(message.messageId) }
                 val onTapLambda = {
                     if (isSelectionMode) {
                         toggleMessageSelection(message.messageId)
@@ -490,8 +547,7 @@ fun MessageScreenContent(
                             "PImage" -> {
                                 message.mediaUri?.let {
                                     mediaViewModel.setBitmapFromUri(
-                                        it,
-                                        context
+                                        it, context
                                     )
                                 }
                                 navController.navigate("fullScreenImage")
@@ -503,17 +559,13 @@ fun MessageScreenContent(
                         }
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
-                        .pointerInput(Unit) {
-                            detectTapGestures(
-                                onLongPress = { onLongPressLambda() },
-                                onTap = { onTapLambda() }
-                            )
-                        }
-                ) {
+                Box(modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
+                    .pointerInput(Unit) {
+                        detectTapGestures(onLongPress = { onLongPressLambda() },
+                            onTap = { onTapLambda() })
+                    }) {
                     Column(
                         modifier = Modifier
                             .background(Color.Gray, shape)
@@ -563,24 +615,19 @@ fun MessageScreenContent(
                                     onLongPressLambda = onLongPressLambda,
                                     isSelectionMode = isSelectionMode,
                                     onTapLambda = onTapLambda
-                                )
-                                {
+                                ) {
                                     message.gistId?.let { viewModel.joinGist(it) }
                                     navController.navigate("home")
                                 }
                             }
 
                             else -> {
-                                Box(
-                                    modifier = Modifier
-                                        .wrapContentWidth()
-                                        .pointerInput(Unit) {
-                                            detectTapGestures(
-                                                onLongPress = { onLongPressLambda() },
-                                                onTap = { onTapLambda() }
-                                            )
-                                        }
-                                ) {
+                                Box(modifier = Modifier
+                                    .wrapContentWidth()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures(onLongPress = { onLongPressLambda() },
+                                            onTap = { onTapLambda() })
+                                    }) {
                                     Text(
                                         text = message.content,
                                         color = MaterialTheme.colorScheme.onPrimary
@@ -607,43 +654,60 @@ fun MessageScreenContent(
                 }
 
                 if (showDeleteDialog) {
-                    AlertDialog(
-                        onDismissRequest = onShowDeleteDialog,
-                        confirmButton = {
-                            TextButton(onClick = {
-                                // Delete selected messages logic
-                                selectedMessages.forEach { messageId ->
-                                    viewModel.deleteMessage(
-                                        messageId, context
-                                    )
-                                }
-                                viewModel.clearSelection()
-                                onShowDeleteDialog()
-                            }) {
-                                Text("Delete")
+                    AlertDialog(onDismissRequest = onShowDeleteDialog, confirmButton = {
+                        TextButton(onClick = {
+                            // Delete selected messages logic
+                            selectedMessages.forEach { messageId ->
+                                viewModel.deleteMessage(
+                                    messageId, context
+                                )
                             }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = {
-                                viewModel.clearSelection()
-                                onShowDeleteDialog()
-                            }) {
-                                Text("Cancel")
-                            }
-                        },
-                        title = {
-                            Text(
-                                "Confirm Deletion",
-                                style = MaterialTheme.typography.displayLarge
-                            )
-                        },
-                        text = { Text("Are you sure you want to delete the selected messages?") }
-                    )
+                            viewModel.clearSelection()
+                            onShowDeleteDialog()
+                        }) {
+                            Text("Delete")
+                        }
+                    }, dismissButton = {
+                        TextButton(onClick = {
+                            viewModel.clearSelection()
+                            onShowDeleteDialog()
+                        }) {
+                            Text("Cancel")
+                        }
+                    }, title = {
+                        Text(
+                            "Confirm Deletion", style = MaterialTheme.typography.displayLarge
+                        )
+                    }, text = { Text("Are you sure you want to delete the selected messages?") })
                 }
             }
         }
+        if (contentHeight.value > viewportHeight.value) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(vertical = 8.dp)
+                    .width(8.dp)
+                    .fillMaxHeight()
+
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(y = with(LocalDensity.current) { scrollBarOffset.value.toDp() })
+                    .width(8.dp)
+                    .height(with(LocalDensity.current) { scrollBarHeight.value.toDp() })
+                    .background(
+                        MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .clip(RoundedCornerShape(50)),
+            )
+        }
     }
 }
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TextBoxAndMedia(
@@ -759,8 +823,7 @@ fun TextBoxAndMedia(
                         } else {
                             when (PackageManager.PERMISSION_GRANTED) {
                                 ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.READ_EXTERNAL_STORAGE
+                                    context, Manifest.permission.READ_EXTERNAL_STORAGE
                                 ) -> {
                                     imagePickerLauncher.launch("image/*")
                                 }
@@ -783,8 +846,7 @@ fun TextBoxAndMedia(
                         } else {
                             when (PackageManager.PERMISSION_GRANTED) {
                                 ContextCompat.checkSelfPermission(
-                                    context,
-                                    Manifest.permission.READ_EXTERNAL_STORAGE
+                                    context, Manifest.permission.READ_EXTERNAL_STORAGE
                                 ) -> {
                                     videoPickerLauncher.launch("video/*")
                                 }
@@ -804,8 +866,7 @@ fun TextBoxAndMedia(
                 }
             }
 
-            BasicTextField(
-                value = textState,
+            BasicTextField(value = textState,
                 onValueChange = { textState = it },
                 modifier = Modifier
                     .weight(1f)
@@ -967,8 +1028,7 @@ fun MessageContextMenu(
                 IconButton(onClick = { onForward(sortedSelectedMessages) }) {  // Add this IconButton
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Forward,  // Use a forward icon
-                        contentDescription = "Forward",
-                        tint = MaterialTheme.colorScheme.onPrimary
+                        contentDescription = "Forward", tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
                 IconButton(onClick = onDismiss) {

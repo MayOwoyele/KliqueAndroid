@@ -6,11 +6,14 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,6 +36,7 @@ import com.arthenica.mobileffmpeg.FFmpeg
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.unit.max
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -158,29 +162,67 @@ fun VideoTrimmingScreen(
     navController: NavController
 ) {
     val coroutineScope = rememberCoroutineScope()
-    var videoDuration by remember { mutableStateOf(0L) }
-    var startMs by remember { mutableStateOf(0L) }
-    var endMs by remember { mutableStateOf(30000L) } // 30 seconds by default
+    var videoDuration by remember { mutableLongStateOf(0L) }
+    var startMs by remember { mutableLongStateOf(0L) }
+    var endMs by remember { mutableLongStateOf(30000L) } // 30 seconds by default
     val maxTrimDuration = 30000L // 30 seconds
     val minTrimDuration = 1000L // 1 second
+    var isPlaying by remember { mutableStateOf(false)}
+    val handler = Handler(Looper.getMainLooper())
+    val videoView = remember {
+        VideoView(appContext).apply {
+            setVideoURI(uri)
+            setOnPreparedListener { mp ->
+                videoDuration = mp.duration.toLong()
+                endMs = minOf(
+                    maxTrimDuration,
+                    videoDuration
+                ) // Adjust endMs based on video duration
+                seekTo(startMs.toInt())
+                start()
+                isPlaying = true
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            videoView.stopPlayback()
+        }
+    }
+    // Playback control functions
+    val playVideo = {
+        if (!isPlaying) {
+            videoView.start()
+            isPlaying = true
+
+            // Ensure video stops at endMs
+            handler.post(object : Runnable {
+                override fun run() {
+                    if (videoView.currentPosition >= endMs.toInt()) {
+                        videoView.pause()
+                        isPlaying = false
+                    } else {
+                        handler.postDelayed(this, 100)
+                    }
+                }
+            })
+        }
+    }
+
+    val pauseVideo = {
+        if (isPlaying) {
+            videoView.pause()
+            isPlaying = false
+        }
+    }
+
+    val stopVideo = {
+        videoView.pause()
+        videoView.seekTo(startMs.toInt())
+        isPlaying = false
+    }
 
     // Use AndroidView to get the video duration
-    AndroidView(
-        factory = { context ->
-            VideoView(context).apply {
-                setVideoURI(uri)
-                setOnPreparedListener { mp ->
-                    videoDuration = mp.duration.toLong()
-                    endMs = minOf(
-                        maxTrimDuration,
-                        videoDuration
-                    ) // Adjust endMs based on video duration
-                }
-            }
-        },
-        update = {}
-    )
-
     val primaryColor = MaterialTheme.colorScheme.primary
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
     val backgroundColor = MaterialTheme.colorScheme.background
@@ -202,12 +244,7 @@ fun VideoTrimmingScreen(
         Spacer(modifier = Modifier.height(16.dp))
         // Placeholder for Video Player
         AndroidView(
-            factory = { context ->
-                VideoView(context).apply {
-                    setVideoURI(uri)
-                    start()
-                }
-            },
+            factory = { videoView },
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(16 / 9f)
@@ -228,23 +265,38 @@ fun VideoTrimmingScreen(
                 onValueChange = { values ->
                     val newStart = values.start.toLong()
                     val newEnd = values.endInclusive.toLong()
-                    if (newEnd - newStart > maxTrimDuration) {
-                        if (newStart != startMs) {
-                            startMs = newEnd - maxTrimDuration
-                            endMs = newEnd
-                        } else {
-                            endMs = newStart + maxTrimDuration
+                    when {
+                        // If the new range exceeds maxTrimDuration
+                        newEnd - newStart > maxTrimDuration -> {
+                            if (newEnd > endMs) {
+                                // End handle is being dragged to the right, exceeding max duration
+                                startMs = newEnd - maxTrimDuration
+                                endMs = newEnd
+                            } else {
+                                // Start handle is being dragged
+                                endMs = newStart + maxTrimDuration
+                                startMs = newStart
+                            }
+                        }
+
+                        // If the new range is less than minTrimDuration
+                        newEnd - newStart < minTrimDuration -> {
+                            if (newEnd != endMs) {
+                                // End handle is being dragged
+                                startMs = newEnd - minTrimDuration
+                                endMs = newEnd
+                            } else {
+                                // Start handle is being dragged
+                                endMs = newStart + minTrimDuration
+                                startMs = newStart
+                            }
+                        }
+
+                        // If the new range is within valid range
+                        else -> {
                             startMs = newStart
+                            endMs = newEnd
                         }
-                    } else if (newEnd - newStart < minTrimDuration) {
-                        if (newStart != startMs) {
-                            startMs = newEnd - minTrimDuration
-                        } else {
-                            endMs = newStart + minTrimDuration
-                        }
-                    } else {
-                        startMs = newStart
-                        endMs = newEnd
                     }
                 },
                 valueRange = 0f..videoDuration.toFloat(),
@@ -263,19 +315,37 @@ fun VideoTrimmingScreen(
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
-
+        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    if (isPlaying) {
+                        pauseVideo()
+                    } else {
+                        playVideo()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)
+            ) {
+                Text(text = if (isPlaying) "Pause" else "Play", color = MaterialTheme.colorScheme.onPrimary)
+            }
+            Button(onClick = stopVideo, colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)) {
+                Text(text = "Stop", color = onPrimaryColor)
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         // Trim Button
         Button(
             onClick = {
                 coroutineScope.launch {
-                    launch{
-                    mediaViewModel.preparePerformTrimmingAndDownscaling(
-                        appContext,
-                        uri,
-                        startMs,
-                        endMs,
-                        sourceScreen
-                    )}
+                    launch {
+                        mediaViewModel.preparePerformTrimmingAndDownscaling(
+                            appContext,
+                            uri,
+                            startMs,
+                            endMs,
+                            sourceScreen
+                        )
+                    }
                     //onTrimComplete(null, sourceScreen)
                     navController.popBackStack()
                 }

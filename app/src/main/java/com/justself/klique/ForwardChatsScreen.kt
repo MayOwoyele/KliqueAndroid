@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,18 +71,20 @@ fun ForwardChatsScreen(
     val selectedChats = remember { mutableStateListOf<Int>() }
     val context = LocalContext.current
     val messageToForward by viewModel.messagesToForward.observeAsState()
-
+    DisposableEffect(Unit) {
+        onDispose {
+            if (viewModel.messagesToForward.value?.isNotEmpty() == true) {
+                viewModel.clearMessagesToForward()
+            }
+        }
+    }
     LaunchedEffect(Unit) {
-        viewModel.loadChats(customerId)
+        viewModel.loadChats(customerId, true)
         viewModel.setMyUserId(customerId)
     }
     LaunchedEffect(searchQuery) {
         viewModel.searchChats(searchQuery)
     }
-    LaunchedEffect(messageToForward) {
-        Log.d("Message", "Message to forward is $messageToForward")
-    }
-
     fun toggleSelection(enemyId: Int) {
         if (selectedChats.contains(enemyId)) {
             selectedChats.remove(enemyId)
@@ -139,8 +142,7 @@ fun ForwardChatsScreen(
         FloatingActionButton(
             onClick = {
                 viewModel.forwardMessagesToRecipients(selectedChats, myId = customerId, context = context)
-                navController.popBackStack()
-                      viewModel.clearMessagesToForward()// Navigate back after forwarding
+                navController.popBackStack() // Navigate back after forwarding
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
