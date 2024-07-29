@@ -1,8 +1,13 @@
 package com.justself.klique
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -25,10 +30,22 @@ fun StatusSelectionScreen(navController: NavController, mediaViewModel: MediaVie
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceEvenly
     ) {
-        MediaBlock(label = "Video", color = color, onClick = { /* Handle Video Click */ })
-        MediaBlock(label = "Image", color = color, onClick = { /* Handle Image Click */ })
-        MediaBlock(label = "Text", color = color, onClick = { /* Handle Text Click */ })
-        MediaBlock(label = "Audio", color = color, onClick = { /* Handle Audio Click */ })
+        MediaBlock(
+            label = "Video",
+            color = color,
+            onClick = { navController.navigate("mediaPickerScreen/video") })
+        MediaBlock(
+            label = "Image",
+            color = color,
+            onClick = { navController.navigate("mediaPickerScreen/image") })
+        MediaBlock(
+            label = "Text",
+            color = color,
+            onClick = { navController.navigate("statusTextScreen") })
+        MediaBlock(
+            label = "Audio",
+            color = color,
+            onClick = { navController.navigate("statusAudioScreen") })
     }
 }
 
@@ -43,7 +60,12 @@ fun MediaBlock(label: String, color: Color, onClick: () -> Unit) {
         color = color
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Text(text = label, style = MaterialTheme.typography.displayLarge, fontSize = 24.sp, color = MaterialTheme.colorScheme.background)
+            Text(
+                text = label,
+                style = MaterialTheme.typography.displayLarge,
+                fontSize = 24.sp,
+                color = MaterialTheme.colorScheme.background
+            )
         }
     }
 }

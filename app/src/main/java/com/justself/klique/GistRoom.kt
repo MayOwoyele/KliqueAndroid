@@ -126,7 +126,6 @@ import java.io.File
 import java.io.IOException
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun GistRoom(
     myName: String,
@@ -733,7 +732,7 @@ fun InputRow(
                 recordingDuration += 1000
             }
             if (recordingDuration >= maxRecordingDuration) {
-                val recordedFile = AudioRecorder.stopRecording()
+                val recordedFile = AudioRecorder.stopRecording(context)
                 onStopRecording(recordedFile)
                 isRecording.value = false
             }
@@ -883,7 +882,7 @@ fun InputRow(
                             }
                             IconButton(onClick = {
                                 if (isRecording.value) {
-                                    val recordedFile = AudioRecorder.stopRecording()
+                                    val recordedFile = AudioRecorder.stopRecording(context)
                                     onStopRecording(recordedFile)
                                     isRecording.value = false
                                 } else {

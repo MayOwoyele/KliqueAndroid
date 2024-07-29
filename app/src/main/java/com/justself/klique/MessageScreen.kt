@@ -757,7 +757,7 @@ fun TextBoxAndMedia(
                 recordingDuration += 1000
             }
             if (recordingDuration >= maxDuration) {
-                val recordedFile = AudioRecorder.stopRecording()
+                val recordedFile = AudioRecorder.stopRecording(context)
                 onStopRecording(recordedFile)
                 isRecording.value = false
             }
@@ -915,7 +915,7 @@ fun TextBoxAndMedia(
             if (textState.text.isEmpty()) {
                 IconButton(onClick = {
                     if (isRecording.value) {
-                        val recordedFile = AudioRecorder.stopRecording()
+                        val recordedFile = AudioRecorder.stopRecording(context)
                         onStopRecording(recordedFile)
                         isRecording.value = false
                     } else {

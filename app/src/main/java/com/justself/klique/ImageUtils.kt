@@ -1,4 +1,3 @@
-
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -44,8 +43,13 @@ object ImageUtils {
     }
 
     @Throws(IOException::class)
-    fun processImageToByteArray(context: Context, inputUri: Uri, maxSize: Int = 2064): ByteArray {
-        val bitmap = getImageFromDevice(context, inputUri)
+    fun processImageToByteArray(
+        context: Context,
+        inputUri: Uri? = null,
+        maxSize: Int = 2160,
+        inputBitmap: Bitmap? = null
+    ): ByteArray {
+        val bitmap = inputBitmap?: getImageFromDevice(context, inputUri!!)
             ?: throw IOException("Failed to decode bitmap from URI: $inputUri")
 
         val downscaledBitmap = downscaleImage(bitmap, maxSize)

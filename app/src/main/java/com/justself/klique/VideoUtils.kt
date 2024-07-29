@@ -365,7 +365,7 @@ fun VideoTrimmingScreen(
         }
     }
 }
-
+/*
 suspend fun performTrimmingAndDownscaling(
     context: Context,
     uri: Uri,
@@ -379,6 +379,8 @@ suspend fun performTrimmingAndDownscaling(
         }
     }
 }
+
+ */
 
 fun performTrimming(context: Context, uri: Uri, startMs: Long, endMs: Long): Uri? {
     val inputPath = FileUtils.getPath(context, uri)

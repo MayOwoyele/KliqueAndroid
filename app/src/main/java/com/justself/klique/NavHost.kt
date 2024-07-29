@@ -80,7 +80,14 @@ fun NavigationHost(
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("orders") { OrdersScreen(navController, chatScreenViewModel, customerId, mediaViewModel) }
+        composable("orders") {
+            OrdersScreen(
+                navController,
+                chatScreenViewModel,
+                customerId,
+                mediaViewModel
+            )
+        }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
                 ?: throw IllegalStateException("Product must be provided")
@@ -154,6 +161,7 @@ fun NavigationHost(
         ) { backStackEntry ->
             val videoUri = Uri.parse(backStackEntry.arguments?.getString("videoUri"))
             val sourceScreen = backStackEntry.arguments?.getString("sourceScreen") ?: ""
+            Log.d("Video Status", "$videoUri, $sourceScreen")
             VideoTrimmingScreen(
                 appContext = LocalContext.current,
                 uri = videoUri,
@@ -164,6 +172,14 @@ fun NavigationHost(
                 mediaViewModel = mediaViewModel,
                 navController = navController
             )
+        }
+        composable(
+            "mediaPickerScreen/{source}",
+            arguments = listOf(navArgument("source") { type = NavType.StringType })
+        ) {
+            val source = it.arguments?.getString("source")
+                ?: throw IllegalStateException("where is the source code?")
+            MediaPickerScreen(navController, source, mediaViewModel)
         }
         composable(
             "bioScreen/{customerId}",
@@ -193,6 +209,15 @@ fun NavigationHost(
                 viewModel = chatScreenViewModel,
                 customerId = customerId
             )
+        }
+        composable("imageEditScreen") {
+            ImageCropTool(viewModel = mediaViewModel, navController = navController)
+        }
+        composable("statusAudioScreen"){
+            StatusAudio(viewModel = mediaViewModel, navController = navController)
+        }
+        composable("statusTextScreen"){
+            StatusText(viewModel = mediaViewModel, navController = navController)
         }
     }
 }

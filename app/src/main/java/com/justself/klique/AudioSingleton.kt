@@ -33,34 +33,102 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import java.io.File
 import java.io.IOException
+import android.Manifest
+import android.content.pm.PackageManager
+import android.media.AudioFormat
+import android.media.AudioRecord
+import androidx.core.app.ActivityCompat
+import com.arthenica.mobileffmpeg.FFmpeg
+import java.io.FileOutputStream
 
 object AudioRecorder {
-    private var mediaRecorder: MediaRecorder? = null
+    private var audioRecord: AudioRecord? = null
+    private var recordingThread: Thread? = null
+    private var isRecording = false
     private var audioFile: File? = null
 
+    private const val sampleRateInHz = 44100
+    private const val channelConfig = AudioFormat.CHANNEL_IN_MONO
+    private const val audioFormat = AudioFormat.ENCODING_PCM_16BIT
+
     fun startRecording(context: Context) {
-        audioFile = File(context.getExternalFilesDir(null), "recording_${System.currentTimeMillis()}.mp3")
-        mediaRecorder = MediaRecorder().apply {
-            setAudioSource(MediaRecorder.AudioSource.MIC)
-            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            setOutputFile(audioFile?.absolutePath)
-            try {
-                prepare()
-                start()
-            } catch (e: IOException) {
-                Log.e("AudioRecorder", "Recording failed: ${e.message}")
+        if (isRecording) {
+            return
+        }
+
+        val bufferSize = AudioRecord.getMinBufferSize(
+            sampleRateInHz,
+            channelConfig,
+            audioFormat
+        )
+
+        audioFile = File(context.getExternalFilesDir(null), "recording_${System.currentTimeMillis()}.pcm")
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        audioRecord = AudioRecord(
+            MediaRecorder.AudioSource.MIC,
+            sampleRateInHz,
+            channelConfig,
+            audioFormat,
+            bufferSize
+        )
+
+        if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+            Log.e("AudioRecord", "AudioRecord initialization failed")
+            return
+        }
+
+        audioRecord?.startRecording()
+        isRecording = true
+
+        recordingThread = Thread {
+            val audioBuffer = ByteArray(bufferSize)
+            val outputStream = FileOutputStream(audioFile)
+
+            while (isRecording) {
+                val read = audioRecord?.read(audioBuffer, 0, bufferSize) ?: 0
+                if (read > 0) {
+                    outputStream.write(audioBuffer, 0, read)
+                }
+            }
+
+            outputStream.close()
+        }
+
+        recordingThread?.start()
+    }
+
+    fun stopRecording(context: Context): File? {
+        if (!isRecording) {
+            return null
+        }
+
+        isRecording = false
+        audioRecord?.stop()
+        audioRecord?.release()
+        audioRecord = null
+        recordingThread = null
+
+        return audioFile?.let { pcmFile ->
+            val mp3File = File(context.getExternalFilesDir(null), "recording_${System.currentTimeMillis()}.mp3")
+            val conversionSuccess = convertPcmToMp3(pcmFile.absolutePath, mp3File.absolutePath)
+            if (conversionSuccess) {
+                mp3File
+            } else {
+                null
             }
         }
     }
 
-    fun stopRecording(): File? {
-        mediaRecorder?.apply {
-            stop()
-            release()
-        }
-        mediaRecorder = null
-        return audioFile
+    private fun convertPcmToMp3(pcmFilePath: String, mp3FilePath: String): Boolean {
+        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -acodec libmp3lame -ar 44100 $mp3FilePath"
+        val rc = FFmpeg.execute(command)
+        return rc == 0
     }
 }
 @Composable

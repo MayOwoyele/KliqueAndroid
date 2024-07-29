@@ -1,11 +1,14 @@
 package com.justself.klique
 
+import ImageUtils
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -17,6 +20,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _bitmap = MutableLiveData<Bitmap?>()
@@ -69,23 +73,16 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun preparePerformTrimmingAndDownscaling(
-        context: Context,
-        uri: Uri,
-        startMs: Long,
-        endMs: Long,
-        sourceScreen: String
+        context: Context, uri: Uri, startMs: Long, endMs: Long, sourceScreen: String
     ) {
         viewModelScope.launch(Dispatchers.IO) {
+            Log.d("Video Status", "This function called")
             performTrimmingAndDownscaling(context, uri, startMs, endMs, sourceScreen)
         }
     }
 
-    suspend fun performTrimmingAndDownscaling(
-        context: Context,
-        uri: Uri,
-        startMs: Long,
-        endMs: Long,
-        sourceScreen: String
+    private suspend fun performTrimmingAndDownscaling(
+        context: Context, uri: Uri, startMs: Long, endMs: Long, sourceScreen: String
     ) {
         val result = withContext(Dispatchers.IO) {
             val trimmedUri = performTrimming(context, uri, startMs, endMs)
@@ -112,23 +109,81 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             when (sourceScreen) {
                 "HomeScreen" -> _homeScreenUri.postValue(result)
                 "MessageScreen" -> _messageScreenUri.postValue(result)
+                "VideoStatus" -> sendStatusVideo(result, context)
             }
         } else {
             Log.e("onTrim", "Result is null, not posting to LiveData")
         }
     }
-    fun clearUris(){
+
+    fun clearUris() {
         _homeScreenUri.postValue(null)
         _messageScreenUri.postValue(null)
     }
 
+    private fun sendStatusVideo(videoUri: Uri?, context: Context) {
+        videoUri?.let { uri ->
+            Log.d("Video Status", "Video Uri: $videoUri")
+            val videoBytes = FileUtils.loadFileAsByteArray(context, uri)
+            videoBytes?.let {
+                val type = "statusVideo"
+                val typeBytes = type.toByteArray(Charsets.UTF_8)
+                val separator = ":".toByteArray(Charsets.UTF_8)
+                val message = typeBytes + separator + it
+                WebSocketManager.sendBinary(message)
+            }
+        }
+    }
+
+    fun uploadCroppedImage(context: Context, bitmap: Bitmap) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val byteArray =
+                    ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
+                val type = "statusImage"
+                val typeBytes = type.toByteArray(Charsets.UTF_8)
+                val separator = ":".toByteArray(Charsets.UTF_8)
+                val binaryImageToUpload = typeBytes + separator + byteArray
+                WebSocketManager.sendBinary(binaryImageToUpload)
+            } catch (e: IOException) {
+                Log.e("UploadError", "Failed to upload image", e)
+                withContext(Dispatchers.Main) {
+                    // Show a Snackbar or Toast to notify the user
+                    Toast.makeText(
+                        context, "Failed to upload image. Please try again.", Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    fun uploadAudioFile(context: Context, uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val byteArray = FileUtils.loadFileAsByteArray(context, uri)
+                val type = "statusAudioFile"
+                val typeBytes = type.toByteArray(Charsets.UTF_8)
+                val separator = ":".toByteArray(Charsets.UTF_8)
+                val binaryAudioToUpload = typeBytes + separator + byteArray!!
+                WebSocketManager.sendBinary(binaryAudioToUpload)
+            } catch (e: IOException) {
+                Log.e("UploadError", "Failed to upload audio file", e)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context, "Failed to upload audio file. Please try again.", Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+    fun sendTextStatus(text: String){
+    }
 }
 
 class MediaViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MediaViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return MediaViewModel(application) as T
+            @Suppress("UNCHECKED_CAST") return MediaViewModel(application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
