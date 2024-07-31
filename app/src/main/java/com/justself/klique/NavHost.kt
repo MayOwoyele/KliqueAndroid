@@ -182,12 +182,12 @@ fun NavigationHost(
             MediaPickerScreen(navController, source, mediaViewModel)
         }
         composable(
-            "bioScreen/{customerId}",
-            arguments = listOf(navArgument("customerId") { type = NavType.IntType })
+            "bioScreen/{enemyId}",
+            arguments = listOf(navArgument("enemyId") { type = NavType.IntType })
         ) {
-            val profileId = it.arguments?.getInt("customerId")
+            val enemyId = it.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the profileId?")
-            BioScreen(profileId, navController)
+            BioScreen(enemyId, navController)
         }
         composable("gistSettings/{gistId}") { backStackEntry ->
             val gistId = backStackEntry.arguments?.getString("gistId")
@@ -201,6 +201,7 @@ fun NavigationHost(
         composable("fullScreenVideo/{videoUri}") { backStackEntry ->
             val videoUriString = backStackEntry.arguments?.getString("videoUri")
                 ?: throw IllegalStateException("where is the videoUri")
+            Log.d("VideoView", "video uri $videoUriString")
             FullScreenVideo(videoUri = videoUriString, navController = navController)
         }
         composable("forwardChatsScreen") {

@@ -182,6 +182,10 @@ fun VideoTrimmingScreen(
                 start()
                 isPlaying = true
             }
+            setOnCompletionListener {
+                isPlaying = false
+                seekTo(startMs.toInt())
+            }
         }
     }
     DisposableEffect(Unit) {
@@ -201,6 +205,7 @@ fun VideoTrimmingScreen(
                     if (videoView.currentPosition >= endMs.toInt()) {
                         videoView.pause()
                         isPlaying = false
+                        videoView.seekTo(startMs.toInt())
                     } else {
                         handler.postDelayed(this, 100)
                     }

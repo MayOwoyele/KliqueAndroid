@@ -17,6 +17,8 @@ interface ContactDao {
 
     @Query("SELECT * FROM contacts ORDER BY isAppUser DESC, name ASC")
     suspend fun getSortedContacts(): List<ContactEntity>
+    @Query("SELECT * FROM contacts WHERE customerId = :customerId LIMIT 1")
+    suspend fun getContactByCustomerId(customerId: Int): ContactEntity?
 }
 @Database(entities = [ContactEntity::class], version = 1)
 abstract class ContactsDatabase : RoomDatabase() {

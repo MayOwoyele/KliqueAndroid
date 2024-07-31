@@ -33,8 +33,6 @@ import java.util.Locale
 import java.util.UUID
 import kotlin.random.Random
 
-
-//TODO: Discuss with May about the List of Gists, How we are getting gists from server,
 class SharedCliqueViewModel(application: Application, private val customerId: Int, private val contactDao: ContactDao) :
     AndroidViewModel(application), WebSocketListener {
     override val listenerId: String = "SharedCliqueViewModel"

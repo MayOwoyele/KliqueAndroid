@@ -48,7 +48,6 @@ fun StatusSelectionScreen(navController: NavController, mediaViewModel: MediaVie
             onClick = { navController.navigate("statusAudioScreen") })
     }
 }
-
 @Composable
 fun MediaBlock(label: String, color: Color, onClick: () -> Unit) {
     Surface(

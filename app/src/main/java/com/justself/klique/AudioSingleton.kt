@@ -126,7 +126,7 @@ object AudioRecorder {
     }
 
     private fun convertPcmToMp3(pcmFilePath: String, mp3FilePath: String): Boolean {
-        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -acodec libmp3lame -ar 44100 $mp3FilePath"
+        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -acodec libmp3lame -ar 44100 -b:a 192k $mp3FilePath"
         val rc = FFmpeg.execute(command)
         return rc == 0
     }

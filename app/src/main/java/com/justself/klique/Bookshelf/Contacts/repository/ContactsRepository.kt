@@ -8,6 +8,8 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.data.ServerContactResponse
+import com.justself.klique.ContactDao
+import com.justself.klique.ContactEntity
 import com.justself.klique.ContactsDatabase
 import com.justself.klique.DatabaseProvider
 import com.justself.klique.NetworkUtils.makeRequest
@@ -31,6 +33,10 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         } catch (e: Exception) {
             null
         }
+    }
+    suspend fun getContactByCustomerId(customerId: Int): ContactEntity? {
+        // Assuming you have a method in ContactDao to get a contact by customerId
+        return database.contactDao().getContactByCustomerId(customerId)
     }
 
     fun getContacts(): List<Contact> {

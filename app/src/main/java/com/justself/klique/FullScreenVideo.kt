@@ -1,6 +1,8 @@
 package com.justself.klique
 
+import android.media.MediaPlayer
 import android.net.Uri
+import android.util.Log
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -18,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -44,23 +47,49 @@ import kotlinx.coroutines.delay
 fun FullScreenVideo(videoUri: String, navController: NavController) {
     var isOverlayVisible by remember { mutableStateOf(true) }
     val context = LocalContext.current
+    var isBuffering = remember { mutableStateOf(true) }
+    var isPlaying by remember { mutableStateOf(false)}
+    var isPrepared by remember { mutableStateOf(false) }
+    var duration by remember { mutableIntStateOf(0) }
+    var position by remember { mutableIntStateOf(0) }
 
     val videoView = remember {
         VideoView(context).apply {
             setVideoURI(Uri.parse(videoUri))
+            setOnErrorListener { _, what, extra ->
+                // Log error or show a message to the user
+                Log.e("VideoView", "Error occurred: what=$what, extra=$extra")
+                // Return true if the error was handled
+                true
+            }
+            setOnInfoListener { _, what, _ ->
+                when (what) {
+                    MediaPlayer.MEDIA_INFO_BUFFERING_START -> {
+                        isBuffering.value = true
+                        Log.d("MarketVideoPlayer", "Buffering started")
+                    }
+                    MediaPlayer.MEDIA_INFO_BUFFERING_END,
+                    MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START-> {
+                        isBuffering.value = false
+                        Log.d("MarketVideoPlayer", "Buffering ended")
+                    }
+                }
+                true
+            }
+            setOnPreparedListener {
+                isPrepared = true
+                duration = it.duration
+                isBuffering.value = false
+                it.start()
+                isPlaying = true
+            }
+            setOnCompletionListener {
+                isPlaying = false
+            }
         }
     }
 
-    // Variables to hold the video duration and current position
-    var duration by remember { mutableIntStateOf(0) }
-    var position by remember { mutableIntStateOf(0) }
-
     DisposableEffect(Unit) {
-        // Set up the video listener to get the duration when the video is prepared
-        videoView.setOnPreparedListener {
-            duration = it.duration
-            videoView.start()
-        }
         onDispose {
             videoView.stopPlayback()
         }
@@ -76,8 +105,20 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
         // VideoView
         AndroidView(
             factory = { videoView },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
         )
+        if (isBuffering.value) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                )
+            }
+        }
 
         // Top overlay with back arrow
         if (isOverlayVisible) {
@@ -115,14 +156,16 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
                         onClick = {
                             if (videoView.isPlaying) {
                                 videoView.pause()
+                                isPlaying = false
                             } else {
                                 videoView.start()
+                                isPlaying = true
                             }
                         },
                     ) {
                         Icon(
-                            imageVector = if (videoView.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (videoView.isPlaying) "Pause" else "Play",
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -130,12 +173,23 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
                     Spacer(modifier = Modifier.width(8.dp))
 
                     // Seekbar
-                    LaunchedEffect(videoView) {
+                    LaunchedEffect(videoView, isPlaying) {
                         while (true) {
-                            if (videoView.isPlaying) {
-                                position = videoView.currentPosition
+                            delay(500) // Adjust delay as needed for smoother updates
+                            if (isPrepared) {
+                                val currentPosition = videoView.currentPosition
+                                if (isPlaying) {
+                                    if (currentPosition != position) {
+                                        position = currentPosition // Update the position state
+                                        isBuffering.value = false
+                                    } else {
+                                        isBuffering.value = true // If position hasn't changed, consider it buffering
+                                    }
+                                } else {
+                                    isBuffering.value = false
+                                }
                             }
-                            delay(100)
+                            Log.d("State variables", "$isPlaying, $isPrepared, $position")
                         }
                     }
 

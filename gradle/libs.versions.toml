@@ -37,6 +37,7 @@ carUiLib = "2.6.0"
 emoji2 = "1.4.0"
 mobile-ffmpeg = "4.4"
 libphonenumber = "8.12.38"
+exoplayer = "2.19.1"
 
 
 
@@ -101,6 +102,8 @@ emoji2-views-helper = { group = "androidx.emoji2", name = "emoji2-views-helper",
 emoji2-emojipicker = { group = "androidx.emoji2", name = "emoji2-emojipicker", version.ref = "emoji2" }
 mobile-ffmpeg = { group = "com.arthenica", name = "mobile-ffmpeg-full", version.ref = "mobile-ffmpeg" }
 libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumber", version.ref = "libphonenumber" }
+exoplayer-core = { module = "com.google.android.exoplayer:exoplayer-core", version.ref = "exoplayer" }
+exoplayer-ui = { module = "com.google.android.exoplayer:exoplayer-ui", version.ref = "exoplayer" }
 
 
 
