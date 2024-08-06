@@ -50,7 +50,7 @@ import androidx.navigation.NavController
 import kotlin.math.abs
 
 @Composable
-fun ImageCropTool(viewModel: MediaViewModel, navController: NavController) {
+fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourceScreen: SourceScreen = SourceScreen.STATUS) {
     val bitmap by viewModel.bitmap.observeAsState()
     val scale = remember { mutableStateOf(1f) }
     val offsetX = remember { mutableStateOf(0f) }
@@ -360,10 +360,17 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController) {
                             )  // Add border
                             .clickable {
                                 croppedBitmap.value?.let { bitmap ->
-                                    viewModel.uploadCroppedImage(
-                                        context = context,
-                                        bitmap = bitmap
-                                    )
+                                    when (sourceScreen) {
+                                        SourceScreen.STATUS -> {
+                                            viewModel.uploadCroppedImage(context, bitmap)
+                                            navController.popBackStack()
+                                        }
+                                        SourceScreen.PROFILE -> {
+                                            // Logic to update profile picture
+                                            viewModel.setCroppedBitmap(bitmap)
+                                            navController.popBackStack()
+                                        }
+                                    }
                                 }
                             }
                             .padding(16.dp)  // Optional: add padding inside the border
@@ -403,4 +410,7 @@ fun cropBitmap(original: Bitmap, cropRect: RectF): Bitmap {
     val height = cropRect.height().toInt()
 
     return Bitmap.createBitmap(original, left, top, width, height)
+}
+enum class SourceScreen {
+    STATUS, PROFILE
 }

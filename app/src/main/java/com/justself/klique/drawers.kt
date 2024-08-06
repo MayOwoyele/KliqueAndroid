@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
@@ -31,11 +32,13 @@ import androidx.compose.material.icons.automirrored.rounded.Message
 import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Groups2
+import androidx.compose.material.icons.rounded.Interests
 import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.LocationCity
 import androidx.compose.material.icons.rounded.MarkChatUnread
 import androidx.compose.material.icons.rounded.Message
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.Button
@@ -45,9 +48,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,10 +63,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
-fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier) {
+fun LeftDrawer(
+    drawerState: MutableState<Boolean>,
+    modifier: Modifier = Modifier,
+    navController: NavController,
+    viewModel: LeftDrawerViewModel = viewModel()
+) {
+    var isChatRoomsExpanded by remember { mutableStateOf(false) }
     AnimatedVisibility(
         visible = drawerState.value,
         enter = slideInHorizontally { -it } + fadeIn(), // Slide in from off-screen left
@@ -117,7 +132,8 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                             Text(text = "500KC")
                         }
 
-                    }
+                    },
+                    onClick = {navController.navigate("updateProfile"); drawerState.value = false}
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
@@ -133,17 +149,60 @@ fun LeftDrawer(drawerState: MutableState<Boolean>, modifier: Modifier = Modifier
                         )
                     },
                     text = "Chatrooms",
+                    onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
                 )
+                if (isChatRoomsExpanded) {
+                    ExpandableChatroomOptions(
+                        navController,
+                        onDeExpansion = { drawerState.value = false })
+                }
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.AutoMirrored.Rounded.Message, contentDescription = "Direct Messages") },
+                    leading = {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.Message,
+                            contentDescription = "Direct Messages"
+                        )
+                    },
                     text = "Direct Messages",
+                    onClick = {
+                        navController.navigate("dmList")
+                        drawerState.value = false
+                    }
                 )
                 /*Button(onClick = { drawerState.value = false }) {
                     Text("Close Drawer")
                 }*/
             }
         }
+    }
+}
+
+@Composable
+fun ExpandableChatroomOptions(navController: NavController, onDeExpansion: () -> Unit) {
+    Column(
+        modifier = Modifier.padding(start = 32.dp) // Indentation for sub-items
+    ) {
+        LeftDrawerItem(
+            modifier = Modifier.padding(vertical = 4.dp),
+            leading = { Icon(Icons.Rounded.School, contentDescription = "Campuses") },
+            text = "Campuses",
+            onClick = {
+                navController.navigate("campuses")
+                onDeExpansion()
+                Log.d("Navigation Trigger", "Navigation triggered")
+            }
+        )
+        LeftDrawerItem(
+            modifier = Modifier.padding(vertical = 4.dp),
+            leading = { Icon(Icons.Rounded.Interests, contentDescription = "Interests") },
+            text = "Interests",
+            onClick = {
+                navController.navigate("interests")
+                onDeExpansion()
+                Log.d("Navigation Trigger", "Navigation interest triggered")
+            }
+        )
     }
 }
 
@@ -188,22 +247,26 @@ fun LeftDrawerItem(
 fun RightDrawer(
     drawerState: MutableState<Boolean>,
     modifier: Modifier = Modifier,
-    productViewModel: ProductViewModel = viewModel()
+    notificationViewModel: NotificationViewModel,
+    navController: NavController
 ) {
+    val notifications by notificationViewModel.notifications.collectAsState()
+
     AnimatedVisibility(
         visible = drawerState.value,
-        enter = slideInHorizontally { it }, // Slide in from the right
-        exit = slideOutHorizontally { it }, // Slide out to the right
+        enter = slideInHorizontally { it },
+        exit = slideOutHorizontally { it },
         modifier = modifier
     ) {
-        Box(modifier = Modifier
-            .fillMaxSize()
-            .clickable(
-                indication = null,
-                interactionSource = remember { MutableInteractionSource() }) {
-                drawerState.value = false
-            }
-            .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }) {
+                    drawerState.value = false
+                }
+                .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
         ) {
             Box(
                 modifier = Modifier
@@ -222,64 +285,41 @@ fun RightDrawer(
                         .matchParentSize()
                         .padding(16.dp)
                 ) {
-                    Text("Cart", style = MaterialTheme.typography.displayLarge)
-                    CartItemsList(productViewModel)
-                }
-                Button(
-                    onClick = {
-                        // Trigger checkout functionality
-                        handleCheckout(productViewModel)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    enabled = productViewModel.cartItems.observeAsState().value?.isNotEmpty() == true
-                ) {
-                    Text("Checkout", style = MaterialTheme.typography.bodyLarge)
+                    Text("Notifications", style = MaterialTheme.typography.displayLarge)
+                    LazyColumn {
+                        items(notifications) { notification ->
+                            NotificationItem(notification, navController, drawerState)
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-fun handleCheckout(viewModel: ProductViewModel) {
-    // Logic to initiate checkout process
-    println("Proceeding to checkout...")
-}
-
 @Composable
-fun CartItemsList(productViewModel: ProductViewModel = viewModel()) {
-    val cartItemsState: List<Product> =
-        productViewModel.cartItems.observeAsState(initial = emptyList()).value
-
-    LazyColumn {
-        items(cartItemsState) { product ->
-            CartItemRow(product, productViewModel)
-        }
-    }
-}
-
-@Composable
-fun CartItemRow(product: Product, viewModel: ProductViewModel) {
+fun NotificationItem(
+    notification: Notification,
+    navController: NavController,
+    drawerState: MutableState<Boolean>
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(8.dp), verticalAlignment = Alignment.CenterVertically
+            .padding(8.dp)
+            .clickable {
+                navController.navigate("bioScreen/${notification.userId}")
+                drawerState.value = false
+            }, verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = product.name, style = MaterialTheme.typography.bodyLarge)
-            Text(text = "Price: ₦${product.price}", style = MaterialTheme.typography.displayMedium)
-            Text(text = "Quantity: ${product.quantity}", style = MaterialTheme.typography.bodyLarge)
-        }
-        Button(
-            onClick = { viewModel.removeFromCart(product.productId) },
-            modifier = Modifier
-                .padding(8.dp)
-                .widthIn(max = 100.dp)
-                .height(36.dp)
-        ) {
-            Text("Remove", style = MaterialTheme.typography.bodyMedium)
-        }
+        Text(
+            text = "${notification.fullName} ${notification.contentDescription}",
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = notification.timestamp.toString(),
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }

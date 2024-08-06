@@ -22,12 +22,14 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -147,7 +149,16 @@ fun BioScreen(
                                         .border(1.dp, color = MaterialTheme.colorScheme.primary),
                                     contentScale = ContentScale.Crop
                                 )
-
+                                if(profileData.isVerified){
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle, // You can use a different icon if needed
+                                        contentDescription = "Verified",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .align(Alignment.BottomEnd) // Position the checkmark at the top-end corner
+                                    )
+                                }
                             }
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -213,7 +224,7 @@ fun BioScreen(
                                     modifier = Modifier
                                         .size(24.dp)
                                         .align(Alignment.CenterVertically)
-                                        .clickable { },
+                                        .clickable { navController.navigate("dmChatScreen/${profileData.customerId}/${profileData.fullName}") },
                                     tint = MaterialTheme.colorScheme.onPrimary
                                 )
                                 Spacer(modifier = Modifier.width(40.dp))
@@ -369,10 +380,9 @@ fun BioScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = MaterialTheme.colorScheme.background
                             )
                         }
-
                         Text(
                             text = "Comments",
                             style = MaterialTheme.typography.bodyLarge,
@@ -389,7 +399,7 @@ fun BioScreen(
                             items(postComments) { comment ->
                                 Text(
                                     text = buildAnnotatedString {
-                                        withStyle(style = SpanStyle(color = Color.Black)) {
+                                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.background)) {
                                             append("${comment.name}: ")
                                         }
                                         append(comment.text)
@@ -447,7 +457,7 @@ fun BioScreen(
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
                                     contentDescription = "Send",
-                                    tint = MaterialTheme.colorScheme.primary
+                                    tint = MaterialTheme.colorScheme.background
                                 )
                             }
                         }
@@ -525,7 +535,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
             }
         }
     }
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier) {
         Log.d("logging states", "$isPlaying, $isVideoCached")
         when (post.type) {
             "image" -> {
@@ -535,19 +545,24 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(400.dp)
-                        .width(400.dp),
+                        .width(400.dp)
+                        .padding(vertical = 16.dp),
                     contentScale = ContentScale.Crop
                 )
             }
-
             "text" -> {
-                Text(text = post.content, style = MaterialTheme.typography.displayLarge)
+                Text(
+                    text = post.content,
+                    style = MaterialTheme.typography.displayLarge,
+                    modifier = Modifier.padding(16.dp)
+                )
             }
 
             "video" -> {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .wrapContentHeight()
                         .aspectRatio(aspectRatio)
                         .clickable {
                             val videoUriString = if (isVideoCached) {
@@ -559,6 +574,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                             }
                             navController.navigate("fullScreenVideo/${Uri.encode(videoUriString)}")
                         }
+                        .padding(vertical = 16.dp)
                 ) {
                     if (isVideoCached) {
                         // Ensure the video view is prepared and plays automatically
@@ -606,6 +622,11 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
+                        if (painterState is AsyncImagePainter.State.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
 
                         // Play icon overlay when the video is not playing
                         if (!isPlaying) {
@@ -672,7 +693,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clickable { navController.navigate("bioScreen/${comment.customerId}") }
+                modifier = Modifier.padding(horizontal = 16.dp).clickable { navController.navigate("bioScreen/${comment.customerId}") }
             )
         }
     }

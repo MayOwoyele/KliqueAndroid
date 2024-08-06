@@ -139,6 +139,7 @@ fun MessageScreen(
     mediaViewModel: MediaViewModel,
     resetSelectedEmoji: () -> Unit,
     emojiPickerHeight: (Dp) -> Unit,
+    isVerified: Boolean
 ) {
     DisposableEffect(Unit) {
         viewModel.enterChat(enemyId)

@@ -1,10 +1,21 @@
 package com.justself.klique
 
 import android.graphics.Paint.Align
+import android.net.Uri
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,6 +39,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
@@ -99,7 +111,11 @@ fun ChatListScreen(
         Log.d("loadChats", "Chat has been loaded")
     }
     LaunchedEffect(searchQuery) {
-        viewModel.searchChats(searchQuery)
+        if (searchQuery.isEmpty()) {
+            viewModel.loadChats(customerId, updateSearchResults = true)
+        } else {
+            viewModel.searchChats(searchQuery)
+        }
     }
     fun toggleSelection(enemyId: Int) {
         if (selectedChats.contains(enemyId)) {
@@ -166,12 +182,16 @@ fun ChatListScreen(
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                items(if (isSearchVisible) searchResults else chats, key = {chat -> chat.enemyId}) { chat ->
+                items(
+                    if (isSearchVisible) searchResults else chats,
+                    key = { chat -> chat.enemyId }) { chat ->
                     ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
                         if (isSelectionMode) {
                             toggleSelection(chat.enemyId)
                         } else {
-                            navController.navigate("messageScreen/${chat.enemyId}/${chat.contactName}")
+                            navController.navigate(
+                                "messageScreen/${chat.enemyId}/${Uri.encode(chat.contactName)}?isVerified=${if (chat.isVerified) 1 else 0}"
+                            )
                         }
                     }, onLongPress = {
                         isSelectionMode = true
@@ -187,7 +207,12 @@ fun ChatListScreen(
                     confirmButton = {
                         TextButton(
                             onClick = {
-                                selectedChats.forEach { enemyId -> viewModel.deleteChat(enemyId, context) }
+                                selectedChats.forEach { enemyId ->
+                                    viewModel.deleteChat(
+                                        enemyId,
+                                        context
+                                    )
+                                }
                                 isSelectionMode = false
                                 selectedChats.clear()
                                 showDialog = false
@@ -201,40 +226,101 @@ fun ChatListScreen(
                             Text("No", style = MaterialTheme.typography.bodyLarge)
                         }
                     },
-                    title = { Text("Confirm Deletion", style = MaterialTheme.typography.displayLarge) },
-                    text = { Text("Are you sure you want to delete the selected chats?", style = MaterialTheme.typography.bodyMedium)}
+                    title = {
+                        Text(
+                            "Confirm Deletion",
+                            style = MaterialTheme.typography.displayLarge
+                        )
+                    },
+                    text = {
+                        Text(
+                            "Are you sure you want to delete the selected chats?",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 )
             }
         }
         val databaseInjection: List<ChatList> = viewModel.getMockChats(customerId)
         val coroutineScope = rememberCoroutineScope()
+        var menuExpanded by remember { mutableStateOf(false) }
         // Floating Action Button at the bottom right
-        AddButton(
-            onClick = {
-                coroutineScope.launch(Dispatchers.IO) {
-                    databaseInjection.forEach { chat ->
-                        viewModel.addChat(chat)
+        Box(
+            contentAlignment = Alignment.BottomEnd,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(25.dp)
+        ) {
+            Log.d("isSelectionMode", "$isSelectionMode")
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                AnimatedVisibility(
+                    visible = menuExpanded && !isSelectionMode && !isSearchVisible,
+                    enter = slideInVertically(
+                        initialOffsetY = { it }, // Start from the bottom
+                        animationSpec = tween(durationMillis = 300)
+                    ) + scaleIn(
+                        initialScale = 0.8f,
+                        animationSpec = tween(durationMillis = 300)
+                    ),
+                    exit = slideOutVertically(
+                        targetOffsetY = { it }, // Slide out to the bottom
+                        animationSpec = tween(durationMillis = 300)
+                    ) + scaleOut(
+                        targetScale = 0.8f,
+                        animationSpec = tween(durationMillis = 300)
+                    )
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .animateContentSize()
+                    ) {
+                        TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
+                        TextOption("Update Status", onClick = {navController.navigate("statusSelectionScreen")})
+                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/1/Personal Shopper")})
                     }
                 }
-            },
-            icon = Icons.Default.Add,
-            contentDescription = "Add Chat",
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(25.dp)
-        )
-        if (!isSelectionMode) {
-            AddButton(
-                onClick = { isSearchVisible = !isSearchVisible },
-                icon = Icons.Default.Search,
-                contentDescription = "Search",
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(25.dp)
-            )
+                AddButton(
+                    onClick = {
+                        menuExpanded = !menuExpanded
+                    },
+                    icon = if (menuExpanded && !isSearchVisible && !isSelectionMode) Icons.Default.Close else Icons.Default.Add,
+                    contentDescription = if (menuExpanded) "Close Menu" else "Open Menu",
+                    modifier = Modifier
+                        .padding(25.dp)
+                )
+            }
+            if (!isSelectionMode) {
+                AddButton(
+                    onClick = { isSearchVisible = !isSearchVisible; menuExpanded = false },
+                    icon = Icons.Default.Search,
+                    contentDescription = "Search",
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(25.dp)
+                )
+            }
         }
     }
+}
 
+@Composable
+fun TextOption(text: String, onClick: () -> Unit) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(8.dp),
+        color = MaterialTheme.colorScheme.onPrimary,
+        style = MaterialTheme.typography.displayLarge
+    )
 }
 
 @Composable
@@ -331,7 +417,18 @@ fun ChatItem(
                     .weight(1f), // Ensure the column expands
                 verticalArrangement = Arrangement.Center // Center the content vertically
             ) {
-                Text(text = chat.contactName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = chat.contactName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    if (chat.isVerified){
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle, // You can use a different icon if needed
+                            contentDescription = "Verified",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(24.dp)
+                        )
+                    }
+                }
                 Text(
                     text = chat.lastMsg,
                     fontSize = 16.sp,

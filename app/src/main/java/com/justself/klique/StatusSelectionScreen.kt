@@ -9,6 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -23,29 +27,37 @@ import androidx.navigation.NavController
 @Composable
 fun StatusSelectionScreen(navController: NavController, mediaViewModel: MediaViewModel) {
     val color = MaterialTheme.colorScheme.primary
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceEvenly
-    ) {
-        MediaBlock(
-            label = "Video",
-            color = color,
-            onClick = { navController.navigate("mediaPickerScreen/video") })
-        MediaBlock(
-            label = "Image",
-            color = color,
-            onClick = { navController.navigate("mediaPickerScreen/image") })
-        MediaBlock(
-            label = "Text",
-            color = color,
-            onClick = { navController.navigate("statusTextScreen") })
-        MediaBlock(
-            label = "Audio",
-            color = color,
-            onClick = { navController.navigate("statusAudioScreen") })
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceEvenly
+        ) {
+            MediaBlock(
+                label = "Video",
+                color = color,
+                onClick = { navController.navigate("mediaPickerScreen/video") })
+            MediaBlock(
+                label = "Image",
+                color = color,
+                onClick = { navController.navigate("mediaPickerScreen/image") })
+            MediaBlock(
+                label = "Text",
+                color = color,
+                onClick = { navController.navigate("statusTextScreen") })
+            MediaBlock(
+                label = "Audio",
+                color = color,
+                onClick = { navController.navigate("statusAudioScreen") })
+        }
+        IconButton(
+            onClick = { navController.popBackStack() },
+            modifier = Modifier.align(Alignment.TopStart)
+        ) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+        }
     }
 }
 @Composable

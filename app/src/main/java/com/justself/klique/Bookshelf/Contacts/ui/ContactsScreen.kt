@@ -22,6 +22,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -86,9 +91,21 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
     }
 
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        items(contactList.size) { index ->
-            ContactTile(contact = contactList[index], navController = navController, chatScreenViewModel, customerId)
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Contact list content
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.padding(top = 56.dp) // Adjust padding to avoid overlap with the icon
+        ) {
+            items(contactList.size) { index ->
+                ContactTile(contact = contactList[index], navController = navController, chatScreenViewModel, customerId)
+            }
+        }
+        IconButton(
+            onClick = { navController.popBackStack() },
+            modifier = Modifier.align(Alignment.TopStart)
+        ) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
         }
     }
 }

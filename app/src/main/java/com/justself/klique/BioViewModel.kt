@@ -12,6 +12,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
     // This is a placeholder function to simulate fetching data from a server
     fun fetchProfile(enemyId: Int) = liveData {
         val profile = Profile(
+            customerId = 20,
             bioImage = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
             backgroundColor = Color.White,
             fullName = "Tatiana Manois",

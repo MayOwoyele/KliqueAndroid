@@ -4,6 +4,7 @@ import android.annotation.TargetApi
 import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
+import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -78,7 +79,7 @@ object FileUtils {
         }
     }
     fun saveImage(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
-        val fileName = "image_${System.currentTimeMillis()}.jpg"
+        val fileName = "kliqueImage_${System.currentTimeMillis()}.jpg"
         return if (toPublic) {
             saveToPublicDirectory(context, data, fileName, "klique images")
         } else {
@@ -87,7 +88,7 @@ object FileUtils {
     }
 
     fun saveVideo(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
-        val fileName = "video_${System.currentTimeMillis()}.mp4"
+        val fileName = "kliqueVideo_${System.currentTimeMillis()}.mp4"
         return if (toPublic) {
             saveToPublicDirectory(context, data, fileName, "klique videos")
         } else {
@@ -96,7 +97,7 @@ object FileUtils {
     }
 
     fun saveAudio(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
-        val fileName = "audio_${System.currentTimeMillis()}.mp3"
+        val fileName = "kliqueAudio_${System.currentTimeMillis()}.mp3"
         return if (toPublic) {
             saveToPublicDirectory(context, data, fileName, "klique audio")
         } else {
@@ -160,5 +161,10 @@ object FileUtils {
     fun getMimeType(fileName: String): String {
         val extension = fileName.substringAfterLast('.', "")
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+    }
+    fun bitmapToByteArray(bitmap: Bitmap): ByteArray {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+        return outputStream.toByteArray()
     }
 }

@@ -18,6 +18,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.justself.klique.Bookshelf.Contacts.ui.ContactsScreen
 import com.justself.klique.Bookshelf.ui.BookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
@@ -47,7 +48,6 @@ fun NavigationHost(
         remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
     val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
-    var theTrimmedUri by remember { mutableStateOf<Uri?>(null) }
 
     NavHost(
         navController = navController,
@@ -120,15 +120,21 @@ fun NavigationHost(
             DMChatScreen(navController, customerId, shopName, ownerId)
         }
         composable(
-            "messageScreen/{enemyId}/{contactName}",
+            "messageScreen/{enemyId}/{contactName}?isVerified={isVerified}",
             arguments = listOf(
                 navArgument("enemyId") { type = NavType.IntType },
-                navArgument("contactName") { type = NavType.StringType })
+                navArgument("contactName") { type = NavType.StringType },
+                navArgument("isVerified") {
+                    type = NavType.IntType
+                    defaultValue = 0 // Make the argument optional
+                })
         ) { backStackEntry ->
             val enemyId = backStackEntry.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the enemyId?")
             val contactName = backStackEntry.arguments?.getString("contactName")
-                ?: throw IllegalStateException("where is the contactName?")
+                ?.let { Uri.decode(it) }
+                ?: throw IllegalStateException("Where is the contactName?")
+            val isVerified = (backStackEntry.arguments?.getInt("isVerified") ?: 0)
             MessageScreen(
                 navController,
                 enemyId,
@@ -148,7 +154,8 @@ fun NavigationHost(
                 contactName,
                 mediaViewModel,
                 resetSelectedEmoji,
-                emojiPickerHeight
+                emojiPickerHeight,
+                isVerified == 1
             )
         }
         composable(
@@ -211,14 +218,60 @@ fun NavigationHost(
                 customerId = customerId
             )
         }
-        composable("imageEditScreen") {
-            ImageCropTool(viewModel = mediaViewModel, navController = navController)
+        composable(
+            route = "imageEditScreen/{sourceScreen}",
+            arguments = listOf(navArgument("sourceScreen") { defaultValue = SourceScreen.STATUS.name })
+        ) { backStackEntry ->
+            val sourceScreen = backStackEntry.arguments?.getString("sourceScreen")?.let {
+                SourceScreen.valueOf(it)
+            } ?: SourceScreen.STATUS // Fallback to default
+            ImageCropTool(viewModel = mediaViewModel, navController = navController, sourceScreen = sourceScreen)
         }
-        composable("statusAudioScreen"){
+        composable("statusAudioScreen") {
             StatusAudio(viewModel = mediaViewModel, navController = navController)
         }
-        composable("statusTextScreen"){
+        composable("statusTextScreen") {
             StatusText(viewModel = mediaViewModel, navController = navController)
+        }
+        composable("campuses") {
+            Log.d("Navigated", "Navigated")
+            ChatRoomsCategory(navController = navController, campuses = true)
+        }
+        composable("interests") {
+            ChatRoomsCategory(navController = navController, interests = true)
+        }
+        composable("categoryOptions/{categoryId}") { backStackEntry ->
+            val categoryId = backStackEntry.arguments?.getInt("categoryId")
+                ?: throw IllegalStateException("where is the categoryId")
+            ChatRoomOptions(navController, categoryId)
+        }
+        composable("chatRoom/{chatRoomId}") { backStackEntry ->
+            val optionId = backStackEntry.arguments?.getInt("chatRoomId")
+                ?: throw IllegalStateException("where is the chatRoomId")
+            ChatRoom(
+                navController,
+                chatRoomId = optionId,
+                myId = customerId,
+                mediaViewModel = mediaViewModel,
+                contactName = fullName
+            )
+        }
+        composable("dmList") { DmList(navController) }
+        composable("dmChatScreen/{enemyId}/{enemyName}"){backStackEntry ->
+            val enemyId = backStackEntry.arguments?.getInt("enemyId")
+                ?: throw IllegalStateException("where is the enemyId?")
+            val enemyName = backStackEntry.arguments?.getString("enemyName")
+                ?: throw IllegalStateException("where is the enemyName?")
+            DmRoom(navController = navController, myId = customerId, enemyId = enemyId, enemyName = enemyName, mediaViewModel = mediaViewModel)
+        }
+        composable("updateProfile"){ UpdateProfileScreen(navController = navController, mediaViewModel = mediaViewModel)}
+        composable("contactsScreen"){ ContactsScreen(
+            navController = navController,
+            chatScreenViewModel = chatScreenViewModel,
+            customerId = customerId
+        )}
+        composable("statusSelectionScreen"){
+            StatusSelectionScreen(navController = navController, mediaViewModel = mediaViewModel)
         }
     }
 }

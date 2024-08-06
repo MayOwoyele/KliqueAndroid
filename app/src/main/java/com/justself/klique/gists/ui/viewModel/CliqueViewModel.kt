@@ -15,6 +15,7 @@ import androidx.lifecycle.viewModelScope
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.ContactDao
 import com.justself.klique.GistMessage
+import com.justself.klique.GistState
 import com.justself.klique.GistTopRow
 import com.justself.klique.Members
 import com.justself.klique.UserStatus
@@ -38,12 +39,12 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     override val listenerId: String = "SharedCliqueViewModel"
 
     // LiveData properties for observing state changes
-    private val _gistCreatedOrJoined = MutableLiveData<Pair<String, String>?>()
-    val gistCreatedOrJoined: LiveData<Pair<String, String>?> = _gistCreatedOrJoined
+    private val _gistCreatedOrJoined = MutableLiveData<GistState?>()
+    val gistCreatedOrJoined: LiveData<GistState?> = _gistCreatedOrJoined
     private val _messages = MutableLiveData<List<GistMessage>>(emptyList())
     val messages: LiveData<List<GistMessage>> = _messages
     private val gistId: String
-        get() = _gistCreatedOrJoined.value?.second ?: ""
+        get() = _gistCreatedOrJoined.value?.gistId ?: ""
 
     private val _userStatus = MutableLiveData(UserStatus(isSpeaker = true, isOwner = true))
     val userStatus: LiveData<UserStatus> = _userStatus
@@ -80,7 +81,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
     init {
         WebSocketManager.registerListener(this)
-        simulateGistCreated()
+        //simulateGistCreated()
         generateMembersList()
         //startUpdatingActiveSpectators()
     }
@@ -89,20 +90,52 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     fun simulateGistCreated() {
         val topic = "Kotlin"
         val gistId = "1b345kt"
-        _gistCreatedOrJoined.postValue(Pair(topic, gistId))
+        _gistCreatedOrJoined.postValue(GistState(topic, gistId))
         _gistTopRow.value = _gistTopRow.value.copy(
             gistId = gistId,
             topic = topic,
             gistDescription = "This is to change the gist description"
         )
     }
+    // handle websocket's acknowledgment for entering the gist by assigning a value to gistJoinedOrCreated
+    fun enterGist(gistId: String){
+        val enterGistId = """
+            {
+            "type": "enterGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        send(enterGistId)
+    }
+    // handle the exit message by setting gistJoinedOrCreated to null when it arrives
+    fun exitGist(){
+        val exitGistId = """
+            {
+            "type": "exitGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        send(exitGistId)
+        _gistCreatedOrJoined.postValue(null)
+    }
+    fun floatGist(gistId: String){
+        val floatGistId = """
+            {
+            "type": "floatGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        send(floatGistId)
+    }
     // remember to handle the websocket receipt message
     // use this to update _searchResults state variable
     fun doTheSearch(searchQuery: String) {
         _searchPerformed.value = true
         val searchMessage = """
+            {
             "type": "GistSearch",
             "searchQuery": "$searchQuery"
+            }
         """.trimIndent()
         Log.d("WebSocketManager", "Sending search message: $searchMessage")
         send(searchMessage)
@@ -135,7 +168,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             "gistCreated" -> {
                 val gistId = jsonObject.getString("gistId")
                 val topic = jsonObject.getString("topic")
-                _gistCreatedOrJoined.postValue(Pair(topic, gistId))
+                _gistCreatedOrJoined.postValue(GistState(topic, gistId))
                 _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic)
             }
 

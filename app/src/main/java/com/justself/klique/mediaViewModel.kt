@@ -30,6 +30,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _messageScreenUri = MutableLiveData<Uri?>()
     val messageScreenUri: LiveData<Uri?> get() = _messageScreenUri
+    private val _croppedBitmap = MutableLiveData<Bitmap?>()
+    val croppedBitmap: LiveData<Bitmap?> get() = _croppedBitmap
 
     init {
         valueOfHomeScreenUri()
@@ -177,6 +179,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     fun sendTextStatus(text: String){
+    }
+    fun setCroppedBitmap(bitmap: Bitmap) {
+        _croppedBitmap.value = bitmap
+        Log.d("Bitmap", "${_croppedBitmap.value}")
+    }
+    fun clearCroppedBitmap(){
+        _croppedBitmap.value = null
     }
 }
 

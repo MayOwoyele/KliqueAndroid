@@ -12,7 +12,8 @@ data class ChatList(
     val lastMsgAddtime: String,
     val profilePhoto: String,
     val myId: Int,  // Renamed from recipientId to myId
-    val unreadMsgCounter: Int
+    val unreadMsgCounter: Int,
+    val isVerified: Boolean = true
 )
 
 // Define DAO (Data Access Object) Interface

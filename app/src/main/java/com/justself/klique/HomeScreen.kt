@@ -161,7 +161,7 @@ fun HomeScreen(
                 GistScreen(modifier= Modifier
                     .padding(top = 15.dp)
                     .padding(horizontal = 16.dp)
-                    .fillMaxSize(), customerId = customerId) // Display GistScreen behind the AddButton
+                    .fillMaxSize(), customerId = customerId, viewModel = viewModel, navController) // Display GistScreen behind the AddButton
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -188,14 +188,6 @@ fun HomeScreen(
                                     }
                                 }
                             )
-                            OptionButton(
-                                text = "Start Ajo",
-                                onClick = {
-                                    coroutineScope.launch {
-                                        showOptions = false
-                                    }
-                                }
-                            )
                         }
                     }
                     AddButton(
@@ -215,7 +207,7 @@ fun HomeScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.5f))
+                        .background(MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f))
                         .clickable(
                             onClick = { showForm = false },
                             indication = null,
@@ -283,7 +275,7 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
                     showError = true
                 }},
             label = { Text("Gist Topic", color = MaterialTheme.colorScheme.surface) },
-            colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.background,
+            colors = OutlinedTextFieldDefaults.colors(unfocusedBorderColor = MaterialTheme.colorScheme.onPrimary,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 focusedTextColor = MaterialTheme.colorScheme.background)
         )
@@ -297,14 +289,14 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
             RadioButton(
                 selected = selectedType == "public",
                 onClick = { selectedType = "public" },
-                colors = RadioButtonDefaults.colors(MaterialTheme.colorScheme.background)
+                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary, unselectedColor = MaterialTheme.colorScheme.background)
             )
             Text(text = "Public", modifier = Modifier.clickable { selectedType = "public" }, color = MaterialTheme.colorScheme.background)
             Spacer(modifier = Modifier.width(16.dp))
             RadioButton(
                 selected = selectedType == "private",
                 onClick = { selectedType = "private" },
-                colors = RadioButtonDefaults.colors(MaterialTheme.colorScheme.background)
+                colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary, unselectedColor = MaterialTheme.colorScheme.background)
             )
             Text(text = "Private", modifier = Modifier.clickable { selectedType = "private" }, color = MaterialTheme.colorScheme.background)
         }

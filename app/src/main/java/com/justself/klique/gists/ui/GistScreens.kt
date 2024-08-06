@@ -30,47 +30,47 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 
-enum class CurrentTab{
+enum class CurrentTab {
     TRENDING, MY_GISTS
 }
-
 @Composable
-fun GistScreen( modifier: Modifier, customerId: Int, ){
+fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewModel, navController: NavController) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
         val uiState = GistUiState()
-        Row (modifier = Modifier){
-            Button(onClick = { currentTab = CurrentTab.TRENDING }, colors = ButtonDefaults.buttonColors().copy(containerColor =  if (currentTab == CurrentTab.TRENDING) MaterialTheme.colorScheme.primary else Color.Gray), modifier = Modifier
-                .padding(16.dp)
-                .width(146.dp)
+        Row(modifier = Modifier) {
+            Button(
+                onClick = { currentTab = CurrentTab.TRENDING },
+                colors = ButtonDefaults.buttonColors()
+                    .copy(containerColor = if (currentTab == CurrentTab.TRENDING) MaterialTheme.colorScheme.primary else Color.Gray),
+                modifier = Modifier
+                    .padding(16.dp)
+                    .width(146.dp)
             ) {
-                Text(text = "Trending", color = Color.White)
+                Text(text = "Trending", color = MaterialTheme.colorScheme.onPrimary)
             }
-            Button(onClick = { currentTab= CurrentTab.MY_GISTS}, modifier = Modifier
-                .padding(16.dp)
-                .width(146.dp),
-                colors = ButtonDefaults.buttonColors().copy(containerColor =  if (currentTab == CurrentTab.MY_GISTS) MaterialTheme.colorScheme.primary else Color.Gray)
-                ) {
-                Text(text = "My Gists", color = Color.White)
+            Button(
+                onClick = { currentTab = CurrentTab.MY_GISTS }, modifier = Modifier
+                    .padding(16.dp)
+                    .width(146.dp),
+                colors = ButtonDefaults.buttonColors()
+                    .copy(containerColor = if (currentTab == CurrentTab.MY_GISTS) MaterialTheme.colorScheme.primary else Color.Gray)
+            ) {
+                Text(text = "My Gists", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
         when (currentTab) {
             CurrentTab.TRENDING -> {
-                TrendingGists(uiState.trendingGists, customerId = customerId)
+                TrendingGists(uiState.trendingGists, customerId = customerId, viewModel)
             }
+
             CurrentTab.MY_GISTS -> {
-                MyGists(uiState.myGists, customerId = customerId)
+                MyGists(uiState.myGists, customerId = customerId, viewModel)
             }
         }
-     }
-  }
-
-
-//@Preview(showBackground = true, showSystemUi = true,)
-//@Composable
-//fun GistScreenPreview() {
-//    GistScreen()
-//}
+    }
+}

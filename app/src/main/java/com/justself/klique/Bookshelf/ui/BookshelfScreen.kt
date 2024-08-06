@@ -23,7 +23,7 @@ fun BookshelfScreen(navController: NavController, chatScreenViewModel: ChatScree
         .fillMaxSize()
         .padding(horizontal = 16.dp)){
         Column {
-            ContactsScreen(navController, chatScreenViewModel, customerId)
+            //ContactsScreen(navController, chatScreenViewModel, customerId)
         }
     }
 

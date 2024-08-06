@@ -54,3 +54,7 @@ data class GistTopRow(
     val activeSpectators: String,
     val gistImage: String
 )
+data class GistState(
+    val topic: String,
+    val gistId: String
+)

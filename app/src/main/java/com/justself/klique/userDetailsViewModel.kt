@@ -54,4 +54,16 @@ class UserDetailsViewModel : ViewModel() {
             }
         }
     }
+    fun searchUsers(query: String): List<SearchUser> {
+        return listOf(
+            SearchUser(userId = 24, userAlias = "john_doe", profilePictureUrl = "https://example.com/johndoe.jpg"),
+            SearchUser(userId = 25, userAlias = "jane_doe", profilePictureUrl = "https://example.com/janedoe.jpg", isVerified = true)
+        )
+    }
 }
+data class SearchUser(
+    val userId: Int,
+    val userAlias: String,
+    val profilePictureUrl: String,
+    val isVerified: Boolean = false
+)

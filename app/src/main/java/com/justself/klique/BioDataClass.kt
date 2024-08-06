@@ -13,6 +13,7 @@ data class Post(
 )
 
 data class Profile(
+    val customerId: Int,
     val bioImage: String,
     val backgroundColor: Color,
     val fullName: String,
@@ -20,7 +21,8 @@ data class Profile(
     val posts: List<Post>,
     val classSection: String,
     val isSpectator: Boolean,
-    val seatedCount: Int
+    val seatedCount: Int,
+    val isVerified: Boolean = false
 )
 data class StatusComments(
     val name: String,

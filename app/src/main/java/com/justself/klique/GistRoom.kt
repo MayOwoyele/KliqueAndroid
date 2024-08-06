@@ -486,7 +486,7 @@ fun GistTitleRow(
                                 navController.navigate("forwardChatsScreen")
                             })
                         DropdownMenuItem(text = { Text("Exit") },
-                            onClick = { /* Handle option 2 click */ })
+                            onClick = { viewModel.exitGist() })
                     }
                     if (showDialog.value) {
                         AlertDialog(
