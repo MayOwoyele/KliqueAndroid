@@ -390,7 +390,7 @@ fun MainContent(
             fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
             showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
         ) { height -> emojiPickerHeight = height }
-        LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart), navController)
+        LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart), navController, customerId)
         RightDrawer(
             rightDrawerState,
             Modifier.align(Alignment.CenterEnd),

@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.liveData
 import androidx.compose.ui.graphics.Color
@@ -87,7 +88,8 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             ),
             classSection = "Class 1",
             isSpectator = true,
-            seatedCount = 950000
+            seatedCount = 950000,
+            isVerified = true
         )
         emit(profile)
     }
@@ -107,8 +109,9 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             else -> count.toString()
         }
     }
-    fun sendComment(comment: String){
-
+    fun sendComment(comment: Map<String, String?>){
+        //remember to handle notifications for these replies
+        Log.d("Comment", "comment: $comment")
     }
     fun fetchPostComments(postId: String) = liveData {
         // List of predefined comments for demonstration

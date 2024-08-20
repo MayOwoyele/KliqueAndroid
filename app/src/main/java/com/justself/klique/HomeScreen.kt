@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Observer
 import androidx.navigation.NavController
@@ -85,6 +88,7 @@ fun HomeScreen(
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
+    val gistCreationError by viewModel.gistCreationError.observeAsState()
 
     // Observe gist state from ViewModel
     val gistState by viewModel.gistCreatedOrJoined.observeAsState()
@@ -128,7 +132,12 @@ fun HomeScreen(
             viewModel.messages.removeObserver(messageObserver)
         }
     }
-
+    gistCreationError?.let {error ->
+        ErrorDialog(
+            errorMessage = error,
+            onDismiss = {viewModel.clearGistCreationError()}
+        )
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.surface,
@@ -221,7 +230,8 @@ fun HomeScreen(
                             // Remember to also add 'description' parameter to the function call
                             showForm = false
                         }
-                    }, onBack = { showForm = false })
+                    }, onBack = { showForm = false },
+                        viewModel = viewModel)
                 }
             }
         }
@@ -239,7 +249,7 @@ fun OptionButton(
 }
 
 @Composable
-fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
+fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit, viewModel: SharedCliqueViewModel) {
     var topic by remember { mutableStateOf(TextFieldValue("")) }
     var selectedType by remember { mutableStateOf("public") } // State for selected gist type
     val minLength = 2
@@ -310,12 +320,41 @@ fun GistForm(onSubmit: (String, String) -> Unit, onBack: () -> Unit) {
             } else {
                 showError = true
             }
+            viewModel.simulateGistCreationError()
         }) {
             Text("Submit", color = MaterialTheme.colorScheme.background)
         }
         if (showError) {
             Text("Topic must be at least $minLength characters",
             color = MaterialTheme.colorScheme.background)
+        }
+    }
+}
+@Composable
+fun ErrorDialog(
+    errorMessage: String,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = { onDismiss() }) {
+        Box(
+            modifier = Modifier
+                .size(300.dp)
+                .background(MaterialTheme.colorScheme.background, RoundedCornerShape(10.dp))
+                .padding(16.dp)
+        ) {
+            Column {
+                Text("Gist Creation Error", style = MaterialTheme.typography.displayLarge)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(errorMessage, style = MaterialTheme.typography.bodyLarge)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(onClick = { onDismiss() }) {
+                    Text("OK", style = MaterialTheme.typography.bodyLarge)
+                }
+            }
         }
     }
 }

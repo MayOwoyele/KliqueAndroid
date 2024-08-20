@@ -49,6 +49,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     private val _userStatus = MutableLiveData(UserStatus(isSpeaker = true, isOwner = true))
     val userStatus: LiveData<UserStatus> = _userStatus
 
+    // Add this to SharedCliqueViewModel
+    private val _gistCreationError = MutableLiveData<String?>()
+    val gistCreationError: LiveData<String?> = _gistCreationError
+
     private val _listOfContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfNonContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfOwners = MutableStateFlow<List<Members>>(emptyList())
@@ -171,7 +175,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 _gistCreatedOrJoined.postValue(GistState(topic, gistId))
                 _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic)
             }
-
+            "gistCreationError" -> {
+                val errorMessage = jsonObject.getString("message")
+                _gistCreationError.postValue(errorMessage)
+            }
             "previousMessages" -> {
                 val gistId = jsonObject.getString("gistId")
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
@@ -282,8 +289,13 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         """.trimIndent()
         send(message)
     }
-
-
+    fun clearGistCreationError() {
+        _gistCreationError.value = null
+    }
+    fun simulateGistCreationError() {
+        // This is a simulated error message for testing purposes
+        _gistCreationError.postValue("You can't create more than 5 gists. Please float an existing gist from 'My Gists'.")
+    }
     fun isGistActive(): Boolean {
         return _gistCreatedOrJoined.value != null
     }

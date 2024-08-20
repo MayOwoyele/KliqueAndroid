@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
@@ -149,13 +150,14 @@ fun BioScreen(
                                         .border(1.dp, color = MaterialTheme.colorScheme.primary),
                                     contentScale = ContentScale.Crop
                                 )
-                                if(profileData.isVerified){
+                                if (profileData.isVerified) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle, // You can use a different icon if needed
                                         contentDescription = "Verified",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .padding(bottom = 8.dp, end = 8.dp)
+                                            .size(16.dp)
                                             .align(Alignment.BottomEnd) // Position the checkmark at the top-end corner
                                     )
                                 }
@@ -301,11 +303,17 @@ fun BioScreen(
                     title = {
                         Text(
                             text = "Class Information",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = profileData.classSection,
                             style = MaterialTheme.typography.displayLarge,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     },
-                    text = { Text(text = profileData.classSection) },
                     confirmButton = {
                         Button(onClick = { showClassSection = false }) {
                             Text("OK")
@@ -367,7 +375,7 @@ fun BioScreen(
                     )
                 }
             }
-            expandedPostId?.let {
+            expandedPostId?.let { postId ->
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -375,6 +383,8 @@ fun BioScreen(
                 ) {
                     var commentText by remember { mutableStateOf("") }
                     Column {
+                        var replyingTo by remember { mutableStateOf<String?>(null) }
+                        var replyingToId by remember { mutableStateOf<String?>(null) }
                         // Back arrow icon to close the comments section
                         IconButton(onClick = { expandedPostId = null }) {
                             Icon(
@@ -410,6 +420,18 @@ fun BioScreen(
                                         .clickable { navController.navigate("bioScreen/${comment.customerId}") },
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
+                                Text(
+                                    text = "Reply ${comment.name}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = Color.Red,
+                                    modifier = Modifier
+                                        .padding(start = 20.dp)
+                                        .clickable {
+                                            replyingTo = comment.name
+                                            replyingToId = comment.customerId.toString()
+                                            commentText = ""
+                                        }
+                                )
                             }
                         }
 
@@ -429,11 +451,27 @@ fun BioScreen(
                                     )
                                     .weight(1f)
                             ) {
+
                                 TextField(
-                                    value = commentText,
+                                    value = (replyingTo?.let { "$it " } ?: "") + commentText,
                                     onValueChange = { newText ->
-                                        if (newText.length <= 500) {
-                                            commentText = newText
+                                        val sanitizedText = newText.replace("\n", "")
+                                        val prefix = replyingTo ?: ""
+                                        Log.d(
+                                            "Comment",
+                                            "value of replying to : $replyingTo, and prefix: $prefix"
+                                        )
+                                        if (replyingTo != null && !sanitizedText.startsWith(prefix)) {
+                                            Log.d("Comment", "Prefix altered or deleted")
+                                            replyingTo = null
+                                            replyingToId = null
+                                        }
+
+                                        // Update commentText after handling prefix alteration
+                                        if (replyingTo != null) {
+                                            commentText = sanitizedText.removePrefix(prefix)
+                                        } else {
+                                            commentText = sanitizedText
                                         }
                                     },
                                     placeholder = { Text("Add a comment...") },
@@ -451,8 +489,15 @@ fun BioScreen(
                                 )
                             }
                             IconButton(onClick = {
-                                bioViewModel.sendComment(commentText)
+                                val commentData = mapOf(
+                                    "text" to commentText,
+                                    "postId" to postId,
+                                    "replyingToId" to replyingToId
+                                )
+                                bioViewModel.sendComment(commentData)
                                 commentText = ""
+                                replyingTo = null
+                                replyingToId = null
                             }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.Send,
@@ -491,6 +536,8 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
         val size = painterState.painter.intrinsicSize
         if (size.width > 0 && size.height > 0) size.width / size.height else 1f
     } else 1f
+    val screenWidth = LocalContext.current.resources.displayMetrics.widthPixels.dp / LocalDensity.current.density
+    val videoHeight = screenWidth / aspectRatio
     LaunchedEffect(Unit) {
         if (!videoCacheDir.exists()) videoCacheDir.mkdirs()
         if (!audioCacheDir.exists()) audioCacheDir.mkdirs()
@@ -550,6 +597,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                     contentScale = ContentScale.Crop
                 )
             }
+
             "text" -> {
                 Text(
                     text = post.content,
@@ -562,7 +610,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wrapContentHeight()
+                        .height(videoHeight)
                         .aspectRatio(aspectRatio)
                         .clickable {
                             val videoUriString = if (isVideoCached) {
@@ -693,7 +741,9 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                 style = MaterialTheme.typography.bodyLarge,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(horizontal = 16.dp).clickable { navController.navigate("bioScreen/${comment.customerId}") }
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .clickable { navController.navigate("bioScreen/${comment.customerId}") }
             )
         }
     }

@@ -135,6 +135,7 @@ fun NavigationHost(
                 ?.let { Uri.decode(it) }
                 ?: throw IllegalStateException("Where is the contactName?")
             val isVerified = (backStackEntry.arguments?.getInt("isVerified") ?: 0)
+            Log.d("Message Screen", "$enemyId, $contactName, $isVerified")
             MessageScreen(
                 navController,
                 enemyId,

@@ -8,6 +8,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,7 +73,8 @@ fun LeftDrawer(
     drawerState: MutableState<Boolean>,
     modifier: Modifier = Modifier,
     navController: NavController,
-    viewModel: LeftDrawerViewModel = viewModel()
+    customerId: Int,
+    viewModel: LeftDrawerViewModel = viewModel(),
 ) {
     var isChatRoomsExpanded by remember { mutableStateOf(false) }
     AnimatedVisibility(
@@ -87,6 +90,14 @@ fun LeftDrawer(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }) {
                 drawerState.value = false
+            }
+            .pointerInput(Unit){
+                detectDragGestures { change, dragAmount ->
+                    if (dragAmount.x < -50f) {
+                        drawerState.value = false
+                    }
+                    change.consume()
+                }
             }) {
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -98,7 +109,16 @@ fun LeftDrawer(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { /* Consume the click */ }
+                    )
+                    { /* Consume the click */ }
+                    .pointerInput(Unit){
+                        detectDragGestures { change, dragAmount ->
+                            if (dragAmount.x < -50f) {
+                                drawerState.value = false
+                            }
+                            change.consume()
+                        }
+                    }
             ) {
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     IconButton(onClick = { /*TODO*/
@@ -139,6 +159,7 @@ fun LeftDrawer(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
                     text = "My Profile",
+                    onClick = {navController.navigate("BioScreen/$customerId"); drawerState.value = false}
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
@@ -266,6 +287,14 @@ fun RightDrawer(
                     interactionSource = remember { MutableInteractionSource() }) {
                     drawerState.value = false
                 }
+                .pointerInput(Unit){
+                    detectDragGestures { change, dragAmount ->
+                        if (dragAmount.x > 50f) {
+                            drawerState.value = false
+                        }
+                        change.consume()
+                    }
+                }
                 .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
         ) {
             Box(
@@ -310,6 +339,14 @@ fun NotificationItem(
             .clickable {
                 navController.navigate("bioScreen/${notification.userId}")
                 drawerState.value = false
+            }
+            .pointerInput(Unit){
+                detectDragGestures { change, dragAmount ->
+                    if (dragAmount.x > 20f) {
+                        drawerState.value = false
+                    }
+                    change.consume()
+                }
             }, verticalAlignment = Alignment.CenterVertically
     ) {
         Text(

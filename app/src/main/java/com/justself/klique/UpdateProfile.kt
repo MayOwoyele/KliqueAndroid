@@ -1,6 +1,8 @@
 package com.justself.klique
 
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -36,10 +39,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import coil.compose.rememberImagePainter
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
+import android.Manifest
+import android.content.Context
 
 @Composable
 fun UpdateProfileScreen(
@@ -100,6 +106,7 @@ fun ProfilePictureSection(
     profilePictureUrl: String,
     onImageChange: (Uri?) -> Unit
 ) {
+    var shouldCheckPermission by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val imagePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -111,16 +118,22 @@ fun ProfilePictureSection(
             painter = rememberAsyncImagePainter(model = profilePictureUrl),
             contentDescription = "Profile Picture",
             modifier = Modifier
-                .size(100.dp)
+                .size(280.dp)
                 .clip(CircleShape)
                 .border(2.dp, Color.Gray, CircleShape)
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
         )
         IconButton(
-            onClick = { imagePickerLauncher.launch("image/*") },
+            onClick = { shouldCheckPermission = true },
             modifier = Modifier.align(Alignment.BottomEnd)
         ) {
             Icon(Icons.Default.Edit, contentDescription = "Edit Profile Picture")
+            if (shouldCheckPermission) {
+                CheckAndRequestImagePermissions(context = context) {
+                    imagePickerLauncher.launch("image/*")
+                    shouldCheckPermission = false
+                }
+            }
         }
     }
 }
@@ -138,7 +151,12 @@ fun BioSection(
         if (isEditing) {
             TextField(
                 value = bioText,
-                onValueChange = { bioText = it },
+                onValueChange = {
+                    val sanitizedText = it.replace("\n", "")
+                    if (sanitizedText.length <= 500) {
+                        bioText = sanitizedText
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 4
             )
@@ -170,5 +188,50 @@ fun SaveChangesButton(
             .padding(16.dp)
     ) {
         Text("Save Changes")
+    }
+}
+
+@Composable
+fun CheckAndRequestImagePermissions(
+    context: Context,
+    onPermissionGranted: () -> Unit
+) {
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            onPermissionGranted()
+        } else {
+            Toast.makeText(context, "Permission denied to access images.", Toast.LENGTH_SHORT)
+                .show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_MEDIA_IMAGES
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    onPermissionGranted()
+                } else {
+                    permissionLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES)
+                }
+            }
+
+            else -> {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.READ_EXTERNAL_STORAGE
+                    ) == PackageManager.PERMISSION_GRANTED
+                ) {
+                    onPermissionGranted()
+                } else {
+                    permissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                }
+            }
+        }
     }
 }
