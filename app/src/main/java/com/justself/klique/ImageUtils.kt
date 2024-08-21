@@ -1,6 +1,7 @@
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.net.Uri
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -65,5 +66,28 @@ object ImageUtils {
         bitmap.recycle()
 
         return byteArray
+    }
+    fun calculateAverageColor(bitmap: Bitmap): String {
+        var red = 0
+        var green = 0
+        var blue = 0
+        val pixelCount = bitmap.width * bitmap.height
+
+        for (x in 0 until bitmap.width) {
+            for (y in 0 until bitmap.height) {
+                val pixel = bitmap.getPixel(x, y)
+                red += Color.red(pixel)
+                green += Color.green(pixel)
+                blue += Color.blue(pixel)
+            }
+        }
+
+        // Calculate the average of each color component
+        red /= pixelCount
+        green /= pixelCount
+        blue /= pixelCount
+
+        // Convert to hex format
+        return String.format("#%02X%02X%02X", red, green, blue)
     }
 }

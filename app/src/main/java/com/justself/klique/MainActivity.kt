@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
+import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
 
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FirebaseApp.initializeApp(this)
         NetworkUtils.initialize(this)
         enableEdgeToEdge()
         val config: Config = BundledEmojiCompatConfig(this)
@@ -59,7 +61,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyAppTheme {
                 Surface {
-                    MainScreen()
+                    MainScreen(intent = intent)
                 }
             }
         }

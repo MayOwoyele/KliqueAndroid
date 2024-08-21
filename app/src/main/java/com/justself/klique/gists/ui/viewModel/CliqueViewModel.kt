@@ -5,7 +5,10 @@ import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
+import androidx.compose.material3.Text
+import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -53,6 +56,9 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     private val _gistCreationError = MutableLiveData<String?>()
     val gistCreationError: LiveData<String?> = _gistCreationError
 
+    private val _gistMessage = mutableStateOf(TextFieldValue(""))
+    val gistMessage: State<TextFieldValue> = _gistMessage
+
     private val _listOfContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfNonContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfOwners = MutableStateFlow<List<Members>>(emptyList())
@@ -88,6 +94,12 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         //simulateGistCreated()
         generateMembersList()
         //startUpdatingActiveSpectators()
+    }
+    fun onGistMessageChange(newMessage: TextFieldValue) {
+        _gistMessage.value = newMessage
+    }
+    fun clearMessage() {
+        _gistMessage.value = TextFieldValue("")
     }
 
     // remove this function later here and in the init block, it is simply for simulation purpose
@@ -166,7 +178,6 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         val randomUUID = UUID.randomUUID().toString()
         return randomUUID
     }
-
     override fun onMessageReceived(type: String, jsonObject: JSONObject) {
         when (type) {
             "gistCreated" -> {

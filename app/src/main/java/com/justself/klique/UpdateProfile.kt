@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import ImageUtils
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -36,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -46,28 +46,34 @@ import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 import android.Manifest
 import android.content.Context
+import androidx.compose.ui.graphics.Color
 
 @Composable
 fun UpdateProfileScreen(
     navController: NavController,
     mediaViewModel: MediaViewModel,
-    viewModel: ProfileViewModel = viewModel()
+    chatScreenViewModel: ChatScreenViewModel
 ) {
-    var profilePictureUrl by remember { mutableStateOf(viewModel.profilePictureUrl) }
+    val viewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModelFactory(chatScreenViewModel)
+    )
+    val profilePictureUrl by remember { mutableStateOf(viewModel.profilePictureUrl) }
     var bio by remember { mutableStateOf(viewModel.bio) }
     var newProfilePictureUri: Uri? by remember { mutableStateOf(null) }
     var bioChanged by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val croppedBitmap by mediaViewModel.croppedBitmap.observeAsState()
+    var averageColor by remember { mutableStateOf("#FFFFFF") }
     croppedBitmap?.let { bitmap ->
+        averageColor = ImageUtils.calculateAverageColor(bitmap)
         // Convert the Bitmap to ByteArray
         val byteArray = FileUtils.bitmapToByteArray(bitmap)
         // Save the ByteArray to a file and get the Uri
         val uri = FileUtils.saveImage(context, byteArray, true)
+        mediaViewModel.clearCroppedBitmap()
         // Now you have the Uri that you can pass to your SaveChangesButton or other logic
         uri?.let {
             newProfilePictureUri = uri
-            mediaViewModel.clearCroppedBitmap()
         } ?: run {
             // Handle error if the Uri is null
             Toast.makeText(context, "Failed to save image.", Toast.LENGTH_SHORT).show()
@@ -95,7 +101,7 @@ fun UpdateProfileScreen(
             bioChanged = bioChanged,
             onSaveChanges = {
                 // Logic to save changes
-                viewModel.updateProfile(newProfilePictureUri, bio)
+                viewModel.updateProfile(newProfilePictureUri, bio, averageColor, context)
             }
         )
     }

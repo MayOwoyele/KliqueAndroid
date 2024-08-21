@@ -322,9 +322,9 @@ class ChatScreenViewModel(
     }
 
     // Provision should be made and thought of, on how such a message should be received
-    private fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String) {
+    fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String, isVerified: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            chatDao.updateProfile(enemyId, contactName, profilePhoto)
+            chatDao.updateProfile(enemyId, contactName, profilePhoto, isVerified)
         }
     }
 
@@ -374,7 +374,7 @@ class ChatScreenViewModel(
         }
     }
 
-    private suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
+    suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
     }
 
@@ -793,3 +793,9 @@ class ChatViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+data class ProfileUpdateData(
+    val customerId: Int,
+    val contactName: String,
+    val profilePhoto: String,
+    val isVerified: Boolean = false // New Boolean property
+)

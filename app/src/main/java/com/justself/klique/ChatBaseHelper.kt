@@ -31,8 +31,8 @@ interface ChatDao {
 
     @Query("SELECT * FROM chats WHERE myId = :myId")
     fun getAllChats(myId: Int): List<ChatList>
-    @Query("UPDATE chats SET contactname = :contactName, profilePhoto = :profilePhoto WHERE enemyId = :enemyId")
-    suspend fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String)
+    @Query("UPDATE chats SET contactname = :contactName, profilePhoto = :profilePhoto, isVerified = :isVerified WHERE enemyId = :enemyId")
+    suspend fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String, isVerified: Boolean)
     @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + 1 WHERE enemyId = :enemyId")
     suspend fun incrementUnreadMsgCounter(enemyId: Int)
 

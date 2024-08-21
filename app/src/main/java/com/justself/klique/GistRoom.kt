@@ -142,7 +142,7 @@ fun GistRoom(
     chatScreenViewModel: ChatScreenViewModel
 ) {
     val gistId = viewModel.gistTopRow.collectAsState().value.gistId
-    var message by remember { mutableStateOf(TextFieldValue("")) }
+    val message by viewModel.gistMessage
     val observedMessages by viewModel.messages.observeAsState(emptyList())
     val context = LocalContext.current
     val permissionGrantedImages = remember { mutableStateOf(false) }
@@ -229,9 +229,11 @@ fun GistRoom(
     // Handle Emoji Selection
     LaunchedEffect(selectedEmoji) {
         if (selectedEmoji.isNotEmpty()) {
-            message = message.copy(
-                text = message.text + selectedEmoji,
-                selection = TextRange(message.text.length + selectedEmoji.length)
+            viewModel.onGistMessageChange(
+                message.copy(
+                    text = message.text + selectedEmoji,
+                    selection = TextRange(message.text.length + selectedEmoji.length)
+                )
             )
         }
         resetSelectedEmoji()
@@ -360,16 +362,16 @@ fun GistRoom(
 
             InputRow(
                 message = message,
-                onMessageChange = { message = it },
+                onMessageChange = { viewModel.onGistMessageChange(it) },
                 onSendMessage = {
-                    if (message.text.isNotEmpty()) {
+                    if (message.text.trimEnd().isNotEmpty()) {
                         val messageId = viewModel.generateMessageId()
                         val gistMessage = GistMessage(
                             id = messageId,
                             gistId = gistId,
                             customerId = customerId,
                             sender = myName,
-                            content = message.text,
+                            content = message.text.trimEnd(),
                             status = "pending",
                             messageType = "text"
                         )
@@ -388,7 +390,7 @@ fun GistRoom(
                             }
                             """.trimIndent()
                         viewModel.send(messageJson)
-                        message = TextFieldValue("")
+                        viewModel.clearMessage()
                     }
                 },
                 imeVisible = imeVisible,

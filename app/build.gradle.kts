@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.serialization)
     alias(libs.plugins.ksp) // Use KSP for annotation processing
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -116,6 +117,9 @@ dependencies {
     implementation(libs.libphonenumber)
     implementation(libs.exoplayer.core)
     implementation(libs.exoplayer.ui)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.messaging)
     implementation("org.jetbrains:annotations:23.0.0") // Ensure correct annotations version
 }
 

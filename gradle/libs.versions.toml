@@ -3,13 +3,14 @@ android-gradle-plugin = "7.0.4"
 agp = "8.4.2"
 annotations = "23.0.0"
 annotationsVersion = "12.0"
+firebaseBom = "33.1.2"
 kotlin = "1.9.0"
 coreKtx = "1.13.1"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntimeKtx = "2.8.3"
-activityCompose = "1.9.0"
+lifecycleRuntimeKtx = "2.8.4"
+activityCompose = "1.9.1"
 composeBom = "2024.06.00"
 retrofit = "2.9.0"
 okhttp = "4.9.3"
@@ -21,7 +22,7 @@ materialIconsExtended = "1.6.8"
 material = "1.12.0"
 navigationCompose = "2.7.7"
 ktor = "2.3.10"
-lifecycle = "2.8.3"
+lifecycle = "2.8.4"
 coroutines = "1.7.3"
 serialization = "1.5.1"
 mockk = "1.12.0"
@@ -42,10 +43,13 @@ exoplayer = "2.19.1"
 
 
 
+
 [libraries]
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "android-gradle-plugin" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 annotations = { module = "org.jetbrains:annotations", version.ref = "annotations" }
+firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
+firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
 intellij-annotations = { module = "com.intellij:annotations", version.ref = "annotationsVersion" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
@@ -104,6 +108,7 @@ mobile-ffmpeg = { group = "com.arthenica", name = "mobile-ffmpeg-full", version.
 libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumber", version.ref = "libphonenumber" }
 exoplayer-core = { module = "com.google.android.exoplayer:exoplayer-core", version.ref = "exoplayer" }
 exoplayer-ui = { module = "com.google.android.exoplayer:exoplayer-ui", version.ref = "exoplayer" }
+firebase-messaging = {module = "com.google.firebase:firebase-messaging"}
 
 
 

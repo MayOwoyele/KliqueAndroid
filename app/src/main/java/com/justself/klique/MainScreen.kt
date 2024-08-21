@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.app.Application
+import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
@@ -172,6 +173,7 @@ fun MyAppTheme(
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainScreen(
+    intent: Intent,
     authViewModel: AuthViewModel = viewModel(),
     productViewModel: ProductViewModel = viewModel(),
     userDetailsViewModel: UserDetailsViewModel = viewModel()
@@ -201,6 +203,21 @@ fun MainScreen(
     val notificationViewModel: NotificationViewModel = viewModel()
     val notifications by notificationViewModel.notifications.collectAsState()
     val hasNewNotifications = notifications.any { !it.seen }
+    var profileUpdateData by remember { mutableStateOf<ProfileUpdateData?>(null)}
+    LaunchedEffect(intent) {
+        val route = intent.getStringExtra("route")
+        if (!route.isNullOrEmpty()) {
+            navController.navigate(route)
+        }
+        val customerId = intent.getStringExtra("customerId") ?: ""
+        val contactName = intent.getStringExtra("contactName") ?: ""
+        val profilePhoto = intent.getStringExtra("profilePhoto") ?: ""
+        val isVerified = intent.getBooleanExtra("isVerified", false)
+        if (customerId.isNotEmpty() && contactName.isNotEmpty() && profilePhoto.isNotEmpty()) {
+            profileUpdateData =
+                ProfileUpdateData(customerId.toInt(), contactName, profilePhoto, isVerified)
+        }
+    }
     LaunchedEffect(searchText) {
         if (searchText.length > 2) {
             // Make a search request using userDetailsViewModel
@@ -252,7 +269,8 @@ fun MainScreen(
                     onEmojiSelected = { emoji -> selectedEmoji = emoji },
                     selectedEmoji,
                     resetSelectedEmoji = { selectedEmoji = "" },
-                    notificationViewModel = notificationViewModel
+                    notificationViewModel = notificationViewModel,
+                    profileUpdateData = profileUpdateData
                 )
                 if (isSearchMode && searchResults.isNotEmpty()) {
                     Column(
@@ -320,7 +338,8 @@ fun MainContent(
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    notificationViewModel: NotificationViewModel
+    notificationViewModel: NotificationViewModel,
+    profileUpdateData: ProfileUpdateData?
 ) {
     val customerId = authViewModel.customerId.collectAsState().value
     val firstName = userDetailsViewModel.firstName.collectAsState().value
@@ -388,9 +407,14 @@ fun MainContent(
         NavigationHost(
             navController, isLoggedIn, productViewModel, customerId,
             fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
+            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji, profileUpdateData
         ) { height -> emojiPickerHeight = height }
-        LeftDrawer(leftDrawerState, Modifier.align(Alignment.CenterStart), navController, customerId)
+        LeftDrawer(
+            leftDrawerState,
+            Modifier.align(Alignment.CenterStart),
+            navController,
+            customerId
+        )
         RightDrawer(
             rightDrawerState,
             Modifier.align(Alignment.CenterEnd),

@@ -257,7 +257,6 @@ fun MessageScreen(
         if (keyboardHeightDp > maxKeyboardHeightDp) maxKeyboardHeightDp = keyboardHeightDp
     }
     emojiPickerHeight(maxKeyboardHeightDp)
-    val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
     val personalChat by viewModel.personalChats.observeAsState(emptyList())
     val containsMediaMessages = selectedMessages.any { messageId ->
@@ -942,7 +941,7 @@ fun TextBoxAndMedia(
                 }
             } else {
                 IconButton(onClick = {
-                    onSendMessage(textState.text)
+                    onSendMessage(textState.text.trimEnd())
                     textState = TextFieldValue("")
                 }) {
                     Icon(

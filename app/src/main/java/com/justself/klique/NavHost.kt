@@ -38,6 +38,7 @@ fun NavigationHost(
     application: Application,
     sharedCliqueViewModel: SharedCliqueViewModel,
     resetSelectedEmoji: () -> Unit,
+    profileUpdateData: ProfileUpdateData?,
     emojiPickerHeight: (Dp) -> Unit
 ) {
 
@@ -48,7 +49,14 @@ fun NavigationHost(
         remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
     val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
-
+    profileUpdateData?.let {
+        chatScreenViewModel.updateProfile(
+            enemyId = it.customerId,
+            contactName = it.contactName,
+            profilePhoto = it.profilePhoto,
+            isVerified = it.isVerified
+        )
+    }
     NavHost(
         navController = navController,
         startDestination = if (isLoggedIn) "home" else "login"
@@ -78,16 +86,7 @@ fun NavigationHost(
             )
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
-        composable("markets") { MarketsScreen(navController) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("orders") {
-            OrdersScreen(
-                navController,
-                chatScreenViewModel,
-                customerId,
-                mediaViewModel
-            )
-        }
         composable("product/{productId}") { backStackEntry ->
             val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
                 ?: throw IllegalStateException("Product must be provided")
@@ -221,12 +220,18 @@ fun NavigationHost(
         }
         composable(
             route = "imageEditScreen/{sourceScreen}",
-            arguments = listOf(navArgument("sourceScreen") { defaultValue = SourceScreen.STATUS.name })
+            arguments = listOf(navArgument("sourceScreen") {
+                defaultValue = SourceScreen.STATUS.name
+            })
         ) { backStackEntry ->
             val sourceScreen = backStackEntry.arguments?.getString("sourceScreen")?.let {
                 SourceScreen.valueOf(it)
             } ?: SourceScreen.STATUS // Fallback to default
-            ImageCropTool(viewModel = mediaViewModel, navController = navController, sourceScreen = sourceScreen)
+            ImageCropTool(
+                viewModel = mediaViewModel,
+                navController = navController,
+                sourceScreen = sourceScreen
+            )
         }
         composable("statusAudioScreen") {
             StatusAudio(viewModel = mediaViewModel, navController = navController)
@@ -258,20 +263,34 @@ fun NavigationHost(
             )
         }
         composable("dmList") { DmList(navController) }
-        composable("dmChatScreen/{enemyId}/{enemyName}"){backStackEntry ->
+        composable("dmChatScreen/{enemyId}/{enemyName}") { backStackEntry ->
             val enemyId = backStackEntry.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the enemyId?")
             val enemyName = backStackEntry.arguments?.getString("enemyName")
                 ?: throw IllegalStateException("where is the enemyName?")
-            DmRoom(navController = navController, myId = customerId, enemyId = enemyId, enemyName = enemyName, mediaViewModel = mediaViewModel)
+            DmRoom(
+                navController = navController,
+                myId = customerId,
+                enemyId = enemyId,
+                enemyName = enemyName,
+                mediaViewModel = mediaViewModel
+            )
         }
-        composable("updateProfile"){ UpdateProfileScreen(navController = navController, mediaViewModel = mediaViewModel)}
-        composable("contactsScreen"){ ContactsScreen(
-            navController = navController,
-            chatScreenViewModel = chatScreenViewModel,
-            customerId = customerId
-        )}
-        composable("statusSelectionScreen"){
+        composable("updateProfile") {
+            UpdateProfileScreen(
+                navController = navController,
+                mediaViewModel = mediaViewModel,
+                chatScreenViewModel = chatScreenViewModel
+            )
+        }
+        composable("contactsScreen") {
+            ContactsScreen(
+                navController = navController,
+                chatScreenViewModel = chatScreenViewModel,
+                customerId = customerId
+            )
+        }
+        composable("statusSelectionScreen") {
             StatusSelectionScreen(navController = navController, mediaViewModel = mediaViewModel)
         }
     }
