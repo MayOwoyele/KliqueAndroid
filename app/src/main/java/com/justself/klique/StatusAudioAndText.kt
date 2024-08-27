@@ -312,7 +312,7 @@ fun CustomAudioPlayer(audioUri: Uri) {
 fun StatusText(viewModel: MediaViewModel, navController: NavController) {
     val context = LocalContext.current
     var textState by remember { mutableStateOf(TextFieldValue("")) }
-    val charLimit = 280
+    val charLimit = 100
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
     Column(
@@ -341,7 +341,7 @@ fun StatusText(viewModel: MediaViewModel, navController: NavController) {
                 .weight(1f),
             placeholder = {
                 Text(
-                    "What's on your mind?",
+                    "What's on your mind in 100 characters",
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 )
             },

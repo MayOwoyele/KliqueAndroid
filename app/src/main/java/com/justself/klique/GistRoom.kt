@@ -13,6 +13,7 @@ import android.view.MotionEvent
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateDpAsState
@@ -156,66 +157,78 @@ fun GistRoom(
     val coroutineScope = rememberCoroutineScope()
     val homeScreenUri by mediaViewModel.homeScreenUri.observeAsState()
     viewModel.setMyName(myName)
+    // Image Picker Launcher for Android 14+ (TIRAMISU)
+    val imagePickerLauncher14Plus = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+    }
+
+// Image Picker Launcher for Android 13 and below
+    val imagePickerLauncherBelow14 = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+    }
     // Image Picker Launcher
-    val imagePickerLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            uri?.let {
-                coroutineScope.launch {
-                    try {
-                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
-                        Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
-
-                        val messageId = viewModel.generateMessageId()
-                        viewModel.sendBinary(
-                            imageByteArray, "KImage", gistId, messageId, customerId, myName
-                        )
-
-                        val gistMessage = GistMessage(
-                            id = messageId,
-                            gistId = gistId,
-                            customerId = customerId,
-                            sender = myName,
-                            content = "",
-                            status = "pending",
-                            messageType = "KImage",
-                            binaryData = imageByteArray
-                        )
-                        viewModel.addMessage(gistMessage)
-                    } catch (e: IOException) {
-                        Log.e("ChatRoom", "Error processing image: ${e.message}", e)
-                    }
-                }
-            }
+    val imagePickerLauncher: (String) -> Unit = { mimeType ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // For Android 14+ (TIRAMISU and above), launch the PickVisualMedia launcher
+            imagePickerLauncher14Plus.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        } else {
+            // For Android 13 and below, launch the GetContent launcher with the MIME type
+            imagePickerLauncherBelow14.launch(mimeType)
         }
+    }
+    // Video Picker Launcher for Android 14+ (TIRAMISU)
+    val videoPickerLauncher14Plus = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        handleVideoUri(context, uri, coroutineScope, onNavigateToTrimScreen)
+    }
+
+// Video Picker Launcher for Android 13 and below
+    val videoPickerLauncherBelow14 = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        handleVideoUri(context, uri, coroutineScope, onNavigateToTrimScreen)
+    }
 
     // Video Picker Launcher
-    val videoPickerLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-            uri?.let { selectedUri ->
-                coroutineScope.launch {
-                    val filePath = FileUtils.getPath(context, selectedUri)
-                    filePath?.let { path ->
-                        val fileUri = Uri.fromFile(File(path))
-                        onNavigateToTrimScreen(fileUri.toString())
-                    } ?: run {
-                        Log.e("ChatRoom", "Error getting video path")
-                    }
-                }
-            }
+    val videoPickerLauncher: (String) -> Unit = { mimeType ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            videoPickerLauncher14Plus.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+        } else {
+            videoPickerLauncherBelow14.launch(mimeType)
         }
+    }
 
     // Permission Launcher for Images
     val permissionLauncherImages =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            permissionGrantedImages.value = granted
-            if (granted) imagePickerLauncher.launch("image/*")
+            if (granted) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    imagePickerLauncher14Plus.launch(PickVisualMediaRequest())
+                } else {
+                    imagePickerLauncherBelow14.launch("image/*")
+                }
+            } else {
+                // Handle permission denied
+                Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
+            }
         }
 
     // Permission Launcher for Videos
+    // Permission Launcher for Videos
     val permissionLauncherVideos =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            permissionGrantedVideos.value = granted
-            if (granted) videoPickerLauncher.launch("video/*")
+            if (granted) {
+                // Use the appropriate video picker based on the Android version
+                videoPickerLauncher("video/*")
+            } else {
+                // Handle permission denied
+                Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
+            }
         }
 
     // Handle Keyboard Visibility
@@ -705,8 +718,8 @@ fun InputRow(
     focusRequester: FocusRequester,
     isFocused: MutableState<Boolean>,
     maxKeyboardHeightDp: Dp,
-    imagePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
-    videoPickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
+    imagePickerLauncher: (String) -> Unit,
+    videoPickerLauncher: (String) -> Unit,
     permissionLauncherImages: ManagedActivityResultLauncher<String, Boolean>,
     permissionLauncherVideos: ManagedActivityResultLauncher<String, Boolean>,
     coroutineScope: CoroutineScope,
@@ -965,7 +978,7 @@ fun InputRow(
 
 private fun launchPicker(
     permissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
-    launcher: ManagedActivityResultLauncher<String, Uri?>,
+    launcher: (String) -> Unit,
     context: Context,
     mediaType: String // "image" or "video"
 ) {
@@ -975,16 +988,16 @@ private fun launchPicker(
     if (mediaType == "video") {
         mimeType = "video/*"
         permissionToCheck = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            android.Manifest.permission.READ_MEDIA_VIDEO
+            Manifest.permission.READ_MEDIA_VIDEO
         } else {
-            android.Manifest.permission.READ_EXTERNAL_STORAGE
+            Manifest.permission.READ_EXTERNAL_STORAGE
         }
     } else { // Defaults to "image"
         mimeType = "image/*"
         permissionToCheck = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             android.Manifest.permission.READ_MEDIA_IMAGES
         } else {
-            android.Manifest.permission.READ_EXTERNAL_STORAGE
+            Manifest.permission.READ_EXTERNAL_STORAGE
         }
     }
 
@@ -993,9 +1006,56 @@ private fun launchPicker(
             context, permissionToCheck
         ) == PermissionChecker.PERMISSION_GRANTED
     ) {
-        launcher.launch(mimeType)
+        launcher(mimeType)
     } else {
         permissionLauncher.launch(permissionToCheck)
+    }
+}
+fun handleImageUri(context: Context, uri: Uri?, viewModel: SharedCliqueViewModel, gistId: String, customerId: Int, myName: String, coroutineScope: CoroutineScope) {
+    uri?.let {
+        coroutineScope.launch {
+            try {
+                val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
+                Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
+
+                val messageId = viewModel.generateMessageId()
+                viewModel.sendBinary(
+                    imageByteArray, "KImage", gistId, messageId, customerId, myName
+                )
+
+                val gistMessage = GistMessage(
+                    id = messageId,
+                    gistId = gistId,
+                    customerId = customerId,
+                    sender = myName,
+                    content = "",
+                    status = "pending",
+                    messageType = "KImage",
+                    binaryData = imageByteArray
+                )
+                viewModel.addMessage(gistMessage)
+            } catch (e: IOException) {
+                Log.e("ChatRoom", "Error processing image: ${e.message}", e)
+            }
+        }
+    }
+}
+fun handleVideoUri(
+    context: Context,
+    uri: Uri?,
+    coroutineScope: CoroutineScope,
+    onNavigateToTrimScreen: (String) -> Unit
+) {
+    uri?.let { selectedUri ->
+        coroutineScope.launch {
+            val filePath = FileUtils.getPath(context, selectedUri)
+            filePath?.let { path ->
+                val fileUri = Uri.fromFile(File(path))
+                onNavigateToTrimScreen(fileUri.toString())
+            } ?: run {
+                Log.e("ChatRoom", "Error getting video path")
+            }
+        }
     }
 }
 

@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -39,9 +40,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -79,7 +77,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -87,9 +84,12 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
-import com.justself.klique.Authentication.ui.screens.LoginScreen
+import com.justself.klique.Authentication.ui.screens.RegistrationScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 
 val Pink700 = Color(0xFFFF759C)
@@ -152,7 +152,7 @@ private val LightColorScheme = lightColorScheme(
     surface = LightSurface,
     background = LightBackground,
     onPrimary = Color.Black,
-    secondary = Pink400,
+    secondary = CultPink,
     onSecondary = Pink700
 )
 
@@ -203,20 +203,18 @@ fun MainScreen(
     val notificationViewModel: NotificationViewModel = viewModel()
     val notifications by notificationViewModel.notifications.collectAsState()
     val hasNewNotifications = notifications.any { !it.seen }
-    var profileUpdateData by remember { mutableStateOf<ProfileUpdateData?>(null)}
+    val context = LocalContext.current
     LaunchedEffect(intent) {
         val route = intent.getStringExtra("route")
         if (!route.isNullOrEmpty()) {
+            Log.d("Firebase", "Route called is $route")
             navController.navigate(route)
+        } else {
+            Log.e("Firebase", "Route is null or empty")
         }
-        val customerId = intent.getStringExtra("customerId") ?: ""
-        val contactName = intent.getStringExtra("contactName") ?: ""
-        val profilePhoto = intent.getStringExtra("profilePhoto") ?: ""
-        val isVerified = intent.getBooleanExtra("isVerified", false)
-        if (customerId.isNotEmpty() && contactName.isNotEmpty() && profilePhoto.isNotEmpty()) {
-            profileUpdateData =
-                ProfileUpdateData(customerId.toInt(), contactName, profilePhoto, isVerified)
-        }
+    }
+    LaunchedEffect(Unit) {
+        checkAndSendToken(context)
     }
     LaunchedEffect(searchText) {
         if (searchText.length > 2) {
@@ -269,8 +267,7 @@ fun MainScreen(
                     onEmojiSelected = { emoji -> selectedEmoji = emoji },
                     selectedEmoji,
                     resetSelectedEmoji = { selectedEmoji = "" },
-                    notificationViewModel = notificationViewModel,
-                    profileUpdateData = profileUpdateData
+                    notificationViewModel = notificationViewModel
                 )
                 if (isSearchMode && searchResults.isNotEmpty()) {
                     Column(
@@ -317,7 +314,7 @@ fun MainScreen(
         }
 
     } else {
-        LoginScreen(navController = navController)
+        RegistrationScreen(navController = navController)
     }
 }
 
@@ -338,8 +335,7 @@ fun MainContent(
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    notificationViewModel: NotificationViewModel,
-    profileUpdateData: ProfileUpdateData?
+    notificationViewModel: NotificationViewModel
 ) {
     val customerId = authViewModel.customerId.collectAsState().value
     val firstName = userDetailsViewModel.firstName.collectAsState().value
@@ -407,7 +403,7 @@ fun MainContent(
         NavigationHost(
             navController, isLoggedIn, productViewModel, customerId,
             fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji, profileUpdateData
+            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
         ) { height -> emojiPickerHeight = height }
         LeftDrawer(
             leftDrawerState,
@@ -617,5 +613,33 @@ fun VerifiedBadge(isVerified: Boolean) {
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(16.dp)
         )
+    }
+}
+// Function to check if token is already sent and send if not
+private fun checkAndSendToken(context: Context) {
+    val sharedPreferences = context.getSharedPreferences("firebase_prefs", Context.MODE_PRIVATE)
+    val token = sharedPreferences.getString("firebase_token", null)
+
+    if (!token.isNullOrEmpty()) {
+        Log.d("TokenCheck", "Token exists and has not been sent. Sending to server: $token")
+        sendTokenToServer(token)
+    } else if (token.isNullOrEmpty()) {
+        Log.d("TokenCheck", "No token found in SharedPreferences.")
+    } else {
+        Log.d("TokenCheck", "Token already sent to the server.")
+    }
+}
+
+// Function to send the token to the server
+private fun sendTokenToServer(token: String) {
+    val serviceScope = CoroutineScope(Dispatchers.IO)
+    val params = mapOf("token" to token)
+    serviceScope.launch {
+        try {
+            NetworkUtils.makeRequest("onFireBaseToken", params = params)
+            // Mark the token as sent in SharedPreferences
+        } catch (e: Exception) {
+            Log.e("SendToken", "Failed to send token to server: ${e.message}")
+        }
     }
 }

@@ -220,6 +220,7 @@ class ChatScreenViewModel(
     fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
         Log.d("Incoming", "newMessage is $newMessage")
         addAndProcessPersonalChat(newMessage)
+        sendDeliveryAcknowledgment(newMessage.messageId)
     }
 
     private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
@@ -646,6 +647,15 @@ class ChatScreenViewModel(
         val currentMessages = _messagesToForward.value?.toMutableList() ?: mutableListOf()
         currentMessages.add(personalChat)
         _messagesToForward.value = currentMessages
+    }
+    private fun sendDeliveryAcknowledgment(messageId: String) {
+        val acknowledgmentJson = """
+        {
+            "type": "myIdDeliveryAck",
+            "messageId": "$messageId"
+        }
+    """.trimIndent()
+        send(acknowledgmentJson)
     }
 
     fun getMockChats(myId: Int): List<ChatList> {

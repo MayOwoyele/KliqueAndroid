@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,10 +39,9 @@ fun NavigationHost(
     application: Application,
     sharedCliqueViewModel: SharedCliqueViewModel,
     resetSelectedEmoji: () -> Unit,
-    profileUpdateData: ProfileUpdateData?,
     emojiPickerHeight: (Dp) -> Unit
 ) {
-
+    val profileUpdateData by ProfileRepository.profileUpdateData.observeAsState()
     val chatDao = remember { DatabaseProvider.getChatListDatabase(application).chatDao() }
     val personalChatDao =
         remember { DatabaseProvider.getPersonalChatDatabase(application).personalChatDao() }
@@ -50,12 +50,14 @@ fun NavigationHost(
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
     val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
     profileUpdateData?.let {
-        chatScreenViewModel.updateProfile(
-            enemyId = it.customerId,
-            contactName = it.contactName,
-            profilePhoto = it.profilePhoto,
-            isVerified = it.isVerified
-        )
+        Log.d("Worked", "It worked")
+//        chatScreenViewModel.updateProfile(
+//            enemyId = it.customerId,
+//            contactName = it.contactName,
+//            profilePhoto = it.profilePhoto,
+//            isVerified = it.isVerified
+//        )
+        ProfileRepository.clearProfileData()
     }
     NavHost(
         navController = navController,

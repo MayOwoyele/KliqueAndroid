@@ -628,10 +628,7 @@ fun MessageScreenContent(
                                         detectTapGestures(onLongPress = { onLongPressLambda() },
                                             onTap = { onTapLambda() })
                                     }) {
-                                    Text(
-                                        text = message.content,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    ClickableMessageText(message.content)
                                 }
                             }
                         }

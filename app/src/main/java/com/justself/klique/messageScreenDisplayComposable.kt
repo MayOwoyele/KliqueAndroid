@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
@@ -40,6 +42,11 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
@@ -230,6 +237,58 @@ fun DisplayGistInvite(
                 modifier = Modifier
                     .align(Alignment.End)
                     .clickable(onClick = { onJoinClick() })
+            )
+        }
+    }
+}
+@Composable
+fun ClickableMessageText(messageText: String) {
+    val context = LocalContext.current
+    val annotatedString = createAnnotatedString(messageText)
+    val defaultTextStyle = MaterialTheme.typography.bodyLarge.copy(
+        color = MaterialTheme.colorScheme.onBackground,
+        textDecoration = TextDecoration.None
+    )
+
+    ClickableText(
+        text = annotatedString,
+        style = defaultTextStyle,
+        onClick = { offset ->
+            // Check if the clicked position has a "URL" annotation
+            annotatedString.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { annotation ->
+                val url = if (annotation.item.startsWith("https")) {
+                    annotation.item
+                } else {
+                    "https://${annotation.item}" // Convert plain .com to a valid HTTPS URL
+                }
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                context.startActivity(Intent.createChooser(intent, "Open link with"))
+            }
+        }
+    )
+}
+@Composable
+fun createAnnotatedString(text: String): AnnotatedString {
+    val urlRegex = Regex("(https://[a-zA-Z0-9./?=_-]+|[a-zA-Z0-9_-]+\\.com)")
+    return buildAnnotatedString {
+        append(text)
+        val matches = urlRegex.findAll(text)
+        matches.forEach { match ->
+            val start = match.range.first
+            val end = match.range.last + 1
+
+            addStyle(
+                style = SpanStyle(
+                    color = MaterialTheme.colorScheme.secondary
+                ),
+                start = start,
+                end = end
+            )
+            addStringAnnotation(
+                tag = "URL",
+                annotation = match.value,
+                start = start,
+                end = end
             )
         }
     }
