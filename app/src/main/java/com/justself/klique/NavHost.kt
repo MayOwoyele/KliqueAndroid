@@ -59,6 +59,7 @@ fun NavigationHost(
 //        )
         ProfileRepository.clearProfileData()
     }
+    WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
     NavHost(
         navController = navController,
         startDestination = if (isLoggedIn) "home" else "login"

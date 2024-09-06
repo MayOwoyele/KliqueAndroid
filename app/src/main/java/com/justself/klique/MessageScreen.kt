@@ -367,9 +367,6 @@ fun CustomTopAppBar(
     viewModel: ChatScreenViewModel,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit
 ) {
-    LaunchedEffect(enemyId) {
-        viewModel.startPeriodicOnlineStatusCheck()
-    }
     val onlineStatuses by viewModel.onlineStatuses.collectAsState()
     val isOnline = onlineStatuses[enemyId] ?: false
     Surface(

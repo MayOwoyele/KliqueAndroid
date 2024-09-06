@@ -9,17 +9,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.UUID
 
 class ChatScreenViewModel(
     private val chatDao: ChatDao, private val personalChatDao: PersonalChatDao
-) : ViewModel() {
+) : ViewModel(), WebSocketListener {
+    override val listenerId: String = "ChatScreenViewModel"
+
     private val _chats = MutableStateFlow<List<ChatList>>(emptyList())
     val chats: StateFlow<List<ChatList>> get() = _chats
 
@@ -50,7 +55,58 @@ class ChatScreenViewModel(
     val isLoading: LiveData<Boolean> get() = _isLoading
 
     init {
-        // simulateOnlineStatusOscillation()
+        WebSocketManager.registerListener(this)
+    }
+    override fun onMessageReceived(type: String, jsonObject: JSONObject) {
+        when (type) {
+            "is_online" -> {
+                val userId = jsonObject.optString("user_id", "0").toIntOrNull()
+                val status = jsonObject.optString("status", "offline")
+                if (userId != null) {
+                    _onlineStatuses.update { currentStatuses ->
+                        currentStatuses.toMutableMap().apply {
+                            if (status == "online") {
+                                this[userId] = true
+                            } else {
+                                this.remove(userId)
+                            }
+                        }
+                    }
+                } else {
+                    println("Invalid user Id in json: $jsonObject")
+                }
+            }
+
+            "PMessage" -> {
+                // Extract fields from the JSON object
+                val messageId = jsonObject.optString("messageId", "")
+                val enemyId = jsonObject.optInt("enemyId", 0) // Parse as Int
+                val myId = jsonObject.optInt("myId", 0)       // Parse as Int
+                val content = jsonObject.optString("content", "")
+                val status = jsonObject.optString("status", "sent")
+                val messageType = jsonObject.optString("messageType", "text")
+                val timeStamp = System.currentTimeMillis()
+
+
+                // Create a PersonalChat object
+                val newMessage = PersonalChat(
+                    messageId = messageId,
+                    enemyId = enemyId,
+                    myId = myId,
+                    content = content,
+                    status = status,
+                    messageType = messageType,
+                    timeStamp = timeStamp.toString(),
+                )
+
+                // Call the function to handle the new message
+                handleIncomingPersonalMessage(newMessage)
+            }
+
+            else -> {
+                println("Unknown message type: $type")
+            }
+        }
     }
 
     fun setIsNewChat(isNew: Boolean) {
@@ -67,7 +123,7 @@ class ChatScreenViewModel(
     fun updateChat(chat: ChatList) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.updateChat(chat)
-            loadChats(myUserId.value!!)
+            loadChats(myUserId.value)
         }
     }
 
@@ -128,6 +184,7 @@ class ChatScreenViewModel(
     }
 
     fun enterChat(enemyId: Int) {
+        subscribeToOnlineStatus(enemyId)
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.resetUnreadMsgCounter(enemyId)
         }
@@ -149,6 +206,27 @@ class ChatScreenViewModel(
     fun clearSelection() {
         _selectedMessages.value = emptyList()
         _isSelectionMode.value = false
+    }
+    fun subscribeToOnlineStatus(enemyId: Int) {
+        // Send a WebSocket message to the server to subscribe to the online status of enemyId
+        val subscribeMessage = """
+            {
+                "type": "subscribeOnlineStatus",
+                "enemyId": $enemyId
+            }
+        """.trimIndent()
+        send(subscribeMessage)
+    }
+
+    private fun unsubscribeFromOnlineStatus(enemyId: Int) {
+        // Send a WebSocket message to the server to unsubscribe from the online status of enemyId
+        val unsubscribeMessage = """
+            {
+                "type": "unsubscribeOnlineStatus",
+                "enemyId": $enemyId
+            }
+        """.trimIndent()
+        send(unsubscribeMessage)
     }
 
     /*
@@ -191,6 +269,7 @@ class ChatScreenViewModel(
     }
      */
     fun leaveChat() {
+        currentChat.value?.let { unsubscribeFromOnlineStatus(it) }
         _currentChat.value = null
     }
 
@@ -217,14 +296,17 @@ class ChatScreenViewModel(
     // Remember to also implement a function to let the websocket know it has been delivered
     // The Media types will come in as binary. Implement a function to save to device using File Utils before storing Uri in db
     // Use Dispatcher.IO to do this
-    fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
+    private fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
         Log.d("Incoming", "newMessage is $newMessage")
         addAndProcessPersonalChat(newMessage)
         sendDeliveryAcknowledgment(newMessage.messageId)
     }
 
     private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
+        //this is to fish out the person who's not you,
+        //as the other participant can be "myId" sometimes
         val enemyId = if (newMessage.myId == myUserId.value) newMessage.enemyId else newMessage.myId
+
         val lastMsg = when (newMessage.messageType) {
             "PImage" -> "Photo"
             "PVideo" -> "Video"
@@ -328,6 +410,29 @@ class ChatScreenViewModel(
             chatDao.updateProfile(enemyId, contactName, profilePhoto, isVerified)
         }
     }
+    fun retryPendingMessages() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val pendingMessages = personalChatDao.getMessagesByStatus("pending")
+            pendingMessages.forEach { message ->
+                retryMessage(message)
+            }
+        }
+    }
+    private suspend fun retryMessage(message: PersonalChat) {
+        withContext(Dispatchers.IO) {
+            val messageJson = """
+                {
+                    "type": "${message.messageType}",
+                    "enemyId": "${message.enemyId}",
+                    "content": "${message.content.replace("\"", "\\\"")}",
+                    "messageId": "${message.messageId}",
+                    "myId": "${message.myId}"
+                }
+            """.trimIndent()
+            WebSocketManager.send(messageJson)
+            // Optionally update status to "sent" if acknowledged by the server
+        }
+    }
 
     fun sendBinary(
         data: ByteArray,
@@ -338,9 +443,13 @@ class ChatScreenViewModel(
         fullName: String,
         context: Context
     ) {
-        val prefix = "$type:$enemyId:$messageId:$myId:$fullName".padEnd(50)
+        val prefix = "$type:$enemyId:$messageId:$myId:$fullName"
         val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
-        val message = prefixBytes + data
+        val outputStream = ByteArrayOutputStream()
+        outputStream.write(ByteBuffer.allocate(4).putInt(prefixBytes.size).array())
+        outputStream.write(prefixBytes)
+        outputStream.write(data)
+        val message = outputStream.toByteArray()
         WebSocketManager.sendBinary(message)
         val mediaUri = when (type) {
             "PImage" -> FileUtils.saveImage(context, data)
@@ -365,29 +474,8 @@ class ChatScreenViewModel(
         )
     }
 
-    fun startPeriodicOnlineStatusCheck() {
-        viewModelScope.launch {
-            while (true) {
-                val relevantIds = fetchRelevantIds()
-                informServerOfOnlineStatusRequest(relevantIds)
-                delay(20000) // Wait for 20 seconds before fetching again
-            }
-        }
-    }
-
     suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
-    }
-
-    private fun informServerOfOnlineStatusRequest(relevantIds: List<Int>) {
-        val idsJsonArray = relevantIds.joinToString(prefix = "[", postfix = "]") { it.toString() }
-        val jsonString = """
-        {
-            "type": "requestOnlineStatus",
-            "ids": $idsJsonArray
-        }
-    """.trimIndent()
-        send(jsonString)
     }
 
     // This simulation should be replaced by the onMessage logic from the websocket

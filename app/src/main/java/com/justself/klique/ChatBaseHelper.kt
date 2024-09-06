@@ -85,6 +85,9 @@ interface PersonalChatDao {
 
     @Query("SELECT * from personalChats WHERE myId = :myId AND enemyId = :enemyId")
     suspend fun getPersonalChatsByEnemyId(myId: Int, enemyId: Int): List<PersonalChat>
+
+    @Query("SELECT * FROM personalChats WHERE status = :status")
+    suspend fun getMessagesByStatus(status: String): List<PersonalChat>
 }
 @Database(entities = [PersonalChat::class], version = 1)
 abstract class PersonalChatDatabase : RoomDatabase() {

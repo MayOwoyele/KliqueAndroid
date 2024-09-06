@@ -32,7 +32,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.util.Locale
 import java.util.UUID
 import kotlin.random.Random
@@ -262,10 +264,17 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         customerId: Int = 0,
         fullName: String = ""
     ) {
-        val prefix = "$type:$gistId:$messageId:$customerId:$fullName".padEnd(50)
-        val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
-        val message = prefixBytes + data
-        WebSocketManager.sendBinary(message)
+        val metadata = "$type:$gistId:$messageId:$customerId:$fullName"
+        val metadataBytes = metadata.toByteArray(Charsets.UTF_8)
+
+        val outputStream = ByteArrayOutputStream()
+        outputStream.write(ByteBuffer.allocate(4).putInt(metadataBytes.size).array())
+        outputStream.write(metadataBytes)
+        outputStream.write(data)
+
+        val combinedBytes = outputStream.toByteArray()
+        WebSocketManager.sendBinary(combinedBytes)
+
         Log.d(
             "sendBinaryInputs",
             "Data: ${data.size}, Type: $type, GistId: $gistId, MessageId: $messageId, CustomerId: $customerId, FullName: $fullName"
@@ -332,9 +341,6 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     }
 
     // Additional ViewModel-specific logic
-    fun connect(url: String, customerId: Int, fullName: String) {
-        WebSocketManager.connect(url, customerId, fullName)
-    }
 
     fun send(message: String) {
         WebSocketManager.send(message)

@@ -25,6 +25,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.draw.alpha
@@ -79,7 +81,7 @@ fun RegistrationScreen(
                 RegistrationStep.NAME -> NameScreen(authViewModel)
                 RegistrationStep.GENDER -> GenderScreen(authViewModel)
                 RegistrationStep.YEAR_OF_BIRTH -> YearOfBirthScreen(authViewModel)
-                RegistrationStep.COMPLETE -> RegistrationCompleteScreen()
+                RegistrationStep.COMPLETE -> RegistrationCompleteScreen(authViewModel)
             }
         }
     }
@@ -91,6 +93,7 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
     var selectedCountry by remember { mutableStateOf("GB") }
     val countryCode = remember(selectedCountry) { getCountryCodeForRegion(selectedCountry) }
     val phoneUtil = remember { PhoneNumberUtil.getInstance() }
+    val errorMessage by authViewModel.errorMessage.collectAsState()
 
     Column(modifier = Modifier.padding(16.dp)) {
         // Display Country Name
@@ -120,7 +123,24 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                    unfocusedContainerColor = MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                    focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
+            )
+        }
+        if (errorMessage.isNotEmpty()){
+            Text(
+                text = errorMessage,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
@@ -130,11 +150,11 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
         Button(
             onClick = {
                 if (isValidPhoneNumber(phoneNumber, selectedCountry, phoneUtil)) {
-                    authViewModel.moveToNextStep()
+                    authViewModel.verifyPhoneNumber("+$countryCode$phoneNumber")
                 }
             },
             enabled = phoneNumber.isNotEmpty() && isValidPhoneNumber(
-                phoneNumber,
+                "+$countryCode$phoneNumber",
                 selectedCountry,
                 phoneUtil
             )
@@ -204,6 +224,9 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
             .fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        LaunchedEffect(Unit) {
+            authViewModel.setErrorMessageToNull()
+        }
         Text(
             text = "Enter the confirmation code sent to your phone",
             style = MaterialTheme.typography.bodyLarge,
@@ -289,6 +312,10 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
 fun NameScreen(authViewModel: AuthViewModel) {
     var name by remember { mutableStateOf("") }
     val isNameValid = remember(name) { name.length in 2..30 }
+    val errorMessage by authViewModel.errorMessage.collectAsState()
+    LaunchedEffect(Unit){
+        authViewModel.setErrorMessageToNull()
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text(
@@ -316,7 +343,7 @@ fun NameScreen(authViewModel: AuthViewModel) {
         Button(
             onClick = {
                 if (isNameValid) {
-                    authViewModel.moveToNextStep()
+                    authViewModel.verifyName(name)
                 }
             },
             enabled = isNameValid // Button enabled only if name is valid
@@ -327,8 +354,16 @@ fun NameScreen(authViewModel: AuthViewModel) {
         if (!isNameValid && name.isNotEmpty()) {
             Text(
                 text = "Name must be between 2 and 30 characters.",
-                color = MaterialTheme.colorScheme.error,
+                color = Color.Red,
                 style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (errorMessage.isNotEmpty()) {
+            Text(
+                text = errorMessage,
+                color = Color.Red,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
         }
     }
@@ -337,6 +372,9 @@ fun NameScreen(authViewModel: AuthViewModel) {
 @Composable
 fun GenderScreen(authViewModel: AuthViewModel) {
     var gender by remember { mutableStateOf("") }
+    LaunchedEffect(Unit){
+        authViewModel.setErrorMessageToNull()
+    }
 
     Column {
         // Radio Buttons for Gender Selection
@@ -363,7 +401,7 @@ fun GenderScreen(authViewModel: AuthViewModel) {
         Button(
             onClick = {
                 if (gender.isNotBlank()) {
-                    authViewModel.moveToNextStep()
+                    authViewModel.verifyGender(gender)
                 }
             },
             enabled = gender.isNotEmpty()
@@ -391,7 +429,6 @@ fun StyledRadioButton(selected: Boolean, onClick: () -> Unit, label: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun YearOfBirthScreen(authViewModel: AuthViewModel) {
     var showDatePicker by remember { mutableStateOf(false) }
@@ -399,7 +436,10 @@ fun YearOfBirthScreen(authViewModel: AuthViewModel) {
     var selectedDay by remember { mutableStateOf(0) }
     var selectedMonth by remember { mutableStateOf(0) }
     var selectedYear by remember { mutableStateOf(0) }
-    val context = LocalContext.current
+    val errorMessage by authViewModel.errorMessage.collectAsState()
+    LaunchedEffect(Unit) {
+        authViewModel.setErrorMessageToNull()
+    }
 
     Column(
         modifier = Modifier
@@ -418,13 +458,21 @@ fun YearOfBirthScreen(authViewModel: AuthViewModel) {
                 .clip(RoundedCornerShape(12.dp))
                 .fillMaxWidth()
         )
+        if(errorMessage.isNotEmpty()) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.background,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
         Spacer(Modifier.height(16.dp))
 
         Button(
             onClick = {
                 if (selectedDate.isNotEmpty()) {
-                    authViewModel.moveToNextStep()
+                    authViewModel.verifyBirthday(selectedDay, selectedMonth, selectedYear)
                 }
             },
             enabled = selectedDate.isNotEmpty(),
@@ -491,5 +539,13 @@ fun DatePickerDialogSample(
 }
 
 @Composable
-fun RegistrationCompleteScreen() {
+fun RegistrationCompleteScreen(authViewModel: AuthViewModel) {
+    Button(
+        onClick = {
+            // Trigger navigation to the app's main screen
+            authViewModel.completeRegistration()
+        }
+    ) {
+        Text("Continue")
+    }
 }

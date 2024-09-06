@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.UUID
 
 data class DmMessage(
@@ -64,7 +65,7 @@ class DmRoomViewModel : ViewModel() {
         val metadataBytes = metadata.toByteArray(Charsets.UTF_8)
 
         val outputStream = ByteArrayOutputStream()
-        outputStream.write(metadataBytes.size)
+        outputStream.write(ByteBuffer.allocate(4).putInt(metadataBytes.size).array())
         outputStream.write(metadataBytes)
         outputStream.write(image)
 

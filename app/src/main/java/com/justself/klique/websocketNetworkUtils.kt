@@ -1,14 +1,20 @@
 // File: WebSocketManager.kt
 package com.justself.klique
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okio.ByteString
+import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
+import org.java_websocket.framing.Framedata
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONException
 import org.json.JSONObject
@@ -35,6 +41,18 @@ object WebSocketManager {
     }
 
     private val listeners = mutableMapOf<String, WebSocketListener>()
+    private var isConnected = false
+    private var reconnectionAttempts = 0
+    private const val MAX_RECONNECT_ATTEMPTS = 20
+    private const val RECONNECT_DELAY = 3000L
+    private var shouldReconnect = true
+    private var customerId: Int = 0
+    private var fullName: String = ""
+
+    private val pingInterval = 5000L
+    private val pongTimeout = 7000L
+    private var lastPongTime = System.currentTimeMillis()
+    private var chatScreenViewModel: ChatScreenViewModel? = null
 
     fun registerListener(listener: WebSocketListener) {
         listeners[listener.listenerId] = listener
@@ -43,11 +61,46 @@ object WebSocketManager {
     fun unregisterListener(listener: WebSocketListener) {
         listeners.remove(listener.listenerId)
     }
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            if (!isConnected) {
+                shouldReconnect = true
+                reconnectionAttempts = 0
+                connect(webSocketClient!!.uri.toString(), customerId, fullName)
+            }
+        }
+    }
+
+    fun registerNetworkCallback(context: Context) {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager.registerDefaultNetworkCallback(networkCallback)
+    }
+
+    fun unregisterNetworkCallback(context: Context) {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager.unregisterNetworkCallback(networkCallback)
+    }
 
     private fun createWebSocketClient(url: URI): WebSocketClient {
         return object : WebSocketClient(url) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 println("WebSocket connected!")
+                isConnected = true
+                reconnectionAttempts = 0
+                startPingPong()
+                CoroutineScope(Dispatchers.IO).launch {
+                    delay(1000)  // 1 second delay
+                    chatScreenViewModel?.retryPendingMessages()
+                    chatScreenViewModel?.currentChat?.value?.let { enemyId ->
+                        chatScreenViewModel?.subscribeToOnlineStatus(enemyId)
+                    }
+                }
+            }
+
+            override fun onWebsocketPong(conn: WebSocket?, f: Framedata?) {
+                super.onWebsocketPong(conn, f)
+                lastPongTime = System.currentTimeMillis()
+                println("Received Pong")
             }
 
             override fun onMessage(message: String) {
@@ -99,10 +152,17 @@ object WebSocketManager {
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
                 println("WebSocket closed: Reason - $reason")
+                isConnected = false
+                if (shouldReconnect) {
+                    scheduleReconnect()
+                }
             }
 
             override fun onError(ex: Exception) {
                 println("WebSocket error: ${ex.message}")
+                if (shouldReconnect){
+                    scheduleReconnect()
+                }
             }
         }.apply {
             if (url.scheme.equals("wss")) {
@@ -113,11 +173,62 @@ object WebSocketManager {
 
     fun connect(url: String, customerId: Int, fullName: String) {
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
-        val uri = URI("$url?customerId=$customerId&fullName=$encodedFullName")
+
+        // Use URI and URL constructors to build the URL properly
+        val uri = URI.create(url).resolve("?customer_id=$customerId&full_name=$encodedFullName")
+
+        this.customerId = customerId
+        this.fullName = fullName
 
         Log.i("WebSocketManager", "Connecting to URI: $uri")
         webSocketClient = createWebSocketClient(uri).apply {
             connect()
+        }
+    }
+    fun setChatScreenViewModel(viewModel: ChatScreenViewModel) {
+        chatScreenViewModel = viewModel
+    }
+    private fun scheduleReconnect() {
+        if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectionAttempts++
+            println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
+            CoroutineScope(Dispatchers.IO).launch {
+                delay(RECONNECT_DELAY * reconnectionAttempts)
+                if (!isConnected) {
+                    connect(webSocketClient!!.uri.toString(), customerId, fullName)
+                }
+            }
+        } else {
+            println("Max reconnection attempts reached. Maintaining steady reconnect interval.")
+            CoroutineScope(Dispatchers.IO).launch {
+                while (!isConnected && shouldReconnect) {
+                    delay(RECONNECT_DELAY * MAX_RECONNECT_ATTEMPTS) // Set to a steady delay interval
+                    println("Attempting to reconnect at a steady interval...")
+                    connect(webSocketClient!!.uri.toString(), customerId, fullName)
+                }
+            }
+        }
+    }
+    private fun startPingPong() {
+        CoroutineScope(Dispatchers.IO).launch {
+            while (isConnected) {
+                try {
+                    Log.d("Websocket", "Sending Ping")
+                    webSocketClient?.sendPing()
+                    delay(pingInterval)
+
+                    if (System.currentTimeMillis() - lastPongTime > pongTimeout) {
+                        println("Pong timeout. Reconnecting...")
+                        isConnected = false
+                        webSocketClient?.close()
+                        scheduleReconnect()
+                    }
+                } catch (e: Exception) {
+                    println("Error during ping-pong: ${e.message}")
+                    isConnected = false
+                    scheduleReconnect()
+                }
+            }
         }
     }
 
@@ -177,6 +288,7 @@ object WebSocketManager {
     private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
         val listenerId = when (type) {
             "gistCreated", "previousMessages", "message", "messageAck" -> "SharedCliqueViewModel"
+            "is_online", "PMessage" -> "ChatScreenViewModel"
             else -> targetId
         }
 

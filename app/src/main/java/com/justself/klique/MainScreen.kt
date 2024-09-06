@@ -53,6 +53,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -360,6 +361,13 @@ fun MainContent(
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
             WebSocketManager.connect(webSocketUrl, customerId, fullName)
+            WebSocketManager.registerNetworkCallback(context)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            WebSocketManager.unregisterNetworkCallback(context)
+            WebSocketManager.close()
         }
     }
     Log.d(

@@ -30,8 +30,8 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
             // Define test URLs for debug build
-            resValue("string", "base_url", "https://test.example.com/")
-            resValue("string", "websocket_url", "ws://test.example.com/")
+            resValue("string", "base_url", "https://192.168.0.77:8080/")
+            resValue("string", "websocket_url", "ws://192.168.0.77:3030/")
         }
         release {
             isMinifyEnabled = false
@@ -40,8 +40,8 @@ android {
                 "proguard-rules.pro"
             )
             // Define real URLs for release build
-            resValue("string", "base_url", "https://192.168.0.181:3000/")
-            resValue("string", "websocket_url", "ws://192.168.0.181:8080")
+            resValue("string", "base_url", "https://192.168.0.77:3000/")
+            resValue("string", "websocket_url", "ws://192.168.0.77:8080")
         }
     }
     compileOptions {

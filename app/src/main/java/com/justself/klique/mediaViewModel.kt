@@ -19,8 +19,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.nio.ByteBuffer
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
     private val _bitmap = MutableLiveData<Bitmap?>()
@@ -130,8 +132,13 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             videoBytes?.let {
                 val type = "statusVideo"
                 val typeBytes = type.toByteArray(Charsets.UTF_8)
-                val separator = ":".toByteArray(Charsets.UTF_8)
-                val message = typeBytes + separator + it
+
+                val outputStream = ByteArrayOutputStream()
+                outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
+                outputStream.write(typeBytes)
+                outputStream.write(it)
+
+                val message = outputStream.toByteArray()
                 WebSocketManager.sendBinary(message)
             }
         }
@@ -140,17 +147,20 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun uploadCroppedImage(context: Context, bitmap: Bitmap) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val byteArray =
-                    ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
+                val byteArray = ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
                 val type = "statusImage"
                 val typeBytes = type.toByteArray(Charsets.UTF_8)
-                val separator = ":".toByteArray(Charsets.UTF_8)
-                val binaryImageToUpload = typeBytes + separator + byteArray
+
+                val outputStream = ByteArrayOutputStream()
+                outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
+                outputStream.write(typeBytes)
+                outputStream.write(byteArray)
+
+                val binaryImageToUpload = outputStream.toByteArray()
                 WebSocketManager.sendBinary(binaryImageToUpload)
             } catch (e: IOException) {
                 Log.e("UploadError", "Failed to upload image", e)
                 withContext(Dispatchers.Main) {
-                    // Show a Snackbar or Toast to notify the user
                     Toast.makeText(
                         context, "Failed to upload image. Please try again.", Toast.LENGTH_LONG
                     ).show()
@@ -163,11 +173,18 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val byteArray = FileUtils.loadFileAsByteArray(context, uri)
-                val type = "statusAudioFile"
-                val typeBytes = type.toByteArray(Charsets.UTF_8)
-                val separator = ":".toByteArray(Charsets.UTF_8)
-                val binaryAudioToUpload = typeBytes + separator + byteArray!!
-                WebSocketManager.sendBinary(binaryAudioToUpload)
+                if (byteArray != null) {
+                    val type = "statusAudioFile"
+                    val typeBytes = type.toByteArray(Charsets.UTF_8)
+
+                    val outputStream = ByteArrayOutputStream()
+                    outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
+                    outputStream.write(typeBytes)
+                    outputStream.write(byteArray)
+
+                    val binaryAudioToUpload = outputStream.toByteArray()
+                    WebSocketManager.sendBinary(binaryAudioToUpload)
+                }
             } catch (e: IOException) {
                 Log.e("UploadError", "Failed to upload audio file", e)
                 withContext(Dispatchers.Main) {

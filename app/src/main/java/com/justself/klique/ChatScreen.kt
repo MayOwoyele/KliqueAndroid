@@ -102,9 +102,6 @@ fun ChatListScreen(
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        viewModel.startPeriodicOnlineStatusCheck()
-    }
-    LaunchedEffect(Unit) {
         viewModel.loadChats(customerId)
         viewModel.setMyUserId(customerId)
         viewModel.fetchNewMessagesFromServer()

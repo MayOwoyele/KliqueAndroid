@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.ByteArrayOutputStream
+import java.nio.ByteBuffer
 import java.util.UUID
 data class ChatRoomMessage(
     val messageId: String,
@@ -81,7 +82,7 @@ class ChatRoomViewModel : ViewModel() {
 
         // Combine metadata and image bytes
         val outputStream = ByteArrayOutputStream()
-        outputStream.write(metadataBytes.size) // Store metadata size
+        outputStream.write(ByteBuffer.allocate(4).putInt(metadataBytes.size).array()) // Store metadata size
         outputStream.write(metadataBytes)
         outputStream.write(image)
 
