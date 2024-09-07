@@ -625,7 +625,12 @@ fun MessageScreenContent(
                                         detectTapGestures(onLongPress = { onLongPressLambda() },
                                             onTap = { onTapLambda() })
                                     }) {
-                                    ClickableMessageText(message.content)
+                                    ClickableMessageText(
+                                        message.content,
+                                        isSelectionMode,
+                                        onLongPressLambda,
+                                        onTapLambda
+                                    )
                                 }
                             }
                         }

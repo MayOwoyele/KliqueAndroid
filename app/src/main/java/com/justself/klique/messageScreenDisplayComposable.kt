@@ -44,6 +44,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -242,7 +243,12 @@ fun DisplayGistInvite(
     }
 }
 @Composable
-fun ClickableMessageText(messageText: String) {
+fun ClickableMessageText(
+    messageText: String,
+    isSelectionMode: Boolean,
+    onLongPressLambda: () -> Unit,
+    onTapLambda: () -> Unit
+) {
     val context = LocalContext.current
     val annotatedString = createAnnotatedString(messageText)
     val defaultTextStyle = MaterialTheme.typography.bodyLarge.copy(
@@ -250,21 +256,44 @@ fun ClickableMessageText(messageText: String) {
         textDecoration = TextDecoration.None
     )
 
-    ClickableText(
+    var layoutResult: TextLayoutResult? = remember { null }
+
+    Text(
         text = annotatedString,
         style = defaultTextStyle,
-        onClick = { offset ->
-            // Check if the clicked position has a "URL" annotation
-            annotatedString.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { annotation ->
-                val url = if (annotation.item.startsWith("https")) {
-                    annotation.item
-                } else {
-                    "https://${annotation.item}" // Convert plain .com to a valid HTTPS URL
+        modifier = Modifier.pointerInput(Unit) {
+            detectTapGestures(
+                onLongPress = {
+                    // Trigger long press (selection mode)
+                    onLongPressLambda()
+                    Log.d("Websocket", "Long press detected")
+                },
+                onTap = { offset ->
+                    layoutResult?.let { textLayoutResult ->
+                        // Convert the Offset (tap position) to a character index
+                        val position = textLayoutResult.getOffsetForPosition(offset)
+                        if (isSelectionMode) {
+                            onTapLambda()
+                        } else {
+                            annotatedString.getStringAnnotations("URL", position, position)
+                                .firstOrNull()?.let { annotation ->
+                                    val url = if (annotation.item.startsWith("https")) {
+                                        annotation.item
+                                    } else {
+                                        "https://${annotation.item}" // Ensure valid HTTPS URL
+                                    }
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                    context.startActivity(Intent.createChooser(intent, "Open link with"))
+                                } ?: run {
+                                // Handle non-URL tap
+                                onTapLambda()
+                            }
+                        }
+                    }
                 }
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                context.startActivity(Intent.createChooser(intent, "Open link with"))
-            }
-        }
+            )
+        },
+        onTextLayout = { layoutResult = it } // Capture the TextLayoutResult
     )
 }
 @Composable

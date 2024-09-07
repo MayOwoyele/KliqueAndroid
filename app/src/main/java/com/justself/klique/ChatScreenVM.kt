@@ -78,6 +78,7 @@ class ChatScreenViewModel(
             }
 
             "PMessage" -> {
+                Log.d("Websocket", "PMessage Function called")
                 // Extract fields from the JSON object
                 val messageId = jsonObject.optString("messageId", "")
                 val enemyId = jsonObject.optInt("enemyId", 0) // Parse as Int
@@ -100,6 +101,7 @@ class ChatScreenViewModel(
                 )
 
                 // Call the function to handle the new message
+                Log.d("Websocket", "handleIncoming Function called with $newMessage")
                 handleIncomingPersonalMessage(newMessage)
             }
 
@@ -320,8 +322,13 @@ class ChatScreenViewModel(
             if (_currentChat.value != enemyId) {
                 incrementUnreadMsgCounter(enemyId)
             } else {
+                Log.d("Websocket", "$newMessage")
                 val updatedList = _personalChats.value?.toMutableList()?.apply {
-                    add(newMessage)
+                    if (none { it.messageId == newMessage.messageId }) {
+                        add(newMessage)
+                    } else {
+                        Log.d("Websocket", "Message with messageId ${newMessage.messageId} already exists. Skipping addition.")
+                    }
                 }
                 _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData
             }
