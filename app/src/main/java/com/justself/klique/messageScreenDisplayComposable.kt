@@ -64,12 +64,6 @@ fun DisplayImage(
     isSelectionMode: Boolean,
     onTapLambda: () -> Unit
 ) {
-    LaunchedEffect(key1 = isSelectionMode) {
-        while (true) {
-            Log.d("isSelectionMode", "isSelectionModeImageLogger: $isSelectionMode")
-            delay(3000) // Log every 3 seconds
-        }
-    }
     mediaUri?.let {
         val context = LocalContext.current
         var bitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -84,12 +78,6 @@ fun DisplayImage(
                     )
                 )
                 bitmap = decodedBitmap
-            }
-        }
-        LaunchedEffect(key1 = isSelectionMode) {
-            while (true) {
-                Log.d("isSelectionMode", "isSelectionModeImageLogger if Uri: $isSelectionMode")
-                delay(3000) // Log every 3 seconds
             }
         }
 

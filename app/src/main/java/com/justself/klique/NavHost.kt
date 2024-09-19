@@ -29,24 +29,24 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 fun NavigationHost(
     navController: NavHostController,
     isLoggedIn: Boolean,
-    productViewModel: ProductViewModel,
     customerId: Int,
     fullName: String,
-    commentViewModel: CommentsViewModel,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     selectedEmoji: String,
     showEmojiPicker: Boolean,
     application: Application,
     sharedCliqueViewModel: SharedCliqueViewModel,
     resetSelectedEmoji: () -> Unit,
+    onDisplayTextChange: (String, Int) -> Unit,
     emojiPickerHeight: (Dp) -> Unit
 ) {
     val profileUpdateData by ProfileRepository.profileUpdateData.observeAsState()
     val chatDao = remember { DatabaseProvider.getChatListDatabase(application).chatDao() }
     val personalChatDao =
         remember { DatabaseProvider.getPersonalChatDatabase(application).personalChatDao() }
+    val context = LocalContext.current.applicationContext as Application
     val viewModelFactory =
-        remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao) }
+        remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao, application = context) }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
     val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
     profileUpdateData?.let {
@@ -85,35 +85,12 @@ fun NavigationHost(
                 resetSelectedEmoji,
                 mediaViewModel,
                 emojiPickerHeight,
-                chatScreenViewModel
+                chatScreenViewModel,
+                onDisplayTextChange
             )
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("product/{productId}") { backStackEntry ->
-            val productId = backStackEntry.arguments?.getString("productId")?.toIntOrNull()
-                ?: throw IllegalStateException("Product must be provided")
-            ProductCommentsScreen(productId, commentViewModel, navController, customerId)
-        }
-        composable("marketProduct/{marketId}/{encodedMarketName}") { backStackEntry ->
-            val marketId = backStackEntry.arguments?.getString("marketId")?.toIntOrNull()
-                ?: throw IllegalStateException("Market Id must be provided")
-            val encodedMarketName =
-                backStackEntry.arguments?.getString("encodedMarketName")?.let { Uri.decode(it) }
-                    ?: throw IllegalStateException("Market Name must be provided")
-            MarketProductsScreen(
-                productViewModel,
-                navController,
-                customerId,
-                marketId,
-                encodedMarketName
-            )
-        }
-        composable("shop_details/{shopId}") { backStackEntry ->
-            val shopId = backStackEntry.arguments?.getString("shopId")?.toIntOrNull()
-                ?: throw IllegalStateException("Shop ID must be provided")
-            ShopOwnerScreen(shopId, navController, productViewModel)
-        }
         composable("dmScreen/{ownerId}/{shopName}") { backStackEntry ->
             val ownerId = backStackEntry.arguments?.getString("ownerId")?.toIntOrNull()
                 ?: throw IllegalStateException("Owner ID must be provided")

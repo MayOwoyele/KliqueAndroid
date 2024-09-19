@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
         NetworkUtils.initialize(this)
+        WebSocketManager.initialize(this)
         enableEdgeToEdge()
         val config: Config = BundledEmojiCompatConfig(this)
         EmojiCompat.init(config)

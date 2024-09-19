@@ -15,6 +15,7 @@ import android.util.Log
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import java.io.*
+import java.io.File
 
 object FileUtils {
 
@@ -64,9 +65,28 @@ object FileUtils {
     fun fileToByteArray(file: File): ByteArray {
         return file.readBytes()
     }
-    fun saveToInternalStorage(context: Context, data: ByteArray, fileName: String, subdirectory: String): Uri? {
+    fun saveMedia(
+        context: Context,
+        data: ByteArray,
+        mediaType: MediaType,  // Now we use MediaType enum
+        toPublic: Boolean = false
+    ): Uri? {
+        val fileName = mediaType.generateFileName()
+
+        return if (toPublic) {
+            saveToPublicDirectory(context, data, fileName, mediaType)
+        } else {
+            saveToInternalStorage(context, data, fileName, mediaType)
+        }
+    }
+    fun saveToInternalStorage(
+        context: Context,
+        data: ByteArray,
+        fileName: String,
+        mediaType: MediaType
+    ): Uri? {
         return try {
-            val directory = File(context.filesDir, subdirectory)
+            val directory = File(context.filesDir, mediaType.type)
             if (!directory.exists()) {
                 directory.mkdirs()
             }
@@ -81,59 +101,89 @@ object FileUtils {
     fun saveImage(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
         val fileName = "kliqueImage_${System.currentTimeMillis()}.jpg"
         return if (toPublic) {
-            saveToPublicDirectory(context, data, fileName, "klique images")
+            saveToPublicDirectory(context, data, fileName, MediaType.IMAGE)
         } else {
-            saveToInternalStorage(context, data, fileName, "images")
+            saveToInternalStorage(context, data, fileName, MediaType.IMAGE)
         }
     }
 
     fun saveVideo(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
         val fileName = "kliqueVideo_${System.currentTimeMillis()}.mp4"
         return if (toPublic) {
-            saveToPublicDirectory(context, data, fileName, "klique videos")
+            saveToPublicDirectory(context, data, fileName, MediaType.VIDEO)
         } else {
-            saveToInternalStorage(context, data, fileName, "videos")
+            saveToInternalStorage(context, data, fileName, MediaType.VIDEO)
         }
     }
 
     fun saveAudio(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
         val fileName = "kliqueAudio_${System.currentTimeMillis()}.mp3"
         return if (toPublic) {
-            saveToPublicDirectory(context, data, fileName, "klique audio")
+            saveToPublicDirectory(context, data, fileName, MediaType.AUDIO)
         } else {
-            saveToInternalStorage(context, data, fileName, "audio")
+            saveToInternalStorage(context, data, fileName, MediaType.AUDIO)
         }
     }
-    fun saveToPublicDirectory(context: Context, data: ByteArray, fileName: String, subdirectory: String): Uri? {
+    fun saveToPublicDirectory(
+        context: Context,
+        data: ByteArray,
+        fileName: String,
+        mediaType: MediaType
+    ): Uri? {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Use MediaStore for Android 10 (Q) and above
-            saveToPublicDirectoryQAndAbove(context, data, fileName, subdirectory)
+            saveToPublicDirectoryQAndAbove(context, data, fileName, mediaType)
         } else {
-            // Use traditional method for Android 9 (Pie) and below
-            saveToPublicDirectoryLegacy(context, data, fileName, subdirectory)
+            saveToPublicDirectoryLegacy(context, data, fileName, mediaType)
+        }
+    }
+
+    fun getContentUri(mediaType: String): Uri {
+        return when (mediaType) {
+            "image" -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            "video" -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            "audio" -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            else -> MediaStore.Files.getContentUri("external")
+        }
+    }
+    fun getPublicDirectory(mediaType: String): String {
+        return when (mediaType) {
+            "image" -> Environment.DIRECTORY_PICTURES + File.separator + "klique images"
+            "video" -> Environment.DIRECTORY_MOVIES + File.separator + "klique videos"
+            "audio" -> Environment.DIRECTORY_MUSIC + File.separator + "klique audio"
+            else -> Environment.DIRECTORY_DOWNLOADS
         }
     }
 
     @TargetApi(Build.VERSION_CODES.Q)
-    fun saveToPublicDirectoryQAndAbove(context: Context, data: ByteArray, fileName: String, subdirectory: String): Uri? {
+    fun saveToPublicDirectoryQAndAbove(
+        context: Context,
+        data: ByteArray,
+        fileName: String,
+        mediaType: MediaType
+    ): Uri? {
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
             put(MediaStore.MediaColumns.MIME_TYPE, getMimeType(fileName))
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + File.separator + subdirectory)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, mediaType.getPublicDirectory())
         }
 
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-        return uri?.also {
-            resolver.openOutputStream(it)?.use { outputStream ->
+        val contentUri = mediaType.getContentUri()
+        return resolver.insert(contentUri, contentValues)?.also { uri ->
+            resolver.openOutputStream(uri)?.use { outputStream ->
                 outputStream.write(data)
             }
         }
     }
 
-    fun saveToPublicDirectoryLegacy(context: Context, data: ByteArray, fileName: String, subdirectory: String): Uri? {
+    fun saveToPublicDirectoryLegacy(
+        context: Context,
+        data: ByteArray,
+        fileName: String,
+        mediaType: MediaType
+    ): Uri? {
         return try {
-            val directory = Environment.getExternalStoragePublicDirectory(subdirectory)
+            val directory = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), mediaType.getPublicDirectory())
             if (!directory.exists()) {
                 directory.mkdirs()
             }
@@ -158,7 +208,7 @@ object FileUtils {
         }
     }
 
-    fun getMimeType(fileName: String): String {
+    private fun getMimeType(fileName: String): String {
         val extension = fileName.substringAfterLast('.', "")
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
     }
@@ -166,5 +216,37 @@ object FileUtils {
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
         return outputStream.toByteArray()
+    }
+}
+enum class MediaType(val type: String) {
+    IMAGE("image"),
+    VIDEO("video"),
+    AUDIO("audio");
+
+    // Helper to get the correct public directory based on the media type
+    fun getPublicDirectory(): String {
+        return when (this) {
+            IMAGE -> Environment.DIRECTORY_PICTURES + File.separator + "klique images"
+            VIDEO -> Environment.DIRECTORY_MOVIES + File.separator + "klique videos"
+            AUDIO -> Environment.DIRECTORY_MUSIC + File.separator + "klique audio"
+        }
+    }
+
+    // Helper to get the correct content URI for MediaStore
+    fun getContentUri(): Uri {
+        return when (this) {
+            IMAGE -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            VIDEO -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            AUDIO -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+        }
+    }
+
+    // Helper to generate the correct file extension based on the media type
+    fun generateFileName(): String {
+        return when (this) {
+            IMAGE -> "kliqueImage_${System.currentTimeMillis()}.jpg"
+            VIDEO -> "kliqueVideo_${System.currentTimeMillis()}.mp4"
+            AUDIO -> "kliqueAudio_${System.currentTimeMillis()}.mp3"
+        }
     }
 }

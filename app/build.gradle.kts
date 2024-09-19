@@ -30,7 +30,7 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
             // Define test URLs for debug build
-            resValue("string", "base_url", "https://192.168.0.77:8080/")
+            resValue("string", "base_url", "http://192.168.0.77:8081/")
             resValue("string", "websocket_url", "ws://192.168.0.77:3030/")
         }
         release {

@@ -66,7 +66,7 @@ data class PersonalChat(
     val timeStamp: String,
     val mediaUri: String? = null,
     val gistId: String? = null,
-    val topic: String? = null// Nullable BinaryArray for non-text messages
+    val topic: String? = null
 )
 @Dao
 interface PersonalChatDao {
@@ -88,6 +88,9 @@ interface PersonalChatDao {
 
     @Query("SELECT * FROM personalChats WHERE status = :status")
     suspend fun getMessagesByStatus(status: String): List<PersonalChat>
+
+    @Query("UPDATE personalChats SET status = :newStatus WHERE messageId = :messageId")
+    suspend fun updateStatus(messageId: String, newStatus: String)
 }
 @Database(entities = [PersonalChat::class], version = 1)
 abstract class PersonalChatDatabase : RoomDatabase() {

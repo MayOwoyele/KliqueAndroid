@@ -83,7 +83,8 @@ fun HomeScreen(
     resetSelectedEmoji: () -> Unit,
     mediaViewModel: MediaViewModel,
     emojiPickerHeight: (Dp) -> Unit,
-    chatScreenViewModel: ChatScreenViewModel
+    chatScreenViewModel: ChatScreenViewModel,
+    onDisplayTextChange: (String, Int) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -155,7 +156,8 @@ fun HomeScreen(
                 resetSelectedEmoji = resetSelectedEmoji,
                 mediaViewModel = mediaViewModel,
                 emojiPickerHeight = emojiPickerHeight,
-                chatScreenViewModel = chatScreenViewModel
+                chatScreenViewModel = chatScreenViewModel,
+                onDisplayTextChange = onDisplayTextChange
             )
         } else {
             Box(

@@ -58,6 +58,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Popup
@@ -234,30 +235,31 @@ fun BioScreen(
                                 if (isBioExpanded && profileData.bioText.length > 35) {
                                     Popup(
                                         alignment = Alignment.Center,
-                                        onDismissRequest = { isBioExpanded = false }
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(180.dp)
-                                                .background(Color.Black.copy(alpha = 0.5f))
-                                                .clickable { isBioExpanded = false }
-                                        ) {
+                                        onDismissRequest = { isBioExpanded = false },
+                                        content = {
                                             Box(
                                                 modifier = Modifier
-                                                    .align(Alignment.Center)
-                                                    .padding(16.dp)
-                                                    .clip(RoundedCornerShape(8.dp))
-                                                    .background(MaterialTheme.colorScheme.onSecondary)
-                                                    .padding(16.dp)
+                                                    .size(180.dp)
+                                                    .background(Color.Black.copy(alpha = 0.5f))
+                                                    .clickable { isBioExpanded = false }
                                             ) {
-                                                Text(
-                                                    text = profileData.bioText,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onPrimary
-                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .align(Alignment.Center)
+                                                        .padding(16.dp)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(MaterialTheme.colorScheme.onSecondary)
+                                                        .padding(16.dp)
+                                                ) {
+                                                    Text(
+                                                        text = profileData.bioText,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onPrimary
+                                                    )
+                                                }
                                             }
                                         }
-                                    }
+                                    )
                                 }
                             }
                             Row(
@@ -536,7 +538,8 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
         val size = painterState.painter.intrinsicSize
         if (size.width > 0 && size.height > 0) size.width / size.height else 1f
     } else 1f
-    val screenWidth = LocalContext.current.resources.displayMetrics.widthPixels.dp / LocalDensity.current.density
+    val screenWidth =
+        LocalContext.current.resources.displayMetrics.widthPixels.dp / LocalDensity.current.density
     val videoHeight = screenWidth / aspectRatio
     LaunchedEffect(Unit) {
         if (!videoCacheDir.exists()) videoCacheDir.mkdirs()

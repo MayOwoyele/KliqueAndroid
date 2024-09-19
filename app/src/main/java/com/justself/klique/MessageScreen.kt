@@ -147,6 +147,7 @@ fun MessageScreen(
             viewModel.leaveChat(); viewModel.clearSelection(); onEmojiPickerVisibilityChange(
             false
         )
+            viewModel.clearPersonalChat()
         }
     }
     val myId by viewModel.myUserId.collectAsState()
@@ -258,7 +259,7 @@ fun MessageScreen(
     }
     emojiPickerHeight(maxKeyboardHeightDp)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
-    val personalChat by viewModel.personalChats.observeAsState(emptyList())
+    val personalChat by viewModel.personalChats.collectAsState(emptyList())
     val containsMediaMessages = selectedMessages.any { messageId ->
         val messageType = personalChat.find { it.messageId == messageId }?.messageType
         messageType != "PText" && messageType != "text"
@@ -423,7 +424,7 @@ fun MessageScreenContent(
     showDeleteDialog: Boolean,
     onShowDeleteDialog: () -> Unit
 ) {
-    val personalChat by viewModel.personalChats.observeAsState(emptyList())
+    val personalChat by viewModel.personalChats.collectAsState(emptyList())
     Log.d("MessageLoading", "Displaying ${personalChat.size} messages in LazyColumn")
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
@@ -464,6 +465,7 @@ fun MessageScreenContent(
     LaunchedEffect(personalChat.size) {
         if (personalChat.isNotEmpty()) {
             if (isInitialLoad.value) {
+                delay(500)
                 scrollState.scrollToItem(personalChat.size - 1)
                 isInitialLoad.value = false
             } else {

@@ -78,7 +78,9 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                 topic = "",
                 gistDescription = "This is a gist description",
                 activeSpectators = "",
-                gistImage = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg"
+                gistImage = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg",
+                startedBy = "Owoyele Mayokun",
+                startedById = 25
             )
         )
     val gistTopRow = _gistTopRow.asStateFlow()

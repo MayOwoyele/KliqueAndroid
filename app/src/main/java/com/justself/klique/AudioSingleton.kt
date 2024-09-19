@@ -166,7 +166,6 @@ fun AudioPlayer(
             mediaPlayer.setOnCompletionListener {
                 isPlaying = false
                 progress = 0f
-                mediaPlayer.reset()
             }
             while (mediaPlayer.isPlaying) {
                 progress = mediaPlayer.currentPosition / duration.toFloat()

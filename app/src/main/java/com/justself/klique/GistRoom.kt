@@ -73,6 +73,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -140,7 +141,8 @@ fun GistRoom(
     resetSelectedEmoji: () -> Unit,
     mediaViewModel: MediaViewModel,
     emojiPickerHeight: (Dp) -> Unit,
-    chatScreenViewModel: ChatScreenViewModel
+    chatScreenViewModel: ChatScreenViewModel,
+    onDisplayTextChange: (String, Int) -> Unit
 ) {
     val gistId = viewModel.gistTopRow.collectAsState().value.gistId
     val message by viewModel.gistMessage
@@ -269,6 +271,10 @@ fun GistRoom(
             viewModel.handleTrimmedVideo(it)
             mediaViewModel.clearUris()
         }
+    }
+    DisposableEffect(Unit) {
+        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value.startedBy}", 25)
+        onDispose { onDisplayTextChange("", 0) }
     }
     // Scroll State to handle Gist Title visibility
     val scrollState = rememberLazyListState()

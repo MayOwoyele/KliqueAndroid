@@ -1,10 +1,11 @@
 package com.justself.klique
 
-import android.adservices.topics.Topic
+import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,12 +18,16 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteBuffer
 import java.util.UUID
 
 class ChatScreenViewModel(
-    private val chatDao: ChatDao, private val personalChatDao: PersonalChatDao
-) : ViewModel(), WebSocketListener {
+    private val chatDao: ChatDao,
+    private val personalChatDao: PersonalChatDao,
+    application: Application
+) : AndroidViewModel(application), WebSocketListener {
     override val listenerId: String = "ChatScreenViewModel"
 
     private val _chats = MutableStateFlow<List<ChatList>>(emptyList())
@@ -30,8 +35,8 @@ class ChatScreenViewModel(
 
     val myUserId = MutableStateFlow(0)
 
-    private val _personalChats = MutableLiveData<List<PersonalChat>>(emptyList())
-    val personalChats: LiveData<List<PersonalChat>> get() = _personalChats
+    private val _personalChats = MutableStateFlow<List<PersonalChat>>(emptyList())
+    val personalChats: StateFlow<List<PersonalChat>> get() = _personalChats
 
     private val _onlineStatuses = MutableStateFlow<Map<Int, Boolean>>(emptyMap())
     val onlineStatuses: StateFlow<Map<Int, Boolean>> get() = _onlineStatuses
@@ -44,6 +49,7 @@ class ChatScreenViewModel(
     val messagesToForward: LiveData<List<PersonalChat>> get() = _messagesToForward
 
     private val _isNewChat = MutableStateFlow<Boolean>(false)
+    private val _isNewIncomingMessage = MutableStateFlow(false)
     private val _selectedMessages = MutableLiveData<List<String>>(emptyList())
     val selectedMessages: LiveData<List<String>> get() = _selectedMessages
 
@@ -57,12 +63,13 @@ class ChatScreenViewModel(
     init {
         WebSocketManager.registerListener(this)
     }
+
     override fun onMessageReceived(type: String, jsonObject: JSONObject) {
         when (type) {
             "is_online" -> {
-                val userId = jsonObject.optString("user_id", "0").toIntOrNull()
+                val userId = jsonObject.optInt("user_id", 0)
                 val status = jsonObject.optString("status", "offline")
-                if (userId != null) {
+                if (userId != 0) {
                     _onlineStatuses.update { currentStatuses ->
                         currentStatuses.toMutableMap().apply {
                             if (status == "online") {
@@ -77,8 +84,8 @@ class ChatScreenViewModel(
                 }
             }
 
-            "PMessage" -> {
-                Log.d("Websocket", "PMessage Function called")
+            "PText" -> {
+                Log.d("Websocket", "PText Function called")
                 // Extract fields from the JSON object
                 val messageId = jsonObject.optString("messageId", "")
                 val enemyId = jsonObject.optInt("enemyId", 0) // Parse as Int
@@ -105,9 +112,158 @@ class ChatScreenViewModel(
                 handleIncomingPersonalMessage(newMessage)
             }
 
+            "PImage", "PVideo", "PAudio" -> {
+                val messageId = jsonObject.optString("messageId", "")
+                val enemyId = jsonObject.optInt("enemyId", 0)
+                val myId = jsonObject.optInt("myId", 0)
+                val contentUrl =
+                    jsonObject.optString("content", "") // This is the URL for the media
+                val messageType = jsonObject.optString("type", "")
+                val timeStamp = System.currentTimeMillis().toString()
+
+                // Check if the message already exists in the database
+                CoroutineScope(Dispatchers.IO).launch {
+                    val messageExists = personalChatDao.getPersonalChatById(messageId) != null
+
+                    if (messageExists) {
+                        // If message exists, send delivery acknowledgment immediately
+                        sendDeliveryAcknowledgment(messageId)
+                        Log.d("Websocket", "Message already exists, acknowledgment sent.")
+                    } else {
+                        // Message doesn't exist, proceed to download the media
+                        try {
+
+                            val downloadedData = downloadFileFromUrl(contentUrl)
+                            if (downloadedData != null) {
+                                val context = getApplication<Application>().applicationContext
+                                // Save the media using FileUtils, with toPublic set to true
+                                val mediaUri = when (messageType) {
+                                    "PImage" -> FileUtils.saveMedia(
+                                        context,
+                                        downloadedData,
+                                        MediaType.IMAGE,
+                                        toPublic = true
+                                    )
+
+                                    "PVideo" -> FileUtils.saveMedia(
+                                        context,
+                                        downloadedData,
+                                        MediaType.VIDEO,
+                                        toPublic = true
+                                    )
+
+                                    "PAudio" -> FileUtils.saveMedia(
+                                        context,
+                                        downloadedData,
+                                        MediaType.AUDIO,
+                                        toPublic = true
+                                    )
+
+                                    else -> null
+                                }
+
+                                // After saving, store the message in the database
+                                val newMessage = PersonalChat(
+                                    messageId = messageId,
+                                    enemyId = enemyId,
+                                    myId = myId,
+                                    content = contentUrl,  // Store the original content URL
+                                    status = "delivered",  // Mark it as delivered
+                                    messageType = messageType,
+                                    timeStamp = timeStamp,
+                                    mediaUri = mediaUri?.toString()  // Save the media URI
+                                )
+                                handleIncomingPersonalMessage(newMessage)
+
+                                // Send delivery acknowledgment after saving to DB
+                                sendDeliveryAcknowledgment(messageId)
+                                Log.d(
+                                    "Websocket",
+                                    "Media saved and acknowledgment sent for $messageId"
+                                )
+                            } else {
+                                Log.e("Websocket", "Failed to download media from URL: $contentUrl")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("Websocket", "Error processing media message: ${e.message}")
+                        }
+                    }
+                }
+            }
+            "PGistInvite" -> {
+                Log.d("Websocket", "PGistInvite Function called")
+
+                // Extract fields from the JSON object
+                val messageId = jsonObject.optString("messageId", "")
+                val enemyId = jsonObject.optInt("enemyId", 0) // Parse as Int
+                val myId = jsonObject.optInt("myId", 0)       // Parse as Int
+                val content = jsonObject.optString("content", "") // Topic of the gist
+                val gistId = jsonObject.optString("gistId", "") // Gist ID
+                val timeStamp = System.currentTimeMillis().toString()
+
+                // Create a PersonalChat object
+                val newMessage = PersonalChat(
+                    messageId = messageId,
+                    enemyId = enemyId,
+                    myId = myId,
+                    content = content,   // This is the topic
+                    status = "delivered", // Mark it as delivered
+                    messageType = "PGistInvite",
+                    timeStamp = timeStamp,
+                    gistId = gistId,     // Include the gistId
+                    topic = content      // Store the topic in the content field
+                )
+
+                // Call the function to handle the new message
+                Log.d("Websocket", "handleIncoming Function called with $newMessage")
+                handleIncomingPersonalMessage(newMessage)
+
+                // Optionally send delivery acknowledgment after handling the message
+                sendDeliveryAcknowledgment(messageId)
+                Log.d("Websocket", "Acknowledgment sent for PGistInvite message $messageId")
+            }
+            "ack" -> {
+                val status = jsonObject.optString("status", "sent")
+                val messageId = jsonObject.optString("messageId")
+                viewModelScope.launch(Dispatchers.IO) {
+                    personalChatDao.updateStatus(messageId, status)
+                    Log.d("ForStatus", "called with : $status")
+                    val currentEnemyId = _currentChat.value
+                    val updatedMessage = personalChatDao.getPersonalChatById(messageId)
+
+                    if (updatedMessage != null && currentEnemyId != null) {
+                        if (updatedMessage.enemyId == currentEnemyId || updatedMessage.myId == currentEnemyId) {
+                            val updatedList = _personalChats.value?.toMutableList()?.apply {
+                                val index = indexOfFirst { it.messageId == messageId }
+                                if (index != -1) {
+                                    this[index] = updatedMessage.copy(status = status)
+                                }
+                            }
+                            if (updatedList != null) {
+                                withContext(Dispatchers.Main) {
+                                    _personalChats.value = updatedList
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             else -> {
                 println("Unknown message type: $type")
             }
+        }
+    }
+
+    fun downloadFileFromUrl(url: String): ByteArray? {
+        return try {
+            val connection = URL(url).openConnection() as HttpURLConnection
+            connection.inputStream.use { input ->
+                input.readBytes()
+            }
+        } catch (e: IOException) {
+            Log.e("Websocket", "Failed to download file from URL: $url", e)
+            null
         }
     }
 
@@ -150,7 +306,9 @@ class ChatScreenViewModel(
                 }
                 personalChatDao.deletePersonalChat(messageId)
                 withContext(Dispatchers.Main) {
-                    loadPersonalChats(myUserId.value, currentChat.value!!)
+                    _personalChats.update { currentChats ->
+                        currentChats.filterNot { chat -> chat.messageId == messageId }
+                    }
                 }
             }
         }
@@ -167,7 +325,7 @@ class ChatScreenViewModel(
 
     fun loadChats(myId: Int, updateSearchResults: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
-            val chatList = chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddtime }
+            val chatList = getSortedChats(myId)
             Log.d("ChatList", "Fetched chat list: $chatList")
 
             _chats.value = chatList
@@ -209,8 +367,12 @@ class ChatScreenViewModel(
         _selectedMessages.value = emptyList()
         _isSelectionMode.value = false
     }
+
+    fun clearPersonalChat() {
+        _personalChats.value = emptyList()
+    }
+
     fun subscribeToOnlineStatus(enemyId: Int) {
-        // Send a WebSocket message to the server to subscribe to the online status of enemyId
         val subscribeMessage = """
             {
                 "type": "subscribeOnlineStatus",
@@ -229,6 +391,9 @@ class ChatScreenViewModel(
             }
         """.trimIndent()
         send(unsubscribeMessage)
+        val currentMap = _onlineStatuses.value.toMutableMap()
+        currentMap.remove(enemyId)
+        _onlineStatuses.value = currentMap
     }
 
     /*
@@ -300,8 +465,13 @@ class ChatScreenViewModel(
     // Use Dispatcher.IO to do this
     private fun handleIncomingPersonalMessage(newMessage: PersonalChat) {
         Log.d("Incoming", "newMessage is $newMessage")
-        addAndProcessPersonalChat(newMessage)
-        sendDeliveryAcknowledgment(newMessage.messageId)
+        viewModelScope.launch(Dispatchers.IO) {
+            val chatExists = checkChatExistsSync(newMessage.myId, newMessage.enemyId)
+            _isNewIncomingMessage.value = !chatExists
+            Log.d("Websocket", "Is New Incoming is ${!chatExists}")
+            addAndProcessPersonalChat(newMessage)
+            sendDeliveryAcknowledgment(newMessage.messageId)
+        }
     }
 
     private fun updateChatListWithNewMessage(newMessage: PersonalChat) {
@@ -319,18 +489,22 @@ class ChatScreenViewModel(
         val timeStamp = newMessage.timeStamp
 
         viewModelScope.launch(Dispatchers.IO) {
-            if (_currentChat.value != enemyId) {
-                incrementUnreadMsgCounter(enemyId)
-            } else {
-                Log.d("Websocket", "$newMessage")
+            if (_currentChat.value == enemyId) {
                 val updatedList = _personalChats.value?.toMutableList()?.apply {
                     if (none { it.messageId == newMessage.messageId }) {
                         add(newMessage)
                     } else {
-                        Log.d("Websocket", "Message with messageId ${newMessage.messageId} already exists. Skipping addition.")
+                        Log.d(
+                            "Websocket",
+                            "Message with messageId ${newMessage.messageId} already exists. Skipping addition."
+                        )
                     }
                 }
-                _personalChats.postValue(updatedList ?: emptyList()) // Update LiveData
+                if (updatedList != null) {
+                    withContext(Dispatchers.Main) {
+                        _personalChats.value = updatedList
+                    }
+                }
             }
             val chat = ChatList(
                 enemyId = enemyId,
@@ -342,10 +516,11 @@ class ChatScreenViewModel(
                 unreadMsgCounter = if (_currentChat.value != enemyId) 1 else 0
             )
 
-            if (_isNewChat.value) {
+            if (_isNewChat.value || _isNewIncomingMessage.value) {
                 chatDao.addChat(chat)
                 Log.d("isNewChat", "add chat called with $chat")
                 setIsNewChat(false) // Reset after adding
+                _isNewIncomingMessage.value = false
             } else {
                 chatDao.updateLastMessage(
                     enemyId = enemyId,
@@ -353,11 +528,29 @@ class ChatScreenViewModel(
                     timeStamp = timeStamp
                 )
             }
+            val updatedChats = getSortedChats(myUserId.value)
+            _chats.value = updatedChats
+        }
+    }
+
+    private suspend fun getSortedChats(myId: Int): List<ChatList> {
+        return withContext(Dispatchers.IO) {
+            chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddtime }
         }
     }
 
     fun addAndProcessPersonalChat(personalChat: PersonalChat) {
         viewModelScope.launch(Dispatchers.IO) {
+            val enemyId =
+                if (personalChat.myId == myUserId.value) personalChat.enemyId else personalChat.myId
+            if (_currentChat.value != enemyId) {
+                Log.d("currentChat", "Current chat is ${_currentChat.value}")
+                val existingMessage = personalChatDao.getPersonalChatById(personalChat.messageId)
+                Log.d("currentChat", "Existing message is $existingMessage")
+                if (existingMessage == null) {
+                    incrementUnreadMsgCounter(enemyId)
+                }
+            }
             personalChatDao.addPersonalChat(personalChat)
             updateChatListWithNewMessage(personalChat)
         }
@@ -372,17 +565,25 @@ class ChatScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             val offset = if (loadMore) _currentPage * _pageSize else 0
             val personalChatList =
-                personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset).sortedBy { it.timeStamp }
-            Log.d("MessageLoading", "Loaded ${personalChatList.size} messages, first message timestamp: ${personalChatList.firstOrNull()?.timeStamp}, last message timestamp: ${personalChatList.lastOrNull()?.timeStamp}")
+                personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset)
+                    .sortedBy { it.timeStamp }
+            Log.d(
+                "MessageLoading",
+                "Loaded ${personalChatList.size} messages, first message timestamp: ${personalChatList.firstOrNull()?.timeStamp}, last message timestamp: ${personalChatList.lastOrNull()?.timeStamp}"
+            )
             if (loadMore) {
                 Log.d("Database", "Still even executing")
                 val currentList = _personalChats.value.orEmpty().toMutableList()
                 currentList.addAll(0, personalChatList)
-                _personalChats.postValue(currentList)
+                withContext(Dispatchers.Main) {
+                    _personalChats.value = currentList
+                }
                 Log.d("Database", "Still even even executing")
-                Log.d("Database", "Currenlt list size: ${currentList.size}")
+                Log.d("Database", "Current list size: ${currentList.size}")
             } else {
-                _personalChats.postValue(personalChatList)
+                withContext(Dispatchers.Main){
+                    _personalChats.value = personalChatList
+                }
             }
 
             if (personalChatList.isNotEmpty()) {
@@ -412,31 +613,85 @@ class ChatScreenViewModel(
     }
 
     // Provision should be made and thought of, on how such a message should be received
-    fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String, isVerified: Boolean) {
+    fun updateProfile(
+        enemyId: Int,
+        contactName: String,
+        profilePhoto: String,
+        isVerified: Boolean
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.updateProfile(enemyId, contactName, profilePhoto, isVerified)
         }
     }
-    fun retryPendingMessages() {
+
+    fun retryPendingMessages(context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val pendingMessages = personalChatDao.getMessagesByStatus("pending")
             pendingMessages.forEach { message ->
-                retryMessage(message)
+                when (message.messageType) {
+                    "PText" -> {
+                        retryTextMessage(message)
+                    }
+                    "PGistInvite" -> {
+                        retryGistInviteMessage(message)
+                    }
+                    "PImage", "PVideo", "PAudio" -> {
+                        message.mediaUri?.let { uri ->
+                            val fileData = FileUtils.loadFileAsByteArray(context, Uri.parse(uri))
+                            if (fileData != null) {
+                                sendBinary(
+                                    data = fileData,
+                                    type = message.messageType,
+                                    enemyId = message.enemyId,
+                                    messageId = message.messageId,
+                                    myId = message.myId,
+                                    fullName = "",  // Pass full name
+                                    context = context,
+                                    isRetry = true
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }
-    private suspend fun retryMessage(message: PersonalChat) {
+    private suspend fun retryTextMessage(message: PersonalChat) {
         withContext(Dispatchers.IO) {
             val messageJson = """
-                {
-                    "type": "${message.messageType}",
-                    "enemyId": "${message.enemyId}",
-                    "content": "${message.content.replace("\"", "\\\"")}",
-                    "messageId": "${message.messageId}",
-                    "myId": "${message.myId}"
-                }
-            """.trimIndent()
-            WebSocketManager.send(messageJson)
+    {
+        "type": "${message.messageType}",
+        "enemyId": ${message.enemyId},
+        "content": "${
+                message.content.replace("\\", "\\\\").replace("\"", "\\\"")
+                    .replace("\n", "\\n").replace("\r", "\\r")
+                    .replace("\t", "\\t").replace("\b", "\\b")
+            }",
+        "messageId": "${message.messageId}",
+        "myId": "${message.myId}"
+    }
+""".trimIndent()
+            send(messageJson)
+            // Optionally update status to "sent" if acknowledged by the server
+        }
+    }
+    private suspend fun retryGistInviteMessage(message: PersonalChat) {
+        withContext(Dispatchers.IO) {
+            val gistInviteJson = """
+        {
+        "type": "${message.messageType}",
+        "enemyId": ${message.enemyId},
+        "content": "${
+                message.content.replace("\\", "\\\\").replace("\"", "\\\"")
+                    .replace("\n", "\\n").replace("\r", "\\r")
+                    .replace("\t", "\\t").replace("\b", "\\b")
+            }",
+        "gistId": "${message.gistId}",
+        "messageId": "${message.messageId}"
+        }
+        """.trimIndent()
+
+            send(gistInviteJson)
             // Optionally update status to "sent" if acknowledged by the server
         }
     }
@@ -448,7 +703,8 @@ class ChatScreenViewModel(
         messageId: String,
         myId: Int,
         fullName: String,
-        context: Context
+        context: Context,
+        isRetry: Boolean = false
     ) {
         val prefix = "$type:$enemyId:$messageId:$myId:$fullName"
         val prefixBytes = prefix.toByteArray(Charsets.UTF_8)
@@ -458,23 +714,25 @@ class ChatScreenViewModel(
         outputStream.write(data)
         val message = outputStream.toByteArray()
         WebSocketManager.sendBinary(message)
-        val mediaUri = when (type) {
-            "PImage" -> FileUtils.saveImage(context, data)
-            "PVideo" -> FileUtils.saveVideo(context, data)
-            "PAudio" -> FileUtils.saveAudio(context, data)
-            else -> null
+        if (!isRetry) {
+            val mediaUri = when (type) {
+                "PImage" -> FileUtils.saveImage(context, data)
+                "PVideo" -> FileUtils.saveVideo(context, data)
+                "PAudio" -> FileUtils.saveAudio(context, data)
+                else -> null
+            }
+            val personalChat = PersonalChat(
+                messageId = messageId,
+                enemyId = enemyId,
+                myId = myId,
+                content = "",
+                status = "pending",
+                messageType = type,
+                timeStamp = System.currentTimeMillis().toString(),
+                mediaUri = mediaUri?.toString()
+            )
+            addAndProcessPersonalChat(personalChat)
         }
-        val personalChat = PersonalChat(
-            messageId = messageId,
-            enemyId = enemyId,
-            myId = myId,
-            content = "",
-            status = "pending",
-            messageType = type,
-            timeStamp = System.currentTimeMillis().toString(),
-            mediaUri = mediaUri?.toString()
-        )
-        addAndProcessPersonalChat(personalChat)
         Log.d(
             "sendBinaryInputs",
             "Data: ${data.size}, Type: $type, EnemyId: $enemyId, MessageId: $messageId, MyId: $myId, FullName: $fullName"
@@ -620,16 +878,16 @@ class ChatScreenViewModel(
         }
         val messageJson = """
             {
-            "type": "PMessage",
-            "enemyId": "$enemyId",
+            "type": "PText",
+            "enemyId": $enemyId,
             "content": "${
             message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
                 .replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
         }",
-            "messageId": "$messageId",
-            
+            "messageId": "$messageId"
             }
         """.trimIndent()
+        Log.d("RawWebsocket", "send Text json $messageJson")
         send(messageJson)
     }
 
@@ -642,6 +900,7 @@ class ChatScreenViewModel(
             }
         }
     }
+
     fun addMessageToForward(message: PersonalChat) {
         _messagesToForward.value = _messagesToForward.value?.plus(message)
     }
@@ -661,7 +920,10 @@ class ChatScreenViewModel(
                             message.mediaUri?.let { uri ->
                                 val data = FileUtils.loadFileAsByteArray(context, Uri.parse(uri))
                                 data?.let {
-                                    Log.d("ForwardedMessage", "Forwarding messageId: $newMessageId, type: ${message.messageType}, enemyId: $enemyId, timeStamp: ${System.currentTimeMillis()}")
+                                    Log.d(
+                                        "ForwardedMessage",
+                                        "Forwarding messageId: $newMessageId, type: ${message.messageType}, enemyId: $enemyId, timeStamp: ${System.currentTimeMillis()}"
+                                    )
                                     sendBinary(
                                         it,
                                         message.messageType,
@@ -706,6 +968,21 @@ class ChatScreenViewModel(
             addAndProcessPersonalChat(personalChat)
             // Optionally, you can also send this message to the server here
         }
+        val gistInviteJson = """
+        {
+        "type": "PGistInvite",
+        "enemyId": $enemyId,
+        "content": "${
+            topic.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+                .replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
+        }",
+        "gistId": "$gistId",
+        "messageId": "$messageId"
+        }
+    """.trimIndent()
+
+        Log.d("RawWebsocket", "send GistInvite json $gistInviteJson")
+        send(gistInviteJson)
     }
 
     // Remember to implement an onMessage to attach people to gists
@@ -743,6 +1020,7 @@ class ChatScreenViewModel(
         currentMessages.add(personalChat)
         _messagesToForward.value = currentMessages
     }
+
     private fun sendDeliveryAcknowledgment(messageId: String) {
         val acknowledgmentJson = """
         {
@@ -750,6 +1028,7 @@ class ChatScreenViewModel(
             "messageId": "$messageId"
         }
     """.trimIndent()
+        Log.d("Websocket", "Sending $acknowledgmentJson")
         send(acknowledgmentJson)
     }
 
@@ -889,15 +1168,17 @@ class ChatScreenViewModel(
 }
 
 class ChatViewModelFactory(
-    private val chatDao: ChatDao, private val personalChatDao: PersonalChatDao
+    private val chatDao: ChatDao, private val personalChatDao: PersonalChatDao,
+    private val application: Application
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ChatScreenViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST") return ChatScreenViewModel(chatDao, personalChatDao) as T
+            @Suppress("UNCHECKED_CAST") return ChatScreenViewModel(chatDao, personalChatDao, application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+
 data class ProfileUpdateData(
     val customerId: Int,
     val contactName: String,

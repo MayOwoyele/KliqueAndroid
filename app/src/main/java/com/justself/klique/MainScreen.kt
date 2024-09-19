@@ -74,6 +74,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -176,18 +177,12 @@ fun MyAppTheme(
 fun MainScreen(
     intent: Intent,
     authViewModel: AuthViewModel = viewModel(),
-    productViewModel: ProductViewModel = viewModel(),
     userDetailsViewModel: UserDetailsViewModel = viewModel()
 ) {
     val navController = rememberNavController()
     val leftDrawerState = remember { mutableStateOf(false) }
     val rightDrawerState = remember { mutableStateOf(false) }
     val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
-    val cartItemCount by productViewModel.cartItemCount.observeAsState(0) // Ensure it's being observed here
-    Log.d(
-        "DebuggerCartItemCount",
-        "Composable fully re-composed with Cart item count: $cartItemCount"
-    )
     // Track keyboard visibility
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var showEmojiPicker by remember { mutableStateOf(false) }
@@ -226,6 +221,8 @@ fun MainScreen(
             searchResults = emptyList()
         }
     }
+    var gistStarterName by remember {mutableStateOf("")}
+    var gistStarterId by remember { mutableStateOf(0)}
     if (isLoggedIn) {
         Scaffold(
             topBar = {
@@ -238,7 +235,10 @@ fun MainScreen(
                         isSearchMode = isSearchMode,
                         onSearchModeChange = { isSearchMode = it },
                         searchText = searchText,
-                        onSearchTextChange = { searchText = it }
+                        onSearchTextChange = { searchText = it },
+                        displayText = gistStarterName,
+                        displayId = gistStarterId,
+                        navController = navController
                     )
                 }
             },
@@ -255,7 +255,6 @@ fun MainScreen(
                     innerPadding,
                     leftDrawerState,
                     rightDrawerState,
-                    productViewModel,
                     authViewModel,
                     userDetailsViewModel,
                     imeVisible,
@@ -268,7 +267,8 @@ fun MainScreen(
                     onEmojiSelected = { emoji -> selectedEmoji = emoji },
                     selectedEmoji,
                     resetSelectedEmoji = { selectedEmoji = "" },
-                    notificationViewModel = notificationViewModel
+                    notificationViewModel = notificationViewModel,
+                    onDisplayTextChange = {theText, userId -> gistStarterName = theText; gistStarterId = userId}
                 )
                 if (isSearchMode && searchResults.isNotEmpty()) {
                     Column(
@@ -326,7 +326,6 @@ fun MainContent(
     innerPadding: PaddingValues,
     leftDrawerState: MutableState<Boolean>,
     rightDrawerState: MutableState<Boolean>,
-    productViewModel: ProductViewModel,
     authViewModel: AuthViewModel,
     userDetailsViewModel: UserDetailsViewModel,
     imeVisible: Boolean,
@@ -336,13 +335,13 @@ fun MainContent(
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    notificationViewModel: NotificationViewModel
+    notificationViewModel: NotificationViewModel,
+    onDisplayTextChange: (String, Int) -> Unit
 ) {
     val customerId = authViewModel.customerId.collectAsState().value
     val firstName = userDetailsViewModel.firstName.collectAsState().value
     val lastName = userDetailsViewModel.lastName.collectAsState().value
     val fullName = "$firstName $lastName".trim()
-    val commentViewModel: CommentsViewModel = viewModel()
     Log.d("Names", "Full Name: $fullName")
 
     val context = LocalContext.current
@@ -360,13 +359,11 @@ fun MainContent(
                 "WebSocket",
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
-            WebSocketManager.connect(webSocketUrl, customerId, fullName)
-            WebSocketManager.registerNetworkCallback(context)
+            WebSocketManager.connect(webSocketUrl, customerId, fullName, context)
         }
     }
     DisposableEffect(Unit) {
         onDispose {
-            WebSocketManager.unregisterNetworkCallback(context)
             WebSocketManager.close()
         }
     }
@@ -409,9 +406,9 @@ fun MainContent(
         )
         var emojiPickerHeight by remember { mutableStateOf(0.dp) }
         NavigationHost(
-            navController, isLoggedIn, productViewModel, customerId,
-            fullName, commentViewModel, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji
+            navController, isLoggedIn, customerId,
+            fullName, onEmojiPickerVisibilityChange, selectedEmoji,
+            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji, onDisplayTextChange
         ) { height -> emojiPickerHeight = height }
         LeftDrawer(
             leftDrawerState,
@@ -453,7 +450,10 @@ fun CustomAppBar(
     isSearchMode: Boolean,
     onSearchModeChange: (Boolean) -> Unit,
     searchText: String,
-    onSearchTextChange: (String) -> Unit
+    onSearchTextChange: (String) -> Unit,
+    displayText: String,
+    displayId: Int,
+    navController: NavController
 ) {
     Row(
         modifier = Modifier
@@ -526,6 +526,16 @@ fun CustomAppBar(
                     )
                 }
             }
+            Text(
+                text = displayText,
+                modifier = Modifier
+                    .padding(top = 40.dp)
+                    .align(Alignment.CenterVertically)
+                    .clickable { if (displayId != 0){ navController.navigate("bioScreen/$displayId")}},
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
             Spacer(Modifier.weight(1f))
             IconButton(
                 onClick = {
