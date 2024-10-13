@@ -29,7 +29,7 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch {
             val params = mapOf(
                 "action" to "getMessages",
-                "customerId" to customerId.toString(),
+                "senderId" to customerId.toString(),
                 "chatPartnerId" to chatPartnerId.toString()
             )
 
@@ -79,7 +79,7 @@ class ChatViewModel : ViewModel() {
                     method = "POST",  // Ensuring POST is used
                     params = mapOf(
                         "action" to "sendMessage",
-                        "customerId" to customerId.toString(),
+                        "senderId" to customerId.toString(),
                         "chatPartnerId" to chatPartnerId.toString(),
                         "message" to messageText
                     )

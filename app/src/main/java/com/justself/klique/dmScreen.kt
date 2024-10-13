@@ -117,7 +117,7 @@ fun DMTopBar(navController: NavHostController, receiverName: String) {
             )
         }
 
-        // Spacer to create a gap between the icon and title
+        // Spacer to create a gap between the icon and topic
         Spacer(modifier = Modifier.width(8.dp))
 
         // Title / Receiver Name

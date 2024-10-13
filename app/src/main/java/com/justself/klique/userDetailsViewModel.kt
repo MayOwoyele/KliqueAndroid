@@ -20,7 +20,7 @@ class UserDetailsViewModel : ViewModel() {
             try {
                 Log.d("fetchCustomerDetails", "Starting to fetch details for customer ID: $customerId")
 
-                /*val endpoint = "getCustomerDetails/$customerId"
+                /*val endpoint = "getCustomerDetails/$senderId"
                 val response = NetworkUtils.makeRequest(endpoint, "GET", emptyMap())
                 // remember to replace with the JsonObject call with 'response' later */
                 val fakeJsonResponse = """

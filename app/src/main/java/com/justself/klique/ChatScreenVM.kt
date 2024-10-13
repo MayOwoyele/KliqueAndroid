@@ -233,16 +233,14 @@ class ChatScreenViewModel(
 
                     if (updatedMessage != null && currentEnemyId != null) {
                         if (updatedMessage.enemyId == currentEnemyId || updatedMessage.myId == currentEnemyId) {
-                            val updatedList = _personalChats.value?.toMutableList()?.apply {
+                            val updatedList = _personalChats.value.toMutableList().apply {
                                 val index = indexOfFirst { it.messageId == messageId }
                                 if (index != -1) {
                                     this[index] = updatedMessage.copy(status = status)
                                 }
                             }
-                            if (updatedList != null) {
-                                withContext(Dispatchers.Main) {
-                                    _personalChats.value = updatedList
-                                }
+                            withContext(Dispatchers.Main) {
+                                _personalChats.value = updatedList
                             }
                         }
                     }
@@ -357,7 +355,7 @@ class ChatScreenViewModel(
         if (currentSelection.contains(messageId)) {
             currentSelection.remove(messageId)
         } else {
-            currentSelection.add(messageId)
+            currentSelection.add(0, messageId)
         }
         _selectedMessages.value = currentSelection
         _isSelectionMode.value = currentSelection.isNotEmpty()
@@ -490,9 +488,9 @@ class ChatScreenViewModel(
 
         viewModelScope.launch(Dispatchers.IO) {
             if (_currentChat.value == enemyId) {
-                val updatedList = _personalChats.value?.toMutableList()?.apply {
+                val updatedList = _personalChats.value.toMutableList().apply {
                     if (none { it.messageId == newMessage.messageId }) {
-                        add(newMessage)
+                        add(0, newMessage)
                     } else {
                         Log.d(
                             "Websocket",
@@ -500,10 +498,8 @@ class ChatScreenViewModel(
                         )
                     }
                 }
-                if (updatedList != null) {
-                    withContext(Dispatchers.Main) {
-                        _personalChats.value = updatedList
-                    }
+                withContext(Dispatchers.Main) {
+                    _personalChats.value = updatedList
                 }
             }
             val chat = ChatList(
@@ -539,7 +535,7 @@ class ChatScreenViewModel(
         }
     }
 
-    fun addAndProcessPersonalChat(personalChat: PersonalChat) {
+    private fun addAndProcessPersonalChat(personalChat: PersonalChat) {
         viewModelScope.launch(Dispatchers.IO) {
             val enemyId =
                 if (personalChat.myId == myUserId.value) personalChat.enemyId else personalChat.myId
@@ -566,15 +562,15 @@ class ChatScreenViewModel(
             val offset = if (loadMore) _currentPage * _pageSize else 0
             val personalChatList =
                 personalChatDao.getPersonalChats(myId, enemyId, _pageSize, offset)
-                    .sortedBy { it.timeStamp }
+                    .sortedByDescending { it.timeStamp }
             Log.d(
                 "MessageLoading",
                 "Loaded ${personalChatList.size} messages, first message timestamp: ${personalChatList.firstOrNull()?.timeStamp}, last message timestamp: ${personalChatList.lastOrNull()?.timeStamp}"
             )
             if (loadMore) {
                 Log.d("Database", "Still even executing")
-                val currentList = _personalChats.value.orEmpty().toMutableList()
-                currentList.addAll(0, personalChatList)
+                val currentList = _personalChats.value.toMutableList()
+                currentList.addAll(personalChatList)
                 withContext(Dispatchers.Main) {
                     _personalChats.value = currentList
                 }
@@ -994,6 +990,7 @@ class ChatScreenViewModel(
             }
         """.trimIndent()
         send(joinGistJson)
+        Log.d("Join Gist", "Join gist id is $gistId")
     }
 
     // Send JSON message

@@ -73,35 +73,20 @@ fun CustomBottomSheet(
 
 
 @Composable
-fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController) {
-    var showRepliesForCommentId by remember { mutableStateOf<Int?>(null) }
+fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController, customerId: Int) {
+    var showRepliesForCommentId by remember { mutableStateOf<String?>(null) }
     var showKCDonationDialog by remember { mutableStateOf(false) }
-    val comments = remember {
-        List(20) { index ->
-            GistComment(id = index,
-                fullName = "User $index",
-                comment = "This is comment number $index",
-                customerId = index,
-                replies = List(index % 3) { replyIndex ->
-                    Reply(
-                        id = replyIndex,
-                        fullName = "User ${replyIndex + 1}",
-                        customerId = index,
-                        reply = "This is a reply to comment $index"
-                    )
-                })
-        }
-    }
+    val comments by viewModel.comments.collectAsState()
     val listState = rememberLazyListState()
     var loading by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    var lastCommentId by remember { mutableStateOf<String?>(null)}
     Box(modifier = Modifier.fillMaxSize()) {
-        // Scrollable list of comments or replies
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 56.dp, bottom = 56.dp) // Padding added for top row and input field
+                .padding(top = 56.dp, bottom = 56.dp)
         ) {
             if (showRepliesForCommentId == null) {
                 items(comments) { comment ->
@@ -122,20 +107,33 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
             }
         }
         LaunchedEffect(listState) {
-            snapshotFlow { listState.layoutInfo.visibleItemsInfo }.map { it.lastOrNull()?.index }
+            snapshotFlow { listState.layoutInfo }
+                .map { layoutInfo ->
+                    val isScrollable = layoutInfo.totalItemsCount > layoutInfo.visibleItemsInfo.size
+                    val lastVisibleItemIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                    if (isScrollable) {
+                        lastVisibleItemIndex
+                    } else {
+                        null
+                    }
+                }
                 .distinctUntilChanged().filter { it == comments.size - 1 }.collect {
                     if (!loading) {
                         loading = true
                         coroutineScope.launch {
-                            //viewModel.loadMoreComments()
-                            //This part is where the code is going to be for loading more comments
+                            viewModel.fetchGistComments(true, lastCommentId)
                             loading = false
                         }
                     }
                 }
         }
+        LaunchedEffect(comments.size) {
+            if (comments.isNotEmpty()){
+                lastCommentId = comments.last().id
+            }
+        }
 
-        // Top row with title and wallet icon
+        // Top row with topic and wallet icon
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -160,8 +158,6 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                 )
             }
         }
-
-        // Input field for adding new comments
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -186,7 +182,16 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                 )
             )
             Log.d("text", text.value)
-            IconButton(onClick = { /* Add comment */ }) {
+            IconButton(onClick = {
+                if (text.value.isNotEmpty()) {
+                    viewModel.sendGistComment(
+                        text.value,
+                        showRepliesForCommentId != null,
+                        showRepliesForCommentId,
+                        userId = customerId
+                    )
+                }
+            }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send icon")
             }
         }
@@ -218,15 +223,14 @@ fun CommentItem(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Thumbs up icon below the comment
-        Text(text = "👍",
+        Text(text = "👍 ${comment.upVotes}",
             modifier = Modifier
-                .clickable { /* Handle thumbs up */ }
-                .align(Alignment.Start) // Align the thumbs up icon to the start
+                .clickable { viewModel.sendUpVotes(comment.id) }
+                .align(Alignment.Start)
         )
 
-        // Replies text below the thumbs up icon
         if (comment.replies.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(4.dp)) // Add some space between thumbs up and replies
+            Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "${comment.replies.size} replies",
                 style = MaterialTheme.typography.bodyLarge,

@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,7 +42,8 @@ enum class CurrentTab {
 fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewModel, navController: NavController) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
-        val uiState = GistUiState()
+
+        val uiState by viewModel.uiState.collectAsState()
         Row(modifier = Modifier) {
             Button(
                 onClick = { currentTab = CurrentTab.TRENDING },
@@ -54,7 +56,7 @@ fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewM
                 Text(text = "Trending", color = MaterialTheme.colorScheme.onPrimary)
             }
             Button(
-                onClick = { currentTab = CurrentTab.MY_GISTS }, modifier = Modifier
+                onClick = { currentTab = CurrentTab.MY_GISTS; viewModel.fetchMyGists(customerId) }, modifier = Modifier
                     .padding(16.dp)
                     .width(146.dp),
                 colors = ButtonDefaults.buttonColors()

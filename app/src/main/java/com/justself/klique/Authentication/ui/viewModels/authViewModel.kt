@@ -22,7 +22,7 @@ class AuthViewModel : ViewModel() {
     private val _isLoggedIn = MutableStateFlow(true)
     val isLoggedIn = _isLoggedIn.asStateFlow()
 
-    private val _customerId = MutableStateFlow<Int>(25)
+    private val _customerId = MutableStateFlow<Int>(1)
     val customerId = _customerId.asStateFlow()
 
     private val _registrationStep = MutableStateFlow(RegistrationStep.PHONE_NUMBER)
@@ -58,7 +58,7 @@ class AuthViewModel : ViewModel() {
     fun completeRegistration() {
         viewModelScope.launch {
             _tempCustomerId.value?.let { customerId ->
-                // If tempCustomerId is not null, update customerId and log in status
+                // If tempCustomerId is not null, update senderId and log in status
                 _customerId.value = customerId
                 _isLoggedIn.value = true
             } ?: run {
@@ -127,9 +127,9 @@ class AuthViewModel : ViewModel() {
         _errorMessage.value = ""
         viewModelScope.launch {
             try{
-                val endpoint = "/verify-phone"
+                val endpoint = "verify-phone"
                 val params = mapOf("phone" to phoneNumber)
-                val responseString = NetworkUtils.makeRequest(endpoint, "POST", params)
+                val responseString = NetworkUtils.makeRequest(endpoint, params = params)
                 val response = simulateServerVerifyPhoneNumber(phoneNumber)//parseResponse(responseString)
                 if (response.isSuccess) {
                     moveToNextStep()
@@ -157,7 +157,7 @@ class AuthViewModel : ViewModel() {
             val jsonObject = JSONObject(responseString)
             val isSuccess = jsonObject.optBoolean("success", false)
             val errorMessage = jsonObject.optString("error_message", "")
-            val customerId = if (isSuccess) jsonObject.optInt("customerId", -1).takeIf { it != -1} else null
+            val customerId = if (isSuccess) jsonObject.optInt("senderId", -1).takeIf { it != -1} else null
             ServerResponse(isSuccess, errorMessage, customerId)
         } catch (e: JSONException) {
             // Handle parsing error, assume failure
@@ -258,7 +258,7 @@ class AuthViewModel : ViewModel() {
             }
 
             try {
-                val responseString = NetworkUtils.makeRequest("/finalize-registration", "POST", completeRegistrationData)
+                val responseString = NetworkUtils.makeRequest("/finalize-registration", params = completeRegistrationData).second
                 val response = parseResponse(responseString)
 
                 if (response.isSuccess) {

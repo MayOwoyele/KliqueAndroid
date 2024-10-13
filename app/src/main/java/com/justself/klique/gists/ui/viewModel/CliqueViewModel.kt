@@ -2,10 +2,10 @@
 package com.justself.klique.gists.ui.viewModel
 
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
-import androidx.compose.material3.Text
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.input.TextFieldValue
@@ -17,37 +17,67 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.ContactDao
+import com.justself.klique.GistComment
+import com.justself.klique.GistMediaType
 import com.justself.klique.GistMessage
+import com.justself.klique.GistMessageStatus
 import com.justself.klique.GistState
+import com.justself.klique.GistStateDao
+import com.justself.klique.GistStateEntity
 import com.justself.klique.GistTopRow
+import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.Members
+import com.justself.klique.NetworkUtils
+import com.justself.klique.Reply
 import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
+import com.justself.klique.getUriFromByteArray
+import com.justself.klique.gists.data.models.GistModel
+import com.justself.klique.gists.ui.GistUiState
 import com.justself.klique.toContact
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.buildJsonObject
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.ByteBuffer
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.random.Random
 
-class SharedCliqueViewModel(application: Application, private val customerId: Int, private val contactDao: ContactDao) :
+class SharedCliqueViewModel(
+    application: Application,
+    private val customerId: Int,
+    private val contactDao: ContactDao,
+    private val getGistStateDao: GistStateDao
+) :
     AndroidViewModel(application), WebSocketListener {
     override val listenerId: String = "SharedCliqueViewModel"
+    private val _uiState = MutableStateFlow(GistUiState())
+    val uiState: StateFlow<GistUiState> = _uiState
 
-    // LiveData properties for observing state changes
     private val _gistCreatedOrJoined = MutableLiveData<GistState?>()
     val gistCreatedOrJoined: LiveData<GistState?> = _gistCreatedOrJoined
-    private val _messages = MutableLiveData<List<GistMessage>>(emptyList())
-    val messages: LiveData<List<GistMessage>> = _messages
+    private val _messages = MutableStateFlow<List<GistMessage>>(emptyList())
+    val messages: StateFlow<List<GistMessage>> = _messages.asStateFlow()
     private val gistId: String
         get() = _gistCreatedOrJoined.value?.gistId ?: ""
 
@@ -70,19 +100,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     val listOfOwners = _listOfOwners.asStateFlow()
     val listOfSpeakers = _listOfSpeakers.asStateFlow()
 
-    // this val should be replaced by server info someway, somehow
-    private val _gistTopRow =
-        MutableStateFlow(
-            GistTopRow(
-                gistId = "",
-                topic = "",
-                gistDescription = "This is a gist description",
-                activeSpectators = "",
-                gistImage = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg",
-                startedBy = "Owoyele Mayokun",
-                startedById = 25
-            )
-        )
+    private val _comments = MutableStateFlow<List<GistComment>>(emptyList())
+    val comments: StateFlow<List<GistComment>> = _comments
+
+    private val _gistTopRow: MutableStateFlow<GistTopRow?> = MutableStateFlow(null)
     val gistTopRow = _gistTopRow.asStateFlow()
 
     private val _bitmap = MutableLiveData<Bitmap?>()
@@ -92,33 +113,140 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     private val _searchPerformed = MutableLiveData(false)
     val searchPerformed: LiveData<Boolean> = _searchPerformed
 
+    private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
 
     init {
         WebSocketManager.registerListener(this)
-        //simulateGistCreated()
+        viewModelScope.launch {
+            restoreGistState()
+        }
         generateMembersList()
-        //startUpdatingActiveSpectators()
+        updateSimulatedGistComments()
     }
+
     fun onGistMessageChange(newMessage: TextFieldValue) {
         _gistMessage.value = newMessage
     }
+
+    private fun updateSimulatedGistComments() {
+        _comments.value = List(20) { index ->
+            GistComment(
+                id = generateUUIDString(),
+                fullName = "User $index",
+                comment = "This is comment number $index",
+                customerId = index,
+                replies = List(index % 3) { replyIndex ->
+                    Reply(
+                        id = replyIndex.toString(),
+                        fullName = "User ${replyIndex + 1}",
+                        customerId = index,
+                        reply = "This is a reply to comment $index"
+                    )
+                },
+                upVotes = 1
+            )
+        }
+    }
+
+    suspend fun restoreGistState() {
+        val persistedGist = getGistStateDao.getGistState()
+        val context = getApplication<Application>().applicationContext
+        if (persistedGist != null) {
+            _gistCreatedOrJoined.postValue(GistState(persistedGist.topic, persistedGist.gistId))
+            _gistTopRow.value = GistTopRow(
+                gistId = persistedGist.gistId,
+                topic = persistedGist.topic,
+                gistDescription = persistedGist.description,
+                activeSpectators = formatUserCount(persistedGist.activeSpectators),
+                gistImage = persistedGist.gistImage,
+                startedBy = persistedGist.startedBy,
+                startedById = persistedGist.startedById
+            )
+            _userStatus.postValue(
+                UserStatus(
+                    isSpeaker = persistedGist.isSpeaker,
+                    isOwner = persistedGist.isOwner
+                )
+            )
+        }
+        clearCacheDirectory(context)
+        downloadedMediaUrls.clear()
+        if (persistedGist != null) {
+            requestRefreshGistAndPreviousMessages(persistedGist.gistId)
+        }
+    }
+
+    private fun requestRefreshGistAndPreviousMessages(gistId: String) {
+        val message = """{
+            "type": "requestRefreshGistAndPreviousMessages",
+            "gistId": "$gistId"
+            }""".trimMargin()
+        send(message)
+    }
+
     fun clearMessage() {
         _gistMessage.value = TextFieldValue("")
     }
 
-    // remove this function later here and in the init block, it is simply for simulation purpose
+    fun fetchMyGists(customerId: Int) {
+        viewModelScope.launch {
+            try {
+                val endpoint = "gists/my"
+                val method = KliqueHttpMethod.GET
+                val params = mapOf("userId" to customerId.toString())
+
+                val response = NetworkUtils.makeRequest(
+                    endpoint = endpoint,
+                    method = method,
+                    params = params
+                ).second
+                val gists = parseGistsFromResponse(response)
+                _uiState.value = _uiState.value.copy(
+                    myGists = gists
+                )
+            } catch (e: Exception) {
+                Log.e("fetchGists", "Exception is $e")
+            }
+        }
+    }
+
+    fun updateGistTimestamp() {
+        viewModelScope.launch {
+            val currentTime = System.currentTimeMillis()
+            getGistStateDao.updateTimestamp(currentTime)
+        }
+    }
+
+    private fun parseGistsFromResponse(response: String): List<GistModel> {
+        Log.d("fetchGists", response)
+        val jsonArray = JSONObject(response).getJSONArray("gists")
+        val gists = mutableListOf<GistModel>()
+        for (i in 0 until jsonArray.length()) {
+            val gistJson = jsonArray.getJSONObject(i)
+            val gist = GistModel(
+                gistId = gistJson.getString("id"),
+                topic = gistJson.getString("topic"),
+                description = gistJson.getString("description"),
+                image = gistJson.getString("imageUrl"),
+                activeSpectators = gistJson.getInt("activeSpectators")
+            )
+            gists.add(gist)
+        }
+        return gists
+    }
+
     fun simulateGistCreated() {
         val topic = "Kotlin"
         val gistId = "1b345kt"
         _gistCreatedOrJoined.postValue(GistState(topic, gistId))
-        _gistTopRow.value = _gistTopRow.value.copy(
+        _gistTopRow.value = _gistTopRow.value?.copy(
             gistId = gistId,
             topic = topic,
             gistDescription = "This is to change the gist description"
         )
     }
-    // handle websocket's acknowledgment for entering the gist by assigning a value to gistJoinedOrCreated
-    fun enterGist(gistId: String){
+
+    fun enterGist(gistId: String) {
         val enterGistId = """
             {
             "type": "enterGist",
@@ -127,8 +255,8 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         """.trimIndent()
         send(enterGistId)
     }
-    // handle the exit message by setting gistJoinedOrCreated to null when it arrives
-    fun exitGist(){
+
+    fun exitGist() {
         val exitGistId = """
             {
             "type": "exitGist",
@@ -136,9 +264,10 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             }
         """.trimIndent()
         send(exitGistId)
-        _gistCreatedOrJoined.postValue(null)
+//        _gistCreatedOrJoined.postValue(null)
     }
-    fun floatGist(gistId: String){
+
+    fun floatGist(gistId: String) {
         val floatGistId = """
             {
             "type": "floatGist",
@@ -147,22 +276,29 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         """.trimIndent()
         send(floatGistId)
     }
+
     // remember to handle the websocket receipt message
     // use this to update _searchResults state variable
     fun doTheSearch(searchQuery: String) {
+        val allMembers = _listOfContactMembers.value + _listOfNonContactMembers.value
+        val filteredMembers = allMembers.filter {
+            it.fullName.contains(searchQuery, ignoreCase = true)
+        }
+        _searchResults.value = filteredMembers
         _searchPerformed.value = true
-        val searchMessage = """
-            {
-            "type": "GistSearch",
-            "searchQuery": "$searchQuery"
-            }
-        """.trimIndent()
-        Log.d("WebSocketManager", "Sending search message: $searchMessage")
-        send(searchMessage)
     }
-    fun turnSearchPerformedOff(){
+
+    fun turnSearchPerformedOff() {
         _searchPerformed.value = false
     }
+
+    fun unsubscribeToMembersUpdate() {
+        val messageJson = """{
+            "type": "unsubscribeToMembersUpdate"
+            }""".trimMargin()
+        send(messageJson)
+    }
+
     // This simulation can be used as a data structure template for the server
     fun simulateSearchResults() {
         val simulatedMembers = listOf(
@@ -178,84 +314,328 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         super.onCleared()
         WebSocketManager.unregisterListener(this)
     }
-    fun generateMessageId(): String {
+
+    fun generateUUIDString(): String {
         val randomUUID = UUID.randomUUID().toString()
         return randomUUID
     }
+
     override fun onMessageReceived(type: String, jsonObject: JSONObject) {
         when (type) {
             "gistCreated" -> {
                 val gistId = jsonObject.getString("gistId")
                 val topic = jsonObject.getString("topic")
                 _gistCreatedOrJoined.postValue(GistState(topic, gistId))
-                _gistTopRow.value = _gistTopRow.value.copy(gistId = gistId, topic = topic)
+                val startedBy = jsonObject.getString("startedBy")
+                val startedById = jsonObject.getInt("startedById")
+                val description = jsonObject.getString("description")
+                val isSpeaker = jsonObject.getBoolean("isSpeaker")
+                val isOwner = jsonObject.getBoolean("isOwner")
+                val activeSpectators = jsonObject.getInt("activeSpectators")
+                val gistImageUrl = jsonObject.getString("gistImageUrl")
+                val gistTopRowObject = GistTopRow(
+                    gistId = gistId,
+                    topic = topic,
+                    gistDescription = description,
+                    activeSpectators = formatUserCount(activeSpectators),
+                    gistImage = gistImageUrl,
+                    startedBy = startedBy,
+                    startedById = startedById
+                )
+                _gistTopRow.value = gistTopRowObject
+                _userStatus.value = UserStatus(isSpeaker = isSpeaker, isOwner = isOwner)
+                viewModelScope.launch {
+                    getGistStateDao.insertGistState(
+                        GistStateEntity(
+                            gistId = gistId,
+                            topic = topic,
+                            description = description,
+                            startedBy = startedBy,
+                            startedById = startedById,
+                            activeSpectators = activeSpectators,
+                            gistImage = gistImageUrl,
+                            isSpeaker = isSpeaker,
+                            isOwner = isOwner
+                        )
+                    )
+                }
             }
+
             "gistCreationError" -> {
                 val errorMessage = jsonObject.getString("message")
                 _gistCreationError.postValue(errorMessage)
             }
+
             "previousMessages" -> {
-                val gistId = jsonObject.getString("gistId")
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
                 val messages = (0 until messagesJsonArray.length()).map { i ->
                     val msg = messagesJsonArray.getJSONObject(i)
+                    val messageType = msg.getString("messageType")
+                    val timeStampString = msg.getString("timeStamp")
+                    val timeStamp: ZonedDateTime = try {
+                        ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                    } catch (e: Exception) {
+                        val millis = timeStampString.toLongOrNull() ?: 0L
+                        Log.d("Time", "millis: $millis")
+                        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                    }
+                    val content = deEscapeContent(msg.getString("content"))
+                    val externalUrl = when (messageType) {
+                        "KImage", "KAudio", "KVideo" -> content
+                        else -> null
+                    }
                     GistMessage(
                         id = msg.getString("id"),
                         gistId = msg.getString("gistId"),
-                        customerId = msg.getInt("customerId"),
-                        sender = msg.getString("fullName"),
-                        content = deEscapeContent(msg.getString("content")),
-                        status = msg.getString("status"),
-                        messageType = msg.getString("messageType")
+                        senderId = msg.getInt("senderId"),
+                        senderName = msg.getString("fullName"),
+                        content = content,
+                        status = GistMessageStatus.Sent,
+                        messageType = messageType,
+                        timeStamp = timeStamp,
+                        externalUrl = externalUrl
                     )
                 }
-                _messages.postValue(messages)
+                _messages.value = messages
+                messages.forEach { message ->
+                    handleMediaDownload(message)
+                }
             }
 
-            "message" -> {
+            "KText" -> {
                 val gistId = jsonObject.getString("gistId")
-                val messageId = jsonObject.getString("id")
-                val customerId = jsonObject.getInt("customerId")
-                val fullName = jsonObject.getString("fullName")
+                val messageId = jsonObject.getString("messageId")
+                val customerId = jsonObject.getInt("senderId")
+                val senderName = jsonObject.getString("senderName")
                 val content = deEscapeContent(jsonObject.getString("content"))
+                val timeStampString = jsonObject.getString("timeStamp")
+                val timeStamp: ZonedDateTime = try {
+                    // Case 1: If it's ISO 8601 format
+                    ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                } catch (e: Exception) {
+                    val millis = timeStampString.toLongOrNull() ?: 0L
+                    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                }
                 val message = GistMessage(
                     id = messageId,
                     gistId = gistId,
-                    customerId = customerId,
-                    sender = fullName,
+                    senderId = customerId,
+                    senderName = senderName,
                     content = content,
-                    status = "received"
+                    status = GistMessageStatus.Sent,
+                    messageType = "KText",
+                    timeStamp = timeStamp
                 )
+                Log.d("Called", "Add message called")
                 addMessage(message)
             }
 
-            "messageAck" -> {
+            "gistMessageAck" -> {
+                Log.d("Called", "this function called")
                 val gistId = jsonObject.getString("gistId")
-                val messageId = jsonObject.getString("id")
-                val ackMessage = jsonObject.getString("message")
-                val messageType = jsonObject.optString("messageType", "text")
-                Log.i("WebSocketManager", "Message acknowledged: $ackMessage")
-                messageAcknowledged(gistId, messageId, messageType)
+                val messageId = jsonObject.getString("messageId")
+                Log.i("Called", "Message acknowledged")
+                messageAcknowledged(gistId, messageId)
             }
 
             "KImage", "KAudio", "KVideo" -> {
-                handleBinaryMessage(type, jsonObject)
+                val messageId = jsonObject.getString("messageId")
+                val gistId = jsonObject.getString("gistId")
+                val senderId = jsonObject.getInt("senderId")
+                val senderName = jsonObject.getString("senderName")
+                val content = jsonObject.getString("content")
+                val messageType = jsonObject.getString("messageType")
+                val timeStampString = jsonObject.getString("timeStamp")
+                val timeStamp: ZonedDateTime = try {
+                    ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                } catch (e: Exception) {
+                    val millis = timeStampString.toLongOrNull() ?: 0L
+                    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                }
+                val messageObject = GistMessage(
+                    id = messageId,
+                    gistId = gistId,
+                    senderId = senderId,
+                    senderName = senderName,
+                    content = content,
+                    status = GistMessageStatus.Sent,
+                    messageType = messageType,
+                    externalUrl = content,
+                    timeStamp = timeStamp
+                )
+                addMessage(messageObject)
+            }
+
+            "spectatorUpdate" -> {
+                val activeSpectatorsUpdate = jsonObject.getInt("activeSpectators")
+                val gistId = jsonObject.getString("gistId")
+                if (gistId == _gistCreatedOrJoined.value?.gistId) {
+                    _gistTopRow.value = _gistTopRow.value?.copy(
+                        activeSpectators = formatUserCount(activeSpectatorsUpdate)
+                    )
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    getGistStateDao.updateActiveSpectators(activeSpectatorsUpdate)
+                }
+            }
+
+            "olderMessages" -> {
+                val messagesArray = jsonObject.getJSONArray("theMessages")
+                val messages = (0 until messagesArray.length()).map { i ->
+                    val msg = messagesArray.getJSONObject(i)
+                    val messageType = msg.getString("messageType")
+                    val timeStampString = msg.getString("timeStamp")
+                    val timeStamp: ZonedDateTime = try {
+                        ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
+                    } catch (e: Exception) {
+                        val millis = timeStampString.toLongOrNull() ?: 0L
+                        Log.d("Time", "millis: $millis")
+                        Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault())
+                    }
+                    val content = deEscapeContent(msg.getString("content"))
+                    val externalUrl = when (messageType) {
+                        "KImage", "KAudio", "KVideo" -> content
+                        else -> null
+                    }
+                    GistMessage(
+                        id = msg.getString("id"),
+                        gistId = msg.getString("gistId"),
+                        senderId = msg.getInt("senderId"),
+                        senderName = msg.getString("fullName"),
+                        content = content,
+                        status = GistMessageStatus.Sent,
+                        messageType = messageType,
+                        timeStamp = timeStamp,
+                        externalUrl = externalUrl
+                    )
+                }
+                val currentMessages = _messages.value ?: emptyList()
+                val updatedMessages = currentMessages + messages
+                _messages.value = updatedMessages
+                updatedMessages.forEach { message ->
+                    handleMediaDownload(message)
+                }
+            }
+
+            "gistRefreshUpdate" -> {
+                val isSpeaker = jsonObject.getBoolean("isSpeaker")
+                val isOwner = jsonObject.getBoolean("isOwner")
+                val activeSpectators = jsonObject.getInt("activeSpectators")
+                _userStatus.value = UserStatus(isSpeaker = isSpeaker, isOwner = isOwner)
+                _gistTopRow.value = _gistTopRow.value?.copy(
+                    activeSpectators = activeSpectators.toString()
+                )
+                viewModelScope.launch(Dispatchers.IO) {
+                    getGistStateDao.updateActiveSpectators(activeSpectators)
+                    getGistStateDao.insertGistState(
+                        GistStateEntity(
+                            gistId = _gistTopRow.value?.gistId ?: "",
+                            topic = _gistTopRow.value?.topic ?: "",
+                            description = _gistTopRow.value?.gistDescription ?: "",
+                            startedBy = _gistTopRow.value?.startedBy ?: "",
+                            startedById = _gistTopRow.value?.startedById ?: 0,
+                            activeSpectators = activeSpectators,
+                            gistImage = _gistTopRow.value?.gistImage ?: "",
+                            isSpeaker = isSpeaker,
+                            isOwner = isOwner
+                        )
+                    )
+                }
+            }
+
+            "roleUpdate" -> {
+                val isSpeaker = jsonObject.getBoolean("isSpeaker")
+                val isOwner = jsonObject.getBoolean("isOwner")
+                _userStatus.value = UserStatus(isSpeaker = isSpeaker, isOwner = isOwner)
+                viewModelScope.launch(Dispatchers.IO) {
+                    val currentGistState = getGistStateDao.getGistState()
+                    val existingActiveSpectators = currentGistState?.activeSpectators ?: 1
+                    getGistStateDao.insertGistState(
+                        GistStateEntity(
+                            gistId = _gistTopRow.value?.gistId ?: "",
+                            topic = _gistTopRow.value?.topic ?: "",
+                            description = _gistTopRow.value?.gistDescription ?: "",
+                            startedBy = _gistTopRow.value?.startedBy ?: "",
+                            startedById = _gistTopRow.value?.startedById ?: 0,
+                            activeSpectators = existingActiveSpectators,
+                            gistImage = _gistTopRow.value?.gistImage ?: "",
+                            isSpeaker = isSpeaker,
+                            isOwner = isOwner
+                        )
+                    )
+                }
+            }
+
+            "membersList" -> {
+                val membersArray = jsonObject.getJSONArray("members")
+                val membersList = (0 until membersArray.length()).map { member ->
+                    val theMember = membersArray.getJSONObject(member)
+                    val customerId = theMember.getInt("userId")
+                    val fullName = theMember.getString("fullName")
+                    val isSpeaker = theMember.getBoolean("isSpeaker")
+                    val isOwner = theMember.getBoolean("isOwner")
+                    Members(
+                        customerId = customerId,
+                        fullName = fullName,
+                        isOwner = isOwner,
+                        isSpeaker = isSpeaker
+                    )
+                }
+                fetchMembersAndCompare(membersList)
+            }
+
+            "memberLeft" -> {
+                val userId = jsonObject.getInt("userId")
+                removeMemberById(userId)
+            }
+
+            "memberJoined" -> {
+                val userId = jsonObject.getInt("userId")
+                val fullName = jsonObject.getString("fullName")
+                val isSpeaker = jsonObject.getBoolean("isSpeaker")
+                val isOwner = jsonObject.getBoolean("isOwner")
+                val member = Members(
+                    customerId = userId,
+                    fullName = fullName,
+                    isSpeaker = isSpeaker,
+                    isOwner = isOwner
+                )
+                addNewMember(member)
+            }
+
+            "subscriberRoleUpdate" -> {
+                val userId = jsonObject.getInt("userId")
+                val fullName = jsonObject.getString("fullName")
+                val newRole = jsonObject.getString("newRole")
+
+                val isOwner = newRole == "owner"
+                val isSpeaker = newRole == "speaker" || isOwner
+                val updatedMember = Members(
+                    customerId = userId,
+                    fullName = fullName,
+                    isOwner = isOwner,
+                    isSpeaker = isSpeaker
+                )
+                updateMemberRole(updatedMember)
+            }
+
+            "exitGist" -> {
+                val context = getApplication<Application>().applicationContext
+                _gistCreatedOrJoined.value = null
+                _messages.value = emptyList()
+                _userStatus.value = UserStatus(isSpeaker = false, isOwner = false)
+                _gistTopRow.value = null
+                clearCacheDirectory(context)
+                clearGistState()
+                downloadedMediaUrls.clear()
             }
         }
     }
 
-    private fun handleBinaryMessage(type: String, jsonObject: JSONObject) {
-        val messageId = jsonObject.getString("id")
-        println("Received message with Id: $messageId")
-        val binaryData = jsonObject.getString("binaryData")
-
-        val message = GistMessage(
-            id = messageId, gistId = "",  // Adjust as necessary
-            customerId = 0,  // Adjust as necessary
-            sender = "",  // Adjust as necessary
-            content = binaryData, status = "received", messageType = type
-        )
-        addMessage(message)
+    private fun clearGistState() {
+        viewModelScope.launch {
+            getGistStateDao.deleteGistState() // Defaults to id = 1
+        }
     }
 
     fun sendBinary(
@@ -276,6 +656,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
 
         val combinedBytes = outputStream.toByteArray()
         WebSocketManager.sendBinary(combinedBytes)
+        updateGistTimestamp()
 
         Log.d(
             "sendBinaryInputs",
@@ -283,11 +664,41 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         )
     }
 
+    private fun clearCacheDirectory(context: Context) {
+        val cacheDir = context.cacheDir
+        if (cacheDir.exists() && cacheDir.isDirectory) {
+            cacheDir.listFiles()?.forEach { file ->
+                if (file.isDirectory) {
+                    file.deleteRecursively() // Deletes directories and their contents
+                } else {
+                    file.delete() // Deletes individual files
+                }
+            }
+        }
+    }
+
     fun addMessage(message: GistMessage) {
-        val updatedMessages = _messages.value.orEmpty().toMutableList()
-        updatedMessages.add(message)
-        _messages.postValue(updatedMessages)
-        Log.d("CliqueViewModel", "Message added: $message")
+        Log.d("Logging", "Add message logging: ${_messages.value}")
+
+        // Check if the message already exists in the list
+        val updatedMessages = _messages.value.toMutableList()
+        val messageExists = updatedMessages.any { it.id == message.id }
+
+        // Only add the message if it doesn't already exist
+        if (!messageExists) {
+            updatedMessages.add(0, message)
+            _messages.value = updatedMessages
+            Log.d("Logging", "Add message post-logging: ${_messages.value}")
+            Log.d("CliqueViewModel", "Message added: $message")
+
+            // Handle media download if necessary
+            if (message.externalUrl != null && message.localPath == null) {
+                handleMediaDownload(message)
+                Log.d("Called", "handle media called external")
+            }
+        } else {
+            Log.d("CliqueViewModel", "Duplicate message prevented: $message")
+        }
     }
 
     fun loadMessages(gistId: String) {
@@ -301,40 +712,56 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         send(message)
     }
 
-    fun startGist(topic: String, type: String) {
+    fun startGist(topic: String, type: String, description: String) {
         val message = """
             {
                 "type": "createGist",
                 "topic": "$topic",
-                "gistType": "$type"
+                "gistType": "$type",
+                "description": "$description"
             }
         """.trimIndent()
         send(message)
     }
+
+    fun loadOlderMessages(lastMessageId: String, gistId: String) {
+        Log.d("loading", "loading older messages")
+        val message = """
+            {
+            "type": "loadOlderMessages",
+            "lastMessageId": "$lastMessageId",
+            "gistId": "$gistId"
+            }
+            """.trimMargin()
+        send(message)
+    }
+
     fun clearGistCreationError() {
         _gistCreationError.value = null
     }
+
     fun simulateGistCreationError() {
         // This is a simulated error message for testing purposes
         _gistCreationError.postValue("You can't create more than 5 gists. Please float an existing gist from 'My Gists'.")
     }
+
     fun isGistActive(): Boolean {
         return _gistCreatedOrJoined.value != null
     }
 
-    private fun messageAcknowledged(gistId: String, messageId: String, messageType: String = "text") {
+    private fun messageAcknowledged(gistId: String, messageId: String) {
         Log.d(
             "WebSocketManager",
-            "Message acknowledged: gistId=$gistId, messageId=$messageId, messageType=$messageType"
+            "Message acknowledged: gistId=$gistId, messageId=$messageId"
         )
-        val updatedMessages = _messages.value.orEmpty().toMutableList()
+        val updatedMessages = _messages.value.toMutableList()
         val messageIndex =
-            updatedMessages.indexOfFirst { it.gistId == gistId && it.id == messageId && it.messageType == messageType }
+            updatedMessages.indexOfFirst { it.gistId == gistId && it.id == messageId }
         if (messageIndex != -1) {
             val message = updatedMessages[messageIndex]
-            val updatedMessage = message.copy(status = "sent")
+            val updatedMessage = message.copy(status = GistMessageStatus.Sent)
             updatedMessages[messageIndex] = updatedMessage
-            _messages.postValue(updatedMessages)
+            _messages.value = updatedMessages
             Log.d(
                 "WebSocketManager",
                 "Message status updated to 'sent': gistId=$gistId, messageId=$messageId"
@@ -372,22 +799,29 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
                         )
                     Log.d("ChatRoom", "Video Byte Array: ${videoByteArray.size} bytes")
 
-                    val messageId = generateMessageId()
+                    val messageId = generateUUIDString()
                     sendBinary(
-                        videoByteArray, "KVideo", gistId, messageId, customerId, fullName = myName
+                        videoByteArray,
+                        GistMediaType.KVideo.getTypeString(),
+                        gistId,
+                        messageId,
+                        customerId,
+                        fullName = myName
                     )
-
+                    val videoUri =
+                        getUriFromByteArray(videoByteArray, context, GistMediaType.KVideo)
                     val gistMessage = GistMessage(
                         id = messageId,
                         gistId = gistId,
-                        customerId = customerId,
-                        sender = myName,
+                        senderId = customerId,
+                        senderName = myName,
                         content = "",
-                        status = "pending",
-                        messageType = "KVideo",
-                        binaryData = videoByteArray
+                        status = GistMessageStatus.Pending,
+                        messageType = GistMediaType.KVideo.getTypeString(),
+                        localPath = videoUri,
+                        timeStamp = ZonedDateTime.now()
                     )
-                    Log.d("customerId", "CustomerId: $customerId")
+                    Log.d("senderId", "CustomerId: $customerId")
                     addMessage(gistMessage)
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing video: ${e.message}", e)
@@ -397,7 +831,7 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
     }
 
     fun updateSpectatorCount(newCount: Int) {
-        _gistTopRow.value = _gistTopRow.value.copy(activeSpectators = (formatUserCount(newCount)))
+        _gistTopRow.value = _gistTopRow.value?.copy(activeSpectators = (formatUserCount(newCount)))
     }
 
     var activeSpectatorsCount = 0
@@ -423,41 +857,40 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
             else -> count.toString()
         }
     }
+
     private suspend fun loadContacts(): List<Contact> {
         return contactDao.getSortedContacts().map { it.toContact() }
     }
-    fun compareAndUpdateMembers(members: List<Members>, contacts: List<Contact>) {
-        val contactSet = contacts.mapNotNull {it.customerId}.toSet()
-        val updatedMembers = members.map {member ->
+
+    private fun compareAndUpdateMembers(members: List<Members>, contacts: List<Contact>) {
+        val contactSet = contacts.mapNotNull { it.customerId }.toSet()
+        val updatedMembers = members.map { member ->
             member.copy(isContact = contactSet.contains(member.customerId))
         }
         sortMembersByContact(updatedMembers.toMutableList())
     }
-    // this function will be changed to react to the websocket on Message instead..
-    // fetchMembersFromServer will eventually have no return type
-    fun fetchMembersAndCompare(members: List<Members>) {
+
+    private fun fetchMembersAndCompare(members: List<Members>) {
         viewModelScope.launch {
             val contacts = loadContacts()
             Log.d("Contacts", "$contacts")
             compareAndUpdateMembers(members, contacts)
         }
     }
+
     // trigger the fetchMembersFromServer function first using the existing LaunchedEffect
     // Use the onMessage function to trigger fetchMembersAndCompare
     // Pass the membersFromServer List to fetchMembersAndCompare
     fun fetchMembersFromServer(gistId: String) {
-        try {
-            val fetchRequest = """
+        val fetchRequest = """
             {
             "type": "fetchMembersFromServer",
             "gistId": "$gistId"
             }
         """.trimIndent()
-            send(fetchRequest)
-        } catch (e: Exception) {
-            Log.e("SharedCliqueViewModel", "Failed to send fetch request: ${e.message}")
-        }
+        send(fetchRequest)
     }
+
     private fun sortMembersByContact(members: MutableList<Members>) {
         val contacts = members.filter { it.isContact }
         val nonContacts = members.filter { !it.isContact }
@@ -486,15 +919,364 @@ class SharedCliqueViewModel(application: Application, private val customerId: In
         sortMembersByContact(membersList)
     }
 
+    private fun handleMediaDownload(message: GistMessage) {
+        Log.d("Called", "handle media called internal")
+        if (message.externalUrl != null && message.localPath == null) {
+            Log.d("Called", "handle media called internal 2")
+            val mediaType = GistMediaType.fromString(message.messageType)
+            if (mediaType == null) {
+                Log.e("SharedCliqueViewModel", "Unknown media type: ${message.messageType}")
+                return
+            }
+
+            when (val state = downloadedMediaUrls[message.externalUrl]) {
+                is DownloadState.Downloaded -> {
+                    Log.d("Called", "handle media called internal 3")
+                    updateMessageLocalPath(message.id, state.uri)
+                    return
+                }
+
+                is DownloadState.Downloading -> {
+                    Log.d("Called", "Download already in progress for ${message.externalUrl}")
+                    return
+                }
+
+                else -> {
+                    // Proceed to download
+                }
+            }
+
+            Log.d("Called", "handle media called internal 7")
+            downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
+            Log.d("Called", "handle media called internal 8")
+
+            viewModelScope.launch {
+                Log.d("Called", "handle media called internal 9")
+                try {
+                    Log.d("Called", "handle media called internal 4")
+                    val byteArray = downloadFromUrl(message.externalUrl)
+                    val uri = getUriFromByteArray(byteArray, getApplication(), mediaType)
+                    downloadedMediaUrls[message.externalUrl] = DownloadState.Downloaded(uri)
+                    Log.d("Called", "handle media called internal 5: ${byteArray.size} bytes")
+                    updateMessageLocalPath(message.id, uri)
+                } catch (e: Exception) {
+                    Log.e(
+                        "SharedCliqueViewModel",
+                        "Failed to download media for message ${message.id}",
+                        e
+                    )
+                    // Remove from cache on failure
+                    downloadedMediaUrls.remove(message.externalUrl)
+                    // Optionally, update the message with an error state or notify the user
+                    // For example:
+                    // updateMessageWithError(message.id, "Failed to load media")
+                }
+            }
+        }
+    }
+
+    /**
+     * Downloads data from a given URL.
+     */
+    private suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO) {
+        val connection = URL(url).openConnection() as HttpURLConnection
+        connection.apply {
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 10000
+            doInput = true
+            connect()
+        }
+
+        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+            throw IOException("Failed to download file: HTTP ${connection.responseCode}")
+        }
+
+        connection.inputStream.use { it.readBytes() }
+    }
+
+    /**
+     * Updates the local path of a message.
+     */
+    private fun updateMessageLocalPath(messageId: String, uri: Uri) {
+        Log.d("Called", "handle media called internal 6")
+
+        // Create a new list to ensure StateFlow recognizes the change
+        val updatedMessages = _messages.value.map { message ->
+            Log.d("Local path Message id", "${message.id} and $messageId")
+            // Update only the message that matches the ID
+            if (message.id == messageId) {
+                Log.d("Local path Message id", "Is this part even logging?")
+                message.copy(localPath = uri)
+            } else {
+                message
+            }
+        }.toMutableList()
+
+        Log.d("Local path Message id", "value of updated messages: $updatedMessages")
+        _messages.value = updatedMessages
+        Log.d("SharedCliqueViewModel", "Updated message $messageId with local URI: $uri")
+        Log.d("Local path", "print messages: ${_messages.value}")
+    }
+
+    fun removeAsSpeaker(userId: Int) {
+        val message = """{
+            "type": "removeAsSpeaker",
+            "userId": $userId
+            }""".trimMargin()
+        send(message)
+    }
+
+    fun makeOwner(userId: Int) {
+        val message = """{
+            "type": "makeOwner",
+            "userId": $userId
+            }""".trimMargin()
+        send(message)
+    }
+
+    fun makeSpeaker(userId: Int) {
+        val message = """{
+            "type": "makeSpeaker",
+            "userId": $userId
+            }""".trimMargin()
+        send(message)
+    }
+
+    private fun removeMemberById(memberId: Int) {
+        _listOfContactMembers.value =
+            _listOfContactMembers.value.filter { it.customerId != memberId }
+        _listOfNonContactMembers.value =
+            _listOfNonContactMembers.value.filter { it.customerId != memberId }
+        _listOfOwners.value = _listOfOwners.value.filter { it.customerId != memberId }
+        _listOfSpeakers.value = _listOfSpeakers.value.filter { it.customerId != memberId }
+    }
+
+    private fun addNewMember(newMember: Members) {
+        viewModelScope.launch {
+            val contacts = loadContacts()
+            val contactSet = contacts.mapNotNull { it.customerId }.toSet()
+            val isContact = contactSet.contains(newMember.customerId)
+            val updatedMember = newMember.copy(isContact = isContact)
+
+            if (updatedMember.isContact) {
+                _listOfContactMembers.value += updatedMember
+            } else {
+                _listOfNonContactMembers.value += updatedMember
+            }
+            if (updatedMember.isOwner) {
+                _listOfOwners.value += updatedMember
+            }
+            if (updatedMember.isSpeaker && !updatedMember.isOwner) {
+                _listOfSpeakers.value += updatedMember
+            }
+        }
+    }
+
+    private fun updateMemberRole(updatedMember: Members) {
+        removeMemberById(updatedMember.customerId)
+        addNewMember(updatedMember)
+    }
+
+    fun sendUpdatedDescription(editedText: String) {
+        viewModelScope.launch {
+            try {
+                val jsonBody = """{
+                "descriptionUpdate": "$editedText"
+            """.trimMargin()
+                val response = NetworkUtils.makeRequest(
+                    "updateGistDescription",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody
+                )
+                if (response.first) {
+                    val jsonObject = JSONObject(response.second)
+                    val description = jsonObject.getString("description")
+                    _gistTopRow.value = _gistTopRow.value?.copy(gistDescription = description)
+                }
+            } catch (e: Exception){
+                Log.e("NetworkUtils", "Network request failed: ${e.message}")
+            }
+        }
+    }
+
+    fun fetchGistComments(loadingMore: Boolean = false, lastCommentId: String? = null) {
+        val params = mutableMapOf("gistId" to gistId)
+        if (loadingMore) {
+            params["loadingMore"] = "true"
+            lastCommentId?.let {
+                params["lastCommentId"] = lastCommentId
+            }
+        }
+        viewModelScope.launch {
+            try {
+                val responseString =
+                    NetworkUtils.makeRequest(
+                        "fetchGistComments",
+                        KliqueHttpMethod.GET,
+                        params
+                    ).second
+                val parsedGistComments = parseGistCommentsResponseString(responseString)
+                if (loadingMore) {
+                    _comments.value += parsedGistComments
+                } else {
+                    _comments.value = parsedGistComments
+                }
+            } catch (e: Exception){
+                Log.e("NetworkUtils", "Network request failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun parseGistCommentsResponseString(theJson: String): List<GistComment> {
+        val commentsJsonArray = JSONArray(theJson)
+        val commentsList = mutableListOf<GistComment>()
+
+        for (i in 0 until commentsJsonArray.length()) {
+            val commentJson = commentsJsonArray.getJSONObject(i)
+            val id = commentJson.getString("id")
+            val fullName = commentJson.getString("fullName")
+            val comment = commentJson.getString("comment")
+            val customerId = commentJson.getInt("userId")
+            val upVotes = commentJson.getInt("upVotes")
+
+            val repliesJsonArray = commentJson.getJSONArray("replies")
+            val repliesList = mutableListOf<Reply>()
+
+            for (j in 0 until repliesJsonArray.length()) {
+                val replyJson = repliesJsonArray.getJSONObject(j)
+                val replyId = replyJson.getString("id")
+                val replyFullName = replyJson.getString("fullName")
+                val replyCustomerId = replyJson.getInt("userId")
+                val replyText = replyJson.getString("reply")
+
+                val reply = Reply(
+                    id = replyId,
+                    fullName = replyFullName,
+                    customerId = replyCustomerId,
+                    reply = replyText
+                )
+                repliesList.add(reply)
+            }
+
+            val gistComment = GistComment(
+                id = id,
+                fullName = fullName,
+                comment = comment,
+                customerId = customerId,
+                replies = repliesList,
+                upVotes = upVotes
+            )
+            commentsList.add(gistComment)
+        }
+        return commentsList
+    }
+
+    fun sendGistComment(comment: String, isReply: Boolean, commentId: String? = null, userId: Int) {
+        val endpoint = if (isReply) "commentReply" else "mainComment"
+        val theCommentId = commentId ?: generateUUIDString()
+        val commentReplyId = if (isReply) generateUUIDString() else null
+        val jsonBody = if (isReply) {
+            """
+    {
+        "comment": "$comment",
+        "commentId": "$theCommentId",
+        "userId": $userId,
+        "gistId": "$gistId",
+        "commentReplyId": "$commentReplyId"
+    }
+    """
+        } else {
+            """
+    {
+        "comment": "$comment",
+        "commentId": "$theCommentId",
+        "userId": $userId,
+        "gistId": "$gistId"
+    }
+    """
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try{
+                val response =
+                    NetworkUtils.makeRequest(endpoint, KliqueHttpMethod.POST, emptyMap(), jsonBody)
+                if (response.first) {
+                    val myNewComment = GistComment(
+                        comment = comment,
+                        fullName = "My Comment",
+                        customerId = customerId,
+                        replies = emptyList(),
+                        id = theCommentId,
+                        upVotes = 0
+                    )
+                    val myNewReply = Reply(
+                        id = theCommentId,
+                        fullName = "My Comment Reply",
+                        customerId = customerId,
+                        reply = comment,
+                    )
+                    if (!isReply) {
+                        _comments.value += myNewComment
+                    } else {
+                        _comments.value = _comments.value.map {
+                            if (it.id == commentId) {
+                                it.copy(replies = it.replies + myNewReply)
+                            } else {
+                                it
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception){
+                Log.e("NetworkUtils", "Network request failed: ${e.message}")
+            }
+        }
+    }
+
+    fun sendUpVotes(commentId: String) {
+        val params = mapOf(
+            "commentId" to commentId,
+            "gistId" to gistId, "userId" to "$customerId"
+        )
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response = NetworkUtils.makeRequest("addUpvotes", KliqueHttpMethod.GET, params)
+                if (response.first) {
+                    _comments.value = _comments.value.map { comment ->
+                        if (comment.id == commentId) comment.copy(upVotes = comment.upVotes + 1) else {
+                            comment
+                        }
+                    }
+                }
+            } catch (e: Exception){
+                Log.e("NetworkUtils", "Network request failed: ${e.message}")
+            }
+        }
+    }
 }
 
 class SharedCliqueViewModelFactory(
-    private val application: Application, private val customerId: Int, private val contactDao: ContactDao
+    private val application: Application,
+    private val customerId: Int,
+    private val contactDao: ContactDao,
+    private val getGistStateDao: GistStateDao
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(SharedCliqueViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST") return SharedCliqueViewModel(application, customerId, contactDao) as T
+            @Suppress("UNCHECKED_CAST") return SharedCliqueViewModel(
+                application,
+                customerId,
+                contactDao,
+                getGistStateDao
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
+}
+
+private sealed class DownloadState {
+    object NotDownloaded : DownloadState()
+    object Downloading : DownloadState()
+    data class Downloaded(val uri: Uri) : DownloadState()
 }

@@ -52,7 +52,7 @@ fun NavigationHost(
     profileUpdateData?.let {
         Log.d("Worked", "It worked")
 //        chatScreenViewModel.updateProfile(
-//            enemyId = it.customerId,
+//            enemyId = it.senderId,
 //            contactName = it.contactName,
 //            profilePhoto = it.profilePhoto,
 //            isVerified = it.isVerified
@@ -60,6 +60,7 @@ fun NavigationHost(
         ProfileRepository.clearProfileData()
     }
     WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
+    WebSocketManager.setSharedCliqueViewModel(sharedCliqueViewModel)
     NavHost(
         navController = navController,
         startDestination = if (isLoggedIn) "home" else "login"

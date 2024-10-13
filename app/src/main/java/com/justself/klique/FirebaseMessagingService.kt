@@ -38,7 +38,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             val title = it.title ?: "Klique Notification"
             val messageBody = it.body ?: "You have new notifications"
             val notificationType = remoteMessage.data["notificationType"] ?: "chat"
-            val customerId = remoteMessage.data["customerId"] ?: ""
+            val customerId = remoteMessage.data["senderId"] ?: ""
             val name = remoteMessage.data["name"] ?: ""
             sendNotification(title, messageBody, notificationType, customerId, name)
         }
@@ -48,7 +48,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun handleDataMessage(data: Map<String, String>) {
-        val customerId = data["customerId"] ?: ""
+        val customerId = data["senderId"] ?: ""
         val name = data["name"] ?: ""
         val profilePhoto = data["profilePhoto"] ?: ""
         val isVerified = data["isVerified"]?.toBoolean() ?: false

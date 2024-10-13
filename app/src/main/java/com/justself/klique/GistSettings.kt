@@ -76,55 +76,24 @@ import okio.IOException
 fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel) {
     var isEditing by remember { mutableStateOf(false) }
     val descriptionFromServer by viewModel.gistTopRow.collectAsState()
-    var text by remember { mutableStateOf(descriptionFromServer.gistDescription) }
+    var text by remember { mutableStateOf(descriptionFromServer?.gistDescription) }
     var editedText by remember { mutableStateOf(text) }
     var isSearchMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    val coroutineScope = rememberCoroutineScope()
-    val context = LocalContext.current
-    var hasPermissions by remember { mutableStateOf(false) }
-    val permissionLauncher =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
-            hasPermissions = permissions[Manifest.permission.READ_MEDIA_IMAGES] == true ||
-                    permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true
-        }
     val gistTopRow by viewModel.gistTopRow.collectAsState()
-    val gistId = gistTopRow.gistId
-    val gistImage = gistTopRow.gistImage
+    val gistId = gistTopRow?.gistId
     val searchResults by viewModel.searchResults.observeAsState(emptyList())
-    val imagePickerLauncher =
-        rememberLauncherForActivityResult(contract = ActivityResultContracts.GetContent()) { uri: Uri? ->
-            uri?.let {
-                coroutineScope.launch {
-                    try {
-                        val imageByteArray =
-                            ImageUtils.processImageToByteArray(context, uri, maxSize = 1080)
-                        viewModel.sendBinary(
-                            data = imageByteArray,
-                            type = "GistProfileImage",
-                            gistId = gistId
-                        )
-                    } catch (e: IOException) {
-                        e.printStackTrace()
-                    }
-                }
-            }
-        }
-    val requestPermissions: () -> Unit = {
-        permissionLauncher.launch(
-            arrayOf(
-                Manifest.permission.READ_MEDIA_IMAGES,
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            )
-        )
-    }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    val minCharacterLimit = 10
     BackHandler {
         navController.popBackStack()
         viewModel.turnSearchPerformedOff()
     }
     LaunchedEffect(gistId) {
-        viewModel.fetchMembersFromServer(gistId)
+        if (gistId != null) {
+            viewModel.fetchMembersFromServer(gistId)
+        }
     }
 
     Column(
@@ -136,43 +105,8 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                //.height(200.dp)
                 .background(color = MaterialTheme.colorScheme.background)
         ) {
-            // Left Box with Image and Pencil Icon
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.background),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = rememberAsyncImagePainter(gistImage),
-                    contentDescription = "Image with Pencil Icon",
-                    modifier = Modifier.fillMaxWidth()
-                )
-                IconButton(
-                    onClick = {
-                        if (hasPermissions) {
-                            imagePickerLauncher.launch("image/*")
-                        } else {
-                            requestPermissions()
-                        }
-                        isSearchMode = false
-                    }, modifier = Modifier
-                        .size(24.dp)
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Icon"
-                    )
-                }
-            }
-
-            // Right Box with Text and Pencil Icon
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -181,40 +115,44 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                 contentAlignment = Alignment.Center
             ) {
                 if (isEditing) {
-                    TextField(
-                        value = editedText,
-                        onValueChange = { newValue ->
-                            if (newValue.length <= 150) {
-                                editedText = newValue.replace("\n", "")
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(1f)
-                            .height(100.dp)
-                            .padding(4.dp)
-                            .align(alignment = Alignment.Center),
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.background,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.background,
-                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Text,
-                            capitalization = KeyboardCapitalization.Sentences
+                    editedText?.let {
+                        TextField(
+                            value = it,
+                            onValueChange = { newValue ->
+                                if (newValue.length <= 100) {
+                                    editedText = newValue.replace("\n", "")
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth(1f)
+                                .height(100.dp)
+                                .padding(4.dp)
+                                .align(alignment = Alignment.Center),
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.background,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                capitalization = KeyboardCapitalization.Sentences
+                            )
                         )
-                    )
+                    }
                 } else {
-                    Text(
-                        text = text,
-                        modifier = Modifier
-                            .fillMaxSize(1f)
-                            .padding(4.dp)
-                            .wrapContentHeight(Alignment.CenterVertically)
-                            .align(alignment = Alignment.Center),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    text?.let {
+                        Text(
+                            text = it,
+                            modifier = Modifier
+                                .fillMaxSize(1f)
+                                .padding(4.dp)
+                                .wrapContentHeight(Alignment.CenterVertically)
+                                .align(alignment = Alignment.Center),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
                 IconButton(
                     onClick = { isEditing = !isEditing; isSearchMode = false },
@@ -227,6 +165,15 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                     )
                 }
             }
+        }
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+            )
         }
 
         Row(
@@ -281,9 +228,9 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
 
             } else {
                 IconButton(onClick = {
-                    // Handle back navigation
                     navController.popBackStack()
                     viewModel.turnSearchPerformedOff()
+                    viewModel.unsubscribeToMembersUpdate()
                 }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -293,11 +240,15 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = {
-                        if (isEditing) {
+                        if ((editedText?.length ?: 0) < minCharacterLimit) {
+                            errorMessage = "Description must be at least $minCharacterLimit characters long."
+                        } else {
                             text = editedText
                             isEditing = false
+                            editedText?.let { viewModel.sendUpdatedDescription(it) }
+                            errorMessage = null
                         }
-                    }, modifier = Modifier.weight(1f) // Makes the button fill the remaining space
+                    }, modifier = Modifier.weight(1f)
                 ) {
                     Text(text = "Save")
                 }
@@ -314,7 +265,6 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
         val listOfOwners by viewModel.listOfOwners.collectAsState()
         val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
         val searchPerformed by viewModel.searchPerformed.observeAsState(false)
-        // LazyColumn
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
@@ -333,7 +283,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                     }
                 } else  {
                     items(searchResults) {member ->
-                        MyMembersList(member = member)
+                        MyMembersList(member = member, viewModel)
                     }
                 }
             } else {
@@ -341,25 +291,25 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                     Headers("Owners")
                 }
                 items(listOfOwners) { member ->
-                    MyMembersList(member)
+                    MyMembersList(member, viewModel)
                 }
                 item {
                     Headers("Speakers")
                 }
                 items(listOfSpeakers) { member ->
-                    MyMembersList(member)
+                    MyMembersList(member, viewModel)
                 }
                 item {
                     Headers("Your Contacts")
                 }
                 items(listOfContactMembers) { member ->
-                    MyMembersList(member)
+                    MyMembersList(member, viewModel)
                 }
                 item {
                     Headers("Non Contacts")
                 }
                 items(listOfNonContactMembers) { member ->
-                    MyMembersList(member)
+                    MyMembersList(member, viewModel)
                 }
             }
         }
@@ -368,7 +318,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
 
 
 @Composable
-fun MyMembersList(member: Members) {
+fun MyMembersList(member: Members, viewModel: SharedCliqueViewModel) {
     var showMenu by remember { mutableStateOf(false) }
     var showConfirmationDialog by remember { mutableStateOf(false) }
 
@@ -387,12 +337,10 @@ fun MyMembersList(member: Members) {
                     }, text = { Text("You can't change anything about owners") })
                 } else if (member.isSpeaker) {
                     DropdownMenuItem(onClick = {
-                        // Handle Remove speaker action
+                        viewModel.removeAsSpeaker(member.customerId)
                         showMenu = false
-                        // Add your logic here
                     }, text = { Text("Remove as Speaker") })
                     DropdownMenuItem(onClick = {
-                        // Show confirmation dialog to make owner
                         showMenu = false
                         showConfirmationDialog = true
                     }, text = { Text("Make Owner") })
@@ -403,9 +351,8 @@ fun MyMembersList(member: Members) {
                         showConfirmationDialog = true
                     }, text = { Text("Make Owner") })
                     DropdownMenuItem(onClick = {
-                        // Handle Make speaker action
+                        viewModel.makeSpeaker(member.customerId)
                         showMenu = false
-                        // Add your logic here
                     }, text = { Text("Make Speaker") })
                 }
             }
@@ -413,9 +360,8 @@ fun MyMembersList(member: Members) {
 
         if (showConfirmationDialog) {
             ConfirmationDialog(onConfirm = {
-                // Handle Make owner action
                 showConfirmationDialog = false
-                // Add your logic here
+                viewModel.makeOwner(member.customerId)
             }, onDismiss = { showConfirmationDialog = false })
         }
     }

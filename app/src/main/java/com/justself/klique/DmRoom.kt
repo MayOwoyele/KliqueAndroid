@@ -251,7 +251,7 @@ fun DmMessageItem(
             .padding(8.dp)
     ) {
         if (!isCurrentUser) {
-            // Display sender's name above the message if not current user
+            // Display senderName's name above the message if not current user
             Text(
                 text = message.senderName,
                 color = MaterialTheme.colorScheme.primary,

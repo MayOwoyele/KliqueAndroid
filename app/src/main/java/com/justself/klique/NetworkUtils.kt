@@ -69,15 +69,15 @@ object NetworkUtils {
 
     suspend fun makeRequest(
         endpoint: String,
-        method: String = "POST",
+        method: KliqueHttpMethod = KliqueHttpMethod.POST,
         params: Map<String, String>,
         jsonBody: String? = null
-    ): String {
+    ): Pair<Boolean, String> {
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
 
         return withContext(Dispatchers.IO) {
-            val query = if (method == "GET" && params.isNotEmpty()) {
+            val query = if (method == KliqueHttpMethod.GET && params.isNotEmpty()) {
                 "?" + params.map {
                     "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
                 }.joinToString("&")
@@ -87,11 +87,11 @@ object NetworkUtils {
             Log.d("NetworkUtils", "The url is $url")
 
             val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = method
-                if (method == "POST") {
+                requestMethod = method.method
+                if (method == KliqueHttpMethod.POST) {
                     setRequestProperty(
                         "Content-Type",
-                        jsonBody?.let { "application/json; utf-8" }
+                        jsonBody?.let { "application/json" }
                             ?: "application/x-www-form-urlencoded")
                     doOutput = true
                     if (jsonBody != null) {
@@ -117,7 +117,7 @@ object NetworkUtils {
             } catch (e: IOException) {
                 BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() } // Handle error stream on exceptions
             } finally {
-                connection.disconnect() // Ensuring connection is closed after execution
+                connection.disconnect()
             }
 
             // Log the HTTP response code and the method used
@@ -126,8 +126,9 @@ object NetworkUtils {
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw IOException("HTTP error code: ${connection.responseCode} - $response")
             }
-
-            response
+            val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
+            Log.d("NetworkUtils", "response is $response, $isSuccessful")
+            Pair(isSuccessful, response)
         }
     }
 
@@ -218,4 +219,8 @@ object NetworkUtils {
             response
         }
     }
+}
+enum class KliqueHttpMethod(val method: String) {
+    GET("GET"),
+    POST("POST")
 }

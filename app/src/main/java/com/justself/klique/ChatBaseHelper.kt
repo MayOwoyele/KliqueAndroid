@@ -143,4 +143,16 @@ object DatabaseProvider {
         }
         return PERSONALCHAT_DATABASE_INSTANCE!!
     }
+    private var GIST_STATE_DATABASE: GistRoomCreatedBase? = null
+    fun getGistRoomCreatedBase(context: Context): GistRoomCreatedBase {
+       if (GIST_STATE_DATABASE == null ) {
+           synchronized(GistRoomCreatedBase::class) {
+               GIST_STATE_DATABASE = Room.databaseBuilder(
+                   context.applicationContext, GistRoomCreatedBase::class.java, "gist_state.db"
+               ).fallbackToDestructiveMigration()
+                   .build()
+           }
+       }
+        return GIST_STATE_DATABASE!!
+    }
 }

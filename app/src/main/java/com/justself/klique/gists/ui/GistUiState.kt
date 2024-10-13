@@ -7,7 +7,6 @@ data class GistUiState(
     val myGists: List<GistModel> = generateGistModels(true)
 )
 
-
 fun generateGistModels(reverse: Boolean = false): List<GistModel> {
     val profileImageUrls = listOf(
         "https://unsplash.com/photos/WLUHO9A_xik/download?force=true&w=640",
@@ -34,8 +33,7 @@ fun generateGistModels(reverse: Boolean = false): List<GistModel> {
     return profileImageUrls.indices.map { index ->
         GistModel(
             gistId = "gist$index",
-            customerId = index,
-            title = "Gist $index Samuel bassey john, A  lowly developer  looking for money in this economy",
+            topic = "Gist $index Samuel bassey john, A  lowly developer  looking for money in this economy",
             description = "Description $index The linux can also isolate user resources from each other by using a feature called Multiuser Operating System. which allows access to independent resources like memory, CPU, RAM and Applications.\n" +
                     "Android built a feature on this technology called ‘Application Sandbox’.",
             image = if (reverse) profileImageUrls.reversed()[index] else profileImageUrls[index],

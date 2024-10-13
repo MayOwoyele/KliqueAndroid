@@ -121,6 +121,8 @@ import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -436,7 +438,7 @@ fun MessageScreenContent(
     var debounceJob: Job? = null
     val coroutineScope = rememberCoroutineScope()
     val previousChatSize = remember { mutableStateOf(personalChat.size) }
-    var isInitialLoad = remember { mutableStateOf(true) }
+    val isInitialLoad = remember { mutableStateOf(true) }
     val density = LocalDensity.current
 
     fun toggleMessageSelection(messageId: String) {
@@ -450,38 +452,55 @@ fun MessageScreenContent(
         initialLoad = true
     }
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.firstVisibleItemIndex to scrollState.firstVisibleItemScrollOffset }.collect { (index, offset) ->
-            firstVisibleItem = index
-            firstVisibleItemOffset = offset
-            if (debounceJob?.isActive == true) debounceJob?.cancel()
-            debounceJob = coroutineScope.launch {
-                delay(100) // Adjust the debounce delay as needed
-                if (index == 0 && !viewModel.isLoading.value!!) {
+        snapshotFlow { scrollState.layoutInfo.visibleItemsInfo }
+            .map { visibleItems ->
+                val totalItems = scrollState.layoutInfo.totalItemsCount
+                val lastVisibleItemIndex = visibleItems.lastOrNull()?.index ?: 0
+                Pair(lastVisibleItemIndex, totalItems)
+            }
+            .distinctUntilChanged()
+            .collect { (lastVisibleItemIndex, totalItems) ->
+                // Define a threshold to trigger loading before reaching the very top
+                val threshold = 1
+                if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!!) {
                     viewModel.loadPersonalChats(myId, enemyId, loadMore = true)
                 }
             }
-        }
     }
+    val previousFirstMessageId = remember {
+        mutableStateOf(personalChat.firstOrNull()?.messageId)
+    }
+    val previousLastMessageId = remember {
+        mutableStateOf(personalChat.lastOrNull()?.messageId)
+    }
+
     LaunchedEffect(personalChat.size) {
         if (personalChat.isNotEmpty()) {
-            if (isInitialLoad.value) {
-                delay(500)
-                scrollState.scrollToItem(personalChat.size - 1)
-                isInitialLoad.value = false
-            } else {
-                val newItemsCount = personalChat.size - previousChatSize.value
-                Log.d(
-                    "Scroll tracker",
-                    "New items count, $newItemsCount, newIndex: $firstVisibleItem, personalChat size ${personalChat.size}"
-                )
-                if (newItemsCount > 0) {
-                    val newIndex = firstVisibleItem + newItemsCount
-                    val newOffset = firstVisibleItemOffset
-                    scrollState.scrollToItem(index = newIndex, scrollOffset = newOffset)
+            val newItemsCount = personalChat.size - previousChatSize.value
+
+            if (newItemsCount > 0) {
+                val previousStartId = previousFirstMessageId.value
+                val currentStartId = personalChat.firstOrNull()?.messageId
+
+                when {
+                    currentStartId != previousStartId -> {
+                        if (scrollState.firstVisibleItemIndex != 0) {
+                            val newIndex = (scrollState.firstVisibleItemIndex + newItemsCount)
+                                .coerceAtMost(personalChat.size - 1) // Ensure index is within bounds
+                            val newOffset = scrollState.firstVisibleItemScrollOffset
+                            scrollState.scrollToItem(index = newIndex, scrollOffset = newOffset)
+                        }
+                    }
                 }
             }
         }
+
+        // Update previous state after handling
         previousChatSize.value = personalChat.size
+        if (personalChat.isNotEmpty()) {
+            previousFirstMessageId.value = personalChat.first().messageId
+            previousLastMessageId.value = personalChat.last().messageId
+        }
     }
     val contentHeight = remember { mutableStateOf(0) }
     val viewportHeight = remember { mutableStateOf(0) }
@@ -521,6 +540,7 @@ fun MessageScreenContent(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = scrollState,
+            reverseLayout = true,
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(horizontal = 8.dp),
@@ -615,7 +635,8 @@ fun MessageScreenContent(
                                     isSelectionMode = isSelectionMode,
                                     onTapLambda = onTapLambda
                                 ) {
-                                    message.gistId?.let { viewModel.joinGist(it) }
+                                    message.gistId?.let { viewModel.joinGist(it)
+                                    Log.d("PGistInvite", "gist id is $it")}
                                     navController.navigate("home")
                                 }
                             }
@@ -988,13 +1009,13 @@ fun MessageContextMenu(
     onForward: (List<String>) -> Unit,
     personalChat: List<PersonalChat>
 ) {
-    val sortedSelectedMessages = selectedMessages.sortedBy { messageId ->
-        personalChat.indexOfFirst { it.messageId == messageId }
+    val sortedSelectedMessages = selectedMessages.sortedByDescending { messageId ->
+        personalChat.indexOfLast { it.messageId == messageId }
     }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize() // Apply the top padding here
+            .animateContentSize()
     ) {
         Row(
             modifier = Modifier

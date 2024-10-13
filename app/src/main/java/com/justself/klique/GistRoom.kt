@@ -84,6 +84,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -122,10 +123,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.time.ZonedDateTime
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -144,9 +148,9 @@ fun GistRoom(
     chatScreenViewModel: ChatScreenViewModel,
     onDisplayTextChange: (String, Int) -> Unit
 ) {
-    val gistId = viewModel.gistTopRow.collectAsState().value.gistId
+    val gistId = viewModel.gistTopRow.collectAsState().value?.gistId
     val message by viewModel.gistMessage
-    val observedMessages by viewModel.messages.observeAsState(emptyList())
+    val observedMessages by viewModel.messages.collectAsState()
     val context = LocalContext.current
     val permissionGrantedImages = remember { mutableStateOf(false) }
     val permissionGrantedVideos = remember { mutableStateOf(false) }
@@ -159,18 +163,21 @@ fun GistRoom(
     val coroutineScope = rememberCoroutineScope()
     val homeScreenUri by mediaViewModel.homeScreenUri.observeAsState()
     viewModel.setMyName(myName)
-    // Image Picker Launcher for Android 14+ (TIRAMISU)
     val imagePickerLauncher14Plus = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
-        handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+        if (gistId != null) {
+            handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+        }
     }
 
 // Image Picker Launcher for Android 13 and below
     val imagePickerLauncherBelow14 = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+        if (gistId != null) {
+            handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
+        }
     }
     // Image Picker Launcher
     val imagePickerLauncher: (String) -> Unit = { mimeType ->
@@ -215,13 +222,9 @@ fun GistRoom(
                     imagePickerLauncherBelow14.launch("image/*")
                 }
             } else {
-                // Handle permission denied
                 Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
             }
         }
-
-    // Permission Launcher for Videos
-    // Permission Launcher for Videos
     val permissionLauncherVideos =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -256,11 +259,13 @@ fun GistRoom(
 
     // Load Messages
     LaunchedEffect(key1 = gistId) {
-        if (gistId.isNotEmpty()) {
-            try {
-                viewModel.loadMessages(gistId)
-            } catch (e: Exception) {
-                viewModel.close()
+        if (gistId != null) {
+            if (gistId.isNotEmpty()) {
+                try {
+                    viewModel.loadMessages(gistId)
+                } catch (e: Exception) {
+                    viewModel.close()
+                }
             }
         }
     }
@@ -273,13 +278,70 @@ fun GistRoom(
         }
     }
     DisposableEffect(Unit) {
-        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value.startedBy}", 25)
+        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value?.startedBy}", 25)
         onDispose { onDisplayTextChange("", 0) }
     }
     // Scroll State to handle Gist Title visibility
     val scrollState = rememberLazyListState()
     val showTitle = remember { mutableStateOf(true) }
+    var initialMessageCount by remember { mutableIntStateOf(observedMessages.size) }
+    var oldestMessageId by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(observedMessages.size) {
+        oldestMessageId = observedMessages.lastOrNull()?.id
+    }
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.layoutInfo.visibleItemsInfo }
+            .map { visibleItems ->
+                val totalItems = scrollState.layoutInfo.totalItemsCount
+                val lastVisibleItemIndex = visibleItems.lastOrNull()?.index ?: 0
+                Pair(lastVisibleItemIndex, totalItems)
+            }
+            .distinctUntilChanged()
+            .collect { (lastVisibleItemIndex, totalItems) ->
+                val threshold = 1
+                if (lastVisibleItemIndex >= totalItems - threshold) {
+                    // Fetch older messages
+                    if (oldestMessageId != null) {
+                        if (gistId != null) {
+                            viewModel.loadOlderMessages(oldestMessageId!!, gistId)
+                        }
+                    }
+                }
+            }
+    }
 
+    val previousFirstMessageIdReversed = remember {
+        mutableStateOf(observedMessages.firstOrNull()?.id)
+    }
+    val previousLastMessageIdReversed = remember {
+        mutableStateOf(observedMessages.lastOrNull()?.id)
+    }
+
+    LaunchedEffect(observedMessages.size) {
+        if (observedMessages.isNotEmpty()) {
+            val newItemsCount = observedMessages.size - initialMessageCount
+            if (newItemsCount > 0) {
+                val previousStartId = previousFirstMessageIdReversed.value
+                val currentStartId = observedMessages.firstOrNull()?.id
+
+                when {
+                    currentStartId != previousStartId -> {
+                        if (scrollState.firstVisibleItemIndex != 0) {
+                            val newIndex = (scrollState.firstVisibleItemIndex + newItemsCount)
+                                .coerceAtMost(observedMessages.size - 1) // Ensure index is within bounds
+                            val newOffset = scrollState.firstVisibleItemScrollOffset
+                            scrollState.scrollToItem(index = newIndex, scrollOffset = newOffset)
+                        }
+                    }
+                }
+            }
+        }
+        initialMessageCount = observedMessages.size
+        if (observedMessages.isNotEmpty()) {
+            previousFirstMessageIdReversed.value = observedMessages.first().id
+            previousLastMessageIdReversed.value = observedMessages.last().id
+        }
+    }
     val nestedScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -319,22 +381,35 @@ fun GistRoom(
                     val audioByteArray = FileUtils.fileToByteArray(it)
                     Log.d("ChatRoom", "Audio Byte Array: ${audioByteArray.size} bytes")
 
-                    val messageId = viewModel.generateMessageId()
-                    viewModel.sendBinary(
-                        audioByteArray, "KAudio", gistId, messageId, customerId, myName
-                    )
-
-                    val gistMessage = GistMessage(
-                        id = messageId,
-                        gistId = gistId,
-                        customerId = customerId,
-                        sender = myName,
-                        content = "",
-                        status = "pending",
-                        messageType = "KAudio",
-                        binaryData = audioByteArray
-                    )
-                    viewModel.addMessage(gistMessage)
+                    val messageId = viewModel.generateUUIDString()
+                    if (gistId != null) {
+                        viewModel.sendBinary(
+                            audioByteArray,
+                            GistMediaType.KAudio.getTypeString(),
+                            gistId,
+                            messageId,
+                            customerId,
+                            myName
+                        )
+                    }
+                    val audioUri =
+                        getUriFromByteArray(audioByteArray, context, GistMediaType.KAudio)
+                    val gistMessage = gistId?.let { it1 ->
+                        GistMessage(
+                            id = messageId,
+                            gistId = it1,
+                            senderId = customerId,
+                            senderName = myName,
+                            content = "",
+                            status = GistMessageStatus.Pending,
+                            messageType = GistMediaType.KAudio.getTypeString(),
+                            localPath = audioUri,
+                            timeStamp = ZonedDateTime.now()
+                        )
+                    }
+                    if (gistMessage != null) {
+                        viewModel.addMessage(gistMessage)
+                    }
                 } catch (e: IOException) {
                     Log.e("ChatRoom", "Error processing audio: ${e.message}", e)
                 }
@@ -366,7 +441,7 @@ fun GistRoom(
             Spacer(modifier = Modifier.height(0.dp))
 
             MessageContent(
-                observedMessages = observedMessages,
+                reversedMessages = observedMessages,
                 customerId = customerId,
                 context = context,
                 scrollState = scrollState,
@@ -384,31 +459,37 @@ fun GistRoom(
                 onMessageChange = { viewModel.onGistMessageChange(it) },
                 onSendMessage = {
                     if (message.text.trimEnd().isNotEmpty()) {
-                        val messageId = viewModel.generateMessageId()
-                        val gistMessage = GistMessage(
-                            id = messageId,
-                            gistId = gistId,
-                            customerId = customerId,
-                            sender = myName,
-                            content = message.text.trimEnd(),
-                            status = "pending",
-                            messageType = "text"
-                        )
-                        viewModel.addMessage(gistMessage)
+                        val messageId = viewModel.generateUUIDString()
+                        val gistMessage = gistId?.let {
+                            GistMessage(
+                                id = messageId,
+                                gistId = it,
+                                senderId = customerId,
+                                senderName = myName,
+                                content = message.text.trimEnd(),
+                                status = GistMessageStatus.Pending,
+                                messageType = "KText",
+                                timeStamp = ZonedDateTime.now()
+                            )
+                        }
+                        if (gistMessage != null) {
+                            viewModel.addMessage(gistMessage)
+                        }
                         val messageJson = """
                             {
-                            "type": "message",
+                            "type": "KText",
                             "gistId": "$gistId",
                             "content": "${
                             message.text.replace("\\", "\\\\").replace("\"", "\\\"")
                                 .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
                                 .replace("\b", "\\b")
                         }",
-                            "id": $messageId,
-                            "sender": "$myName"
+                            "id": "$messageId",
+                            "senderName": "$myName"
                             }
                             """.trimIndent()
                         viewModel.send(messageJson)
+                        viewModel.updateGistTimestamp()
                         viewModel.clearMessage()
                     }
                 },
@@ -428,7 +509,11 @@ fun GistRoom(
                 isRecording = isRecording,
                 onStopRecording = stopRecording,
                 audioPermissionLauncher = audioPermissionLauncher,
-                onShowBottomSheet = { showBottomSheet = true },
+                onShowBottomSheet = {
+                    showBottomSheet = true; if (gistId != null) {
+                    viewModel.fetchGistComments()
+                }
+                },
                 isSpeaker = userStatus.isSpeaker
             )
         }
@@ -438,7 +523,7 @@ fun GistRoom(
             visible = showBottomSheet,
             onDismissRequest = { showBottomSheet = false },
         ) {
-            CommentSection(viewModel, navController)
+            CommentSection(viewModel, navController, customerId)
         }
     }
 }
@@ -456,10 +541,10 @@ fun GistTitleRow(
     val showDialog = remember { mutableStateOf(false) }
     val showInfoDialog = remember { mutableStateOf(false) }
     val gistTopRow by viewModel.gistTopRow.collectAsState()
-    val activeUserCount = gistTopRow.activeSpectators
-    val gistTopic = gistTopRow.topic
-    val gistDescription = gistTopRow.gistDescription
-    val id = gistTopRow.gistId
+    val activeUserCount = gistTopRow?.activeSpectators
+    val gistTopic = gistTopRow?.topic
+    val gistDescription = gistTopRow?.gistDescription
+    val id = gistTopRow?.gistId
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -502,7 +587,9 @@ fun GistTitleRow(
                         }
                         DropdownMenuItem(text = { Text("Share") },
                             onClick = {
-                                chatScreenViewModel.addGistInviteToForward(gistTopic, id)
+                                if ((gistTopic != null) && (id != null)) {
+                                    chatScreenViewModel.addGistInviteToForward(gistTopic, id)
+                                }
                                 onExpandChange(false)
                                 navController.navigate("forwardChatsScreen")
                             })
@@ -548,8 +635,16 @@ fun GistTitleRow(
         }
         if (showInfoDialog.value) {
             AlertDialog(
-                title = { Text(gistTopic, style = MaterialTheme.typography.displayLarge) },
-                text = { Text(gistDescription, style = MaterialTheme.typography.bodyLarge) },
+                title = {
+                    if (gistTopic != null) {
+                        Text(gistTopic, style = MaterialTheme.typography.displayLarge)
+                    }
+                },
+                text = {
+                    if (gistDescription != null) {
+                        Text(gistDescription, style = MaterialTheme.typography.bodyLarge)
+                    }
+                },
                 onDismissRequest = { showInfoDialog.value = false },
                 confirmButton = { /*TODO*/ })
         }
@@ -558,7 +653,7 @@ fun GistTitleRow(
 
 @Composable
 fun MessageContent(
-    observedMessages: List<GistMessage>,
+    reversedMessages: List<GistMessage>,
     customerId: Int,
     context: Context,
     scrollState: LazyListState,
@@ -569,12 +664,13 @@ fun MessageContent(
 ) {
     LazyColumn(
         state = scrollState,
+        reverseLayout = true,
         modifier = modifier.padding(horizontal = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(observedMessages) { message ->
-            Log.d("ChatRoom", "Rendering message: ${message.content}")
-            val isCurrentUser = message.customerId == customerId
+        items(reversedMessages) { message ->
+            Log.d("ChatRoom", "Rendering message: ${message.localPath}")
+            val isCurrentUser = message.senderId == customerId
             val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
             val shape = if (isCurrentUser) RoundedCornerShape(
                 16.dp, 0.dp, 16.dp, 16.dp
@@ -593,46 +689,58 @@ fun MessageContent(
                     horizontalAlignment = alignment
                 ) {
                     if (!isCurrentUser) {
-                        Text(text = message.sender,
+                        Text(text = message.senderName,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier
                                 .padding(bottom = 4.dp)
-                                .clickable { navController.navigate("bioScreen/${message.customerId}") })
+                                .clickable { navController.navigate("bioScreen/${message.senderId}") })
                     }
                     when (message.messageType) {
                         "KImage" -> {
-                            var bitmap by remember { mutableStateOf<Bitmap?>(null)}
-                            LaunchedEffect(message.binaryData) {
-                                bitmap = message.binaryData?.let { decodeBinaryToBitmap(it)}
+                            var bitmap by remember { mutableStateOf<Bitmap?>(null) }
+                            LaunchedEffect(message.localPath) {
+                                Log.d("Local path", "Local path called or not: $message")
+                                bitmap = message.localPath?.let { convertJpgToBitmap(context, it) }
                             }
-                            bitmap?.let {
+                            if (bitmap != null) {
                                 Image(
-                                    bitmap = it.asImageBitmap(),
+                                    bitmap = bitmap!!.asImageBitmap(),
                                     contentDescription = null,
                                     modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
                                         .clickable {
-                                            mediaViewModel.setBitmap(it)
+                                            mediaViewModel.setBitmap(bitmap!!)
                                             navController.navigate("fullScreenImage")
                                         }
                                 )
-                            } ?: Text(
-                                text = "Image not available",
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
+                            } else if (message.externalUrl != null) {
+                                Text(
+                                    text = "Loading ${GistMediaType.KImage.getGeneralMediaType()}",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text(
+                                    text = "Image not available",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
                         }
 
                         "KVideo" -> {
-                            var videoUri by remember { mutableStateOf<Uri?>(null)}
-                            LaunchedEffect(message.binaryData) {
-                                videoUri = message.binaryData?.let { getUriFromByteArray(it, context)}
+                            var videoUri by remember { mutableStateOf<Uri?>(null) }
+                            LaunchedEffect(message.localPath) {
+                                videoUri = message.localPath
                             }
-                            videoUri?.let {
-                                //val videoUri = getUriFromByteArray(binaryData, context)
-                                val thumbnail = VideoUtils.getVideoThumbnail(context, it)
-                                val placeholder = createPlaceholderImage(200, 200, Color.Gray.toArgb(), onPrimaryColor)
+                            if (videoUri != null) {
+                                val thumbnail = VideoUtils.getVideoThumbnail(context, videoUri!!)
+                                val placeholder = createPlaceholderImage(
+                                    200,
+                                    200,
+                                    Color.Gray.toArgb(),
+                                    onPrimaryColor
+                                )
                                 val aspectRatio = thumbnail?.let {
                                     it.width.toFloat() / it.height.toFloat()
                                 } ?: 1f
@@ -668,33 +776,52 @@ fun MessageContent(
                                         tint = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
-                            } ?: Text(
-                                text = "Video not available",
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            } else if (message.externalUrl != null) {
+                                Text(
+                                    text = "Loading ${GistMediaType.KVideo.getGeneralMediaType()}",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text(
+                                    text = "Video not available",
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
 
                         "KAudio" -> {
                             var audioUri by remember {
-                                mutableStateOf<Uri?>(null)}
-                            LaunchedEffect(message.binaryData) {
-                                audioUri = message.binaryData?.let{ getUriFromByteArray(it, context)}
+                                mutableStateOf<Uri?>(null)
                             }
-                            audioUri?.let {
+                            LaunchedEffect(message.localPath) {
+                                audioUri = message.localPath
+                            }
+                            if (audioUri != null) {
                                 AudioPlayer(
-                                    audioUri = it,
+                                    audioUri = audioUri!!,
                                     modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp)
                                 )
-                            } ?: Text(
-                                text = "Audio not available",
-                                color = MaterialTheme.colorScheme.onPrimary
+                            } else if (message.externalUrl != null) {
+                                Text(
+                                    text = "Loading ${GistMediaType.KAudio.getGeneralMediaType()}",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text(
+                                    text = "Audio not available",
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+
+                        "KText" -> {
+                            Text(
+                                text = message.content, color = MaterialTheme.colorScheme.background
                             )
                         }
 
                         else -> {
-                            Text(
-                                text = message.content, color = MaterialTheme.colorScheme.background
-                            )
+                            Log.d("Gist", "Type not recognized")
                         }
                     }
                     if (isCurrentUser) {
@@ -998,10 +1125,10 @@ private fun launchPicker(
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
-    } else { // Defaults to "image"
+    } else {
         mimeType = "image/*"
         permissionToCheck = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            android.Manifest.permission.READ_MEDIA_IMAGES
+            Manifest.permission.READ_MEDIA_IMAGES
         } else {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
@@ -1017,27 +1144,42 @@ private fun launchPicker(
         permissionLauncher.launch(permissionToCheck)
     }
 }
-fun handleImageUri(context: Context, uri: Uri?, viewModel: SharedCliqueViewModel, gistId: String, customerId: Int, myName: String, coroutineScope: CoroutineScope) {
+
+fun handleImageUri(
+    context: Context,
+    uri: Uri?,
+    viewModel: SharedCliqueViewModel,
+    gistId: String,
+    customerId: Int,
+    myName: String,
+    coroutineScope: CoroutineScope
+) {
     uri?.let {
         coroutineScope.launch {
             try {
                 val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
                 Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
-                val messageId = viewModel.generateMessageId()
+                val messageId = viewModel.generateUUIDString()
                 viewModel.sendBinary(
-                    imageByteArray, "KImage", gistId, messageId, customerId, myName
+                    imageByteArray,
+                    GistMediaType.KImage.getTypeString(),
+                    gistId,
+                    messageId,
+                    customerId,
+                    myName
                 )
-
+                val imageUri = getUriFromByteArray(imageByteArray, context, GistMediaType.KImage)
                 val gistMessage = GistMessage(
                     id = messageId,
                     gistId = gistId,
-                    customerId = customerId,
-                    sender = myName,
+                    senderId = customerId,
+                    senderName = myName,
                     content = "",
-                    status = "pending",
-                    messageType = "KImage",
-                    binaryData = imageByteArray
+                    status = GistMessageStatus.Pending,
+                    messageType = GistMediaType.KImage.getTypeString(),
+                    localPath = imageUri,
+                    timeStamp = ZonedDateTime.now()
                 )
                 viewModel.addMessage(gistMessage)
             } catch (e: IOException) {
@@ -1046,6 +1188,7 @@ fun handleImageUri(context: Context, uri: Uri?, viewModel: SharedCliqueViewModel
         }
     }
 }
+
 fun handleVideoUri(
     context: Context,
     uri: Uri?,
@@ -1066,27 +1209,32 @@ fun handleVideoUri(
 }
 
 @Composable
-fun getStatusIcon(status: String): ImageVector {
-    return if (status == "sent") Icons.Filled.Done else Icons.Filled.Schedule
+fun getStatusIcon(status: GistMessageStatus): ImageVector {
+    return if (status == GistMessageStatus.Sent) Icons.Filled.Done else Icons.Filled.Schedule
 }
 
-suspend fun decodeBinaryToBitmap(binaryData: ByteArray): Bitmap {
+suspend fun getUriFromByteArray(
+    byteArray: ByteArray,
+    context: Context,
+    mediaType: GistMediaType
+): Uri {
     return withContext(Dispatchers.IO) {
-        try {
-            BitmapFactory.decodeByteArray(binaryData, 0, binaryData.size).also {
-                Log.d("ChatRoom", "Bitmap Decoded: ${it.width}x${it.height}")
-            }
-        } catch (e: Exception) {
-            Log.e("ChatRoom", "Error decoding binary data: ${e.message}", e)
-            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        }
+        val file = File(context.cacheDir, mediaType.getFileName())
+        file.writeBytes(byteArray)
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
     }
 }
 
-suspend fun getUriFromByteArray(byteArray: ByteArray, context: Context): Uri {
-    return withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, "video.mp4")
-        file.writeBytes(byteArray)
-        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+fun convertJpgToBitmap(context: Context, uri: Uri): Bitmap? {
+    return try {
+        Log.d("Bitmap Error", "No error converting jpg to Bitmap")
+        val inputStream = context.contentResolver.openInputStream(uri)
+        BitmapFactory.decodeStream(inputStream).also {
+            inputStream?.close()
+        }
+    } catch (e: Exception) {
+        Log.d("Bitmap Error", "Error converting jpg to Bitmap")
+        e.printStackTrace()
+        null
     }
 }

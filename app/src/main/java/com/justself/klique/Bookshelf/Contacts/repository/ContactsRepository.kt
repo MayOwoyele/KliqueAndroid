@@ -8,11 +8,9 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Bookshelf.Contacts.data.Contact
 import com.justself.klique.Bookshelf.Contacts.data.ServerContactResponse
-import com.justself.klique.ContactDao
 import com.justself.klique.ContactEntity
 import com.justself.klique.ContactsDatabase
 import com.justself.klique.DatabaseProvider
-import com.justself.klique.NetworkUtils.makeRequest
 import com.justself.klique.toContact
 import com.justself.klique.toContactEntity
 import okio.IOException
@@ -35,7 +33,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         }
     }
     suspend fun getContactByCustomerId(customerId: Int): ContactEntity? {
-        // Assuming you have a method in ContactDao to get a contact by customerId
+        // Assuming you have a method in ContactDao to get a contact by senderId
         return database.contactDao().getContactByCustomerId(customerId)
     }
 
@@ -93,7 +91,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
                     if (isAppUser) {
                         put(JSONObject().apply {
                             put("phoneNumber", contact.phoneNumber)
-                            put("customerId", Random.nextInt(1000, 9999)) // Random customer ID
+                            put("senderId", Random.nextInt(1000, 9999)) // Random customer ID
                             put("thumbnailUrl", "https://picsum.photos/200/200?random=$index") // Mock thumbnail URL
                         })
                     }
@@ -116,9 +114,9 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
                 for (i in 0 until responseArray.length()) {
                     val jsonObject = responseArray.getJSONObject(i)
                     val phoneNumber = jsonObject.getString("phoneNumber")
-                    val customerId = jsonObject.getInt("customerId")
+                    val customerId = jsonObject.getInt("senderId")
                     val thumbnailUrl = jsonObject.getString("thumbnailUrl")
-                    Log.d("checkContactsOnServer", "Processing contact: $phoneNumber, customerId: $customerId")
+                    Log.d("checkContactsOnServer", "Processing contact: $phoneNumber, senderId: $customerId")
                     serverContacts.add(ServerContactResponse(phoneNumber, customerId, thumbnailUrl))
                 }
             } catch (e: JSONException) {

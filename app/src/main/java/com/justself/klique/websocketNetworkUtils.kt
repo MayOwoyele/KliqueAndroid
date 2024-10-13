@@ -6,8 +6,10 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.util.Base64
 import android.util.Log
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import okio.ByteString
@@ -53,7 +55,9 @@ object WebSocketManager {
     private val pongTimeout = 7000L
     private var lastPongTime = System.currentTimeMillis()
     private var chatScreenViewModel: ChatScreenViewModel? = null
+    private var sharedCliqueViewModel: SharedCliqueViewModel? = null
     private var appContext: Context? = null
+    private var aReconnection = false
 
     fun registerListener(listener: WebSocketListener) {
         listeners[listener.listenerId] = listener
@@ -79,6 +83,15 @@ object WebSocketManager {
                     chatScreenViewModel?.retryPendingMessages(context)
                     chatScreenViewModel?.currentChat?.value?.let { enemyId ->
                         chatScreenViewModel?.subscribeToOnlineStatus(enemyId)
+                    }
+                    chatScreenViewModel?.fetchNewMessagesFromServer()
+                }
+                if (aReconnection){
+                    sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            sharedCliqueViewModel?.restoreGistState()
+                        }
+                        aReconnection = false
                     }
                 }
             }
@@ -178,8 +191,12 @@ object WebSocketManager {
     fun setChatScreenViewModel(viewModel: ChatScreenViewModel) {
         chatScreenViewModel = viewModel
     }
+    fun setSharedCliqueViewModel(viewModel: SharedCliqueViewModel){
+        sharedCliqueViewModel = viewModel
+    }
 
     private fun scheduleReconnect() {
+        aReconnection = true
         if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS) {
             reconnectionAttempts++
             println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
@@ -291,7 +308,7 @@ object WebSocketManager {
     private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
         Log.d("Websocket", "Type is :$type")
         val listenerId = when (type) {
-            "gistCreated", "previousMessages", "message", "messageAck" -> "SharedCliqueViewModel"
+            "gistCreated", "previousMessages", "exitGist", "gistMessageAck", "gistCreationError", "KText", "KImage", "KVideo", "KAudio", "spectatorUpdate", "olderMessages", "gistRefreshUpdate" -> "SharedCliqueViewModel"
             "is_online", "PText", "ack", "PImage", "PAudio", "PVideo", "PGistInvite" -> "ChatScreenViewModel"
             else -> targetId
         }
@@ -307,14 +324,14 @@ object WebSocketManager {
     }
 
     fun simulateWebSocketMessages() {
-        // Generate 10 messages from different people, including customerId 25
-        val customerIds = listOf(1, 2, 3, 4, 5, 25, 7, 8, 9, 10) // Including customerId 25
+        // Generate 10 messages from different people, including senderId 25
+        val customerIds = listOf(1, 2, 3, 4, 5, 25, 7, 8, 9, 10) // Including senderId 25
         val messagesJsonArray = customerIds.map { customerId ->
             """
         {
             "id": ${System.currentTimeMillis()},
             "gistId": "someGistId",
-            "customerId": $customerId,
+            "senderId": $customerId,
             "fullName": "User $customerId",
             "content": "Hello from User $customerId",
             "status": "sent",
