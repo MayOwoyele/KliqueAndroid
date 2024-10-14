@@ -44,7 +44,6 @@ fun ChatRoomsCategory(
     Column(modifier = Modifier
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)) {
-        Log.d("Triggered", "Triggered")
         if (campuses) {
             campusesCategories.forEach { category ->
                 CategoryItem(category = category, navController, viewModel)
@@ -64,6 +63,7 @@ fun CategoryItem(category: ChatRoomCategory, navController: NavController, viewM
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp).clickable {
+                Log.d("Category Id", "${category.categoryId}")
                 navController.navigate("categoryOptions/${category.categoryId}") },
         verticalAlignment = Alignment.CenterVertically
     ) {

@@ -30,7 +30,7 @@ fun MyGists(myGists: List<GistModel>, customerId: Int, viewModel: SharedCliqueVi
                     gist.description,
                     gist.image,
                     gist.activeSpectators,
-                    onTap = { viewModel.enterGist(gist.gistId); viewModel.simulateGistCreated() },
+                    onTap = { viewModel.enterGist(gist.gistId)},
                     onHoldClick = {
                         viewModel.floatGist(gist.gistId)
                         Log.d("Float Gist", "Gist floated")

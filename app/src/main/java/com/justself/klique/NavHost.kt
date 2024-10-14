@@ -228,20 +228,26 @@ fun NavigationHost(
             ChatRoomsCategory(navController = navController, interests = true)
         }
         composable("categoryOptions/{categoryId}") { backStackEntry ->
-            val categoryId = backStackEntry.arguments?.getInt("categoryId")
+            val categoryId = backStackEntry.arguments?.getString("categoryId")
                 ?: throw IllegalStateException("where is the categoryId")
-            ChatRoomOptions(navController, categoryId)
+            val categoryIdInt = categoryId.toIntOrNull()
+            if (categoryIdInt != null) {
+                ChatRoomOptions(navController, categoryIdInt)
+            }
         }
         composable("chatRoom/{chatRoomId}") { backStackEntry ->
-            val optionId = backStackEntry.arguments?.getInt("chatRoomId")
+            val optionId = backStackEntry.arguments?.getString("chatRoomId")
                 ?: throw IllegalStateException("where is the chatRoomId")
-            ChatRoom(
-                navController,
-                chatRoomId = optionId,
-                myId = customerId,
-                mediaViewModel = mediaViewModel,
-                contactName = fullName
-            )
+            val chatRoomOptionId = optionId.toIntOrNull()
+            if (chatRoomOptionId != null) {
+                ChatRoom(
+                    navController,
+                    chatRoomId = chatRoomOptionId,
+                    myId = customerId,
+                    mediaViewModel = mediaViewModel,
+                    contactName = fullName
+                )
+            }
         }
         composable("dmList") { DmList(navController) }
         composable("dmChatScreen/{enemyId}/{enemyName}") { backStackEntry ->

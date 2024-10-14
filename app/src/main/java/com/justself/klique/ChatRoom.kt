@@ -2,7 +2,6 @@ package com.justself.klique
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.support.annotation.RequiresApi
@@ -30,7 +29,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,21 +56,25 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.IOException
 import android.Manifest
+import android.app.Application
 import android.content.pm.PackageManager
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.withContext
+import java.io.File
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
@@ -82,7 +84,9 @@ fun ChatRoom(
     myId: Int,
     mediaViewModel: MediaViewModel,
     contactName: String,
-    viewModel: ChatRoomViewModel = viewModel()
+    viewModel: ChatRoomViewModel = viewModel(
+        factory = ChatRoomViewModelFactory(LocalContext.current.applicationContext as Application)
+    )
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -92,8 +96,6 @@ fun ChatRoom(
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
                         val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
-                        Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
-
                         val messageId = viewModel.generateMessageId()
                         viewModel.sendBinary(
                             image = imageByteArray,
@@ -104,7 +106,6 @@ fun ChatRoom(
                             myName = contactName,
                             context = context
                         )
-
                     } catch (e: IOException) {
                         Log.e("ChatRoom", "Error processing image: ${e.message}", e)
                     }
@@ -118,7 +119,6 @@ fun ChatRoom(
             ) {
                 imagePickerLauncher.launch("image/*")
             } else {
-                // Handle the case where the permission is not granted
                 Toast.makeText(context, "Permission denied to access photos", Toast.LENGTH_SHORT)
                     .show()
             }
@@ -213,14 +213,13 @@ fun ChatRoomContent(
     val chatRoomMessages by viewModel.chatRoomMessages.collectAsState()
     val context = LocalContext.current
     val lazyListState = rememberLazyListState()
-    var lastSeenMessageCount by remember { mutableStateOf(chatRoomMessages.size)}
+    var lastSeenMessageCount by remember { mutableIntStateOf(chatRoomMessages.size) }
     val coroutineScope = rememberCoroutineScope()
     val isAtBottom by remember {
         derivedStateOf {
             lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lazyListState.layoutInfo.totalItemsCount - 1
         }
     }
-    // Handle the initial load of messages
     LaunchedEffect(chatRoomId) {
         viewModel.loadChatMessages(chatRoomId)
         lastSeenMessageCount = chatRoomMessages.size
@@ -287,7 +286,6 @@ fun ChatRoomMessageItem(
             .padding(8.dp)
     ) {
         if (!isCurrentUser) {
-            // Display senderName's name above the message if not current user
             Text(
                 text = message.senderName,
                 color = MaterialTheme.colorScheme.primary,
@@ -318,7 +316,7 @@ fun ChatRoomMessageItem(
 
                     "CImage" -> {
                         ChatRoomImageItem(
-                            image = message.media,
+                            image = message.localPath,
                             shape = shape,
                             mediaViewModel = mediaViewModel,
                             navController = navController
@@ -329,20 +327,17 @@ fun ChatRoomMessageItem(
 
             if (isCurrentUser) {
                 val icon = when (message.status) {
-                    "sending" -> Icons.Default.Schedule
-                    "sent" -> Icons.Default.Done
-                    else -> null
+                    ChatRoomStatus.SENDING -> Icons.Default.Schedule
+                    ChatRoomStatus.SENT -> Icons.Default.Done
                 }
-                icon?.let {
-                    Icon(
-                        imageVector = it,
-                        contentDescription = "Message status",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(16.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "Message status",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .size(16.dp)
+                )
             }
         }
     }
@@ -358,15 +353,12 @@ fun CrTextBoxAndMedia(
     onSendMessage: (String) -> Unit
 ) {
     var messageText by remember { mutableStateOf("") }
-
-    // Layout for the text box and image sending capability
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .imePadding(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Image picker button
         IconButton(
             onClick = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -395,8 +387,6 @@ fun CrTextBoxAndMedia(
         ) {
             Icon(Icons.Default.AddPhotoAlternate, contentDescription = "Add Image")
         }
-
-        // Text input field
         TextField(
             value = messageText,
             onValueChange = { messageText = it },
@@ -423,14 +413,11 @@ fun CrTextBoxAndMedia(
 }
 
 @Composable
-fun ChatRoomImageItem(image: ByteArray?, shape: Shape, mediaViewModel: MediaViewModel, navController: NavController) {
+fun ChatRoomImageItem(image: Uri?, shape: Shape, mediaViewModel: MediaViewModel, navController: NavController) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-
-    // Load bitmap asynchronously
+    val context = LocalContext.current
     LaunchedEffect(image) {
-        bitmap = image?.let {
-            BitmapFactory.decodeByteArray(it, 0, it.size)
-        }
+        bitmap = image?.let { convertJpgToBitmap(context, it) }
     }
 
     bitmap?.let { bmp ->
@@ -443,7 +430,24 @@ fun ChatRoomImageItem(image: ByteArray?, shape: Shape, mediaViewModel: MediaView
                 .clickable { mediaViewModel.setBitmap(bmp); navController.navigate("fullScreenImage") }
         )
     } ?: Text(
-        text = "Image not available",
+        text = "Image Loading",
         color = MaterialTheme.colorScheme.onPrimary
     )
+}
+suspend fun getChatRoomUriFromByteArray(
+    byteArray: ByteArray,
+    context: Context,
+    mediaType: ChatRoomMediaType
+): Uri {
+    return withContext(Dispatchers.IO) {
+        val customCacheDir = File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_CACHE.directoryName)
+        if (!customCacheDir.exists()) {
+            customCacheDir.mkdir()
+        }
+
+        val file = File(customCacheDir, mediaType.getFileName())
+        file.writeBytes(byteArray)
+
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    }
 }

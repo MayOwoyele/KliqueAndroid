@@ -220,6 +220,22 @@ object NetworkUtils {
         }
     }
 }
+suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO) {
+    val connection = URL(url).openConnection() as HttpURLConnection
+    connection.apply {
+        requestMethod = "GET"
+        connectTimeout = 10000
+        readTimeout = 10000
+        doInput = true
+        connect()
+    }
+
+    if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+        throw IOException("Failed to download file: HTTP ${connection.responseCode}")
+    }
+
+    connection.inputStream.use { it.readBytes() }
+}
 enum class KliqueHttpMethod(val method: String) {
     GET("GET"),
     POST("POST")

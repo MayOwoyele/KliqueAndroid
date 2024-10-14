@@ -7,13 +7,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 
 data class ChatRoomCategory(
     val categoryId: Int,
     val categoryName: String,
     val categoryImage: String
 )
-class ChatRoomsCategoryViewModel: ViewModel() {
+
+class ChatRoomsCategoryViewModel : ViewModel() {
     private val _campusesCategories = MutableStateFlow<List<ChatRoomCategory>>(emptyList())
     val campusesCategories: StateFlow<List<ChatRoomCategory>> = _campusesCategories.asStateFlow()
 
@@ -22,45 +25,46 @@ class ChatRoomsCategoryViewModel: ViewModel() {
 
     fun fetchCategories() {
         viewModelScope.launch(Dispatchers.IO) {
-            val newCampusesCategories = listOf(
-                ChatRoomCategory(
-                    categoryId = 1,
-                    categoryName = "Moremi Hall",
-                    categoryImage = "https://picsum.photos/200/300"
-                ),
-                ChatRoomCategory(
-                    categoryId = 2,
-                    categoryName = "Honors",
-                    categoryImage = "https://picsum.photos/200/301"
-                ),
-                ChatRoomCategory(
-                    categoryId = 3,
-                    categoryName = "Kofo",
-                    categoryImage = "https://picsum.photos/200/302"
-                )
+            val response = NetworkUtils.makeRequest(
+                "fetchChatRoomCategories",
+                KliqueHttpMethod.GET,
+                emptyMap()
             )
-            val newInterestsCategories = listOf(
-                ChatRoomCategory(
-                    categoryId = 4,
-                    categoryName = "Technology",
-                    categoryImage = "https://samplelib.com/sample-jpeg.html"
-                ),
-                ChatRoomCategory(
-                    categoryId = 5,
-                    categoryName = "Music",
-                    categoryImage = "https://graydart.com/sample/images/jpg"
-                ),
-                ChatRoomCategory(
-                    categoryId = 6,
-                    categoryName = "Sports",
-                    categoryImage = "https://picsum.photos/200/304"
-                )
-            )
-            _campusesCategories.value = newCampusesCategories
-            _interestsCategories.value = newInterestsCategories
+            if (response.first) {
+                val campusList = mutableListOf<ChatRoomCategory>()
+                val interestList = mutableListOf<ChatRoomCategory>()
+                val responseJson = JSONArray(response.second)
+                for (i in 0 until responseJson.length()) {
+                    val jsonObject = responseJson.getJSONObject(i)
+                    val type = jsonObject.getString("categoryType")
+                    val categoryId = jsonObject.getInt("categoryId")
+                    val categoryName = jsonObject.getString("categoryName")
+                    val categoryImage = jsonObject.getString("categoryImage")
+                    val chatroomCategory = ChatRoomCategory(
+                        categoryId = categoryId,
+                        categoryName = categoryName,
+                        categoryImage = categoryImage
+                    )
+                    when (type) {
+                        "Campus" -> {
+                            campusList.add(
+                                chatroomCategory
+                            )
+                        }
+                        "Interest" -> {
+                            interestList.add(
+                                chatroomCategory
+                            )
+                        }
+                    }
+                }
+                _campusesCategories.value = campusList
+                _interestsCategories.value = interestList
+            }
         }
     }
-    fun send(message: String){
+
+    fun send(message: String) {
         WebSocketManager.send(message)
     }
 }

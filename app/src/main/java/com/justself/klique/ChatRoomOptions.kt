@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,6 +35,7 @@ fun ChatRoomOptions(
     categoryId: Int,
     viewModel: ChatRoomOptionsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
+    Log.d("CategoryId", "CRoomOptions $categoryId")
     val options = viewModel.options.collectAsState().value
     LaunchedEffect(Unit) {
         viewModel.fetchOptions(categoryId)

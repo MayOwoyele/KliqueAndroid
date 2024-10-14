@@ -2,17 +2,13 @@
 package com.justself.klique
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.Network
 import android.util.Base64
 import android.util.Log
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import okio.ByteString
 import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
@@ -20,7 +16,6 @@ import org.java_websocket.framing.Framedata
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONException
 import org.json.JSONObject
-import org.slf4j.MDC.put
 import java.net.URI
 import java.net.URLEncoder
 import java.nio.ByteBuffer
@@ -43,7 +38,7 @@ object WebSocketManager {
     }
 
     private val listeners = mutableMapOf<String, WebSocketListener>()
-    private var isConnected = false
+    var isConnected = false
     private var reconnectionAttempts = 0
     private const val MAX_RECONNECT_ATTEMPTS = 10
     private const val RECONNECT_DELAY = 3000L
@@ -51,11 +46,12 @@ object WebSocketManager {
     private var customerId: Int = 0
     private var fullName: String = ""
 
-    private val pingInterval = 5000L
-    private val pongTimeout = 7000L
+    private const val PING_INTERVAL = 5000L
+    private const val PONG_TIMEOUT = 7000L
     private var lastPongTime = System.currentTimeMillis()
     private var chatScreenViewModel: ChatScreenViewModel? = null
     private var sharedCliqueViewModel: SharedCliqueViewModel? = null
+    private var chatRoomViewModel: ChatRoomViewModel? = null
     private var appContext: Context? = null
     private var aReconnection = false
 
@@ -194,7 +190,12 @@ object WebSocketManager {
     fun setSharedCliqueViewModel(viewModel: SharedCliqueViewModel){
         sharedCliqueViewModel = viewModel
     }
-
+    fun setChatRoomViewModel(viewModel: ChatRoomViewModel){
+        chatRoomViewModel = viewModel
+    }
+    fun clearChatRoomViewModel(){
+        chatRoomViewModel = null
+    }
     private fun scheduleReconnect() {
         aReconnection = true
         if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS) {
@@ -234,9 +235,9 @@ object WebSocketManager {
                 try {
                     Log.d("Websocket", "Sending Ping")
                     webSocketClient?.sendPing()
-                    delay(pingInterval)
+                    delay(PING_INTERVAL)
 
-                    if (System.currentTimeMillis() - lastPongTime > pongTimeout) {
+                    if (System.currentTimeMillis() - lastPongTime > PONG_TIMEOUT) {
                         println("Pong timeout. Reconnecting...")
                         isConnected = false
                         webSocketClient?.close()

@@ -33,6 +33,7 @@ import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
+import com.justself.klique.downloadFromUrl
 import com.justself.klique.getUriFromByteArray
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.GistUiState
@@ -233,17 +234,6 @@ class SharedCliqueViewModel(
             gists.add(gist)
         }
         return gists
-    }
-
-    fun simulateGistCreated() {
-        val topic = "Kotlin"
-        val gistId = "1b345kt"
-        _gistCreatedOrJoined.postValue(GistState(topic, gistId))
-        _gistTopRow.value = _gistTopRow.value?.copy(
-            gistId = gistId,
-            topic = topic,
-            gistDescription = "This is to change the gist description"
-        )
     }
 
     fun enterGist(gistId: String) {
@@ -669,9 +659,9 @@ class SharedCliqueViewModel(
         if (cacheDir.exists() && cacheDir.isDirectory) {
             cacheDir.listFiles()?.forEach { file ->
                 if (file.isDirectory) {
-                    file.deleteRecursively() // Deletes directories and their contents
+                    file.deleteRecursively()
                 } else {
-                    file.delete() // Deletes individual files
+                    file.delete()
                 }
             }
         }
@@ -976,26 +966,6 @@ class SharedCliqueViewModel(
     }
 
     /**
-     * Downloads data from a given URL.
-     */
-    private suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO) {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        connection.apply {
-            requestMethod = "GET"
-            connectTimeout = 10000
-            readTimeout = 10000
-            doInput = true
-            connect()
-        }
-
-        if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-            throw IOException("Failed to download file: HTTP ${connection.responseCode}")
-        }
-
-        connection.inputStream.use { it.readBytes() }
-    }
-
-    /**
      * Updates the local path of a message.
      */
     private fun updateMessageLocalPath(messageId: String, uri: Uri) {
@@ -1275,7 +1245,7 @@ class SharedCliqueViewModelFactory(
     }
 }
 
-private sealed class DownloadState {
+sealed class DownloadState {
     object NotDownloaded : DownloadState()
     object Downloading : DownloadState()
     data class Downloaded(val uri: Uri) : DownloadState()
