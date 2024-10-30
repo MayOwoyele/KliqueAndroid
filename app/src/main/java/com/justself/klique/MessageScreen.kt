@@ -180,7 +180,13 @@ fun MessageScreen(
 
                         val messageId = viewModel.generateMessageId()
                         viewModel.sendBinary(
-                            imageByteArray, "PImage", enemyId, messageId, myId, contactName, context
+                            imageByteArray,
+                            PersonalMessageType.P_IMAGE,
+                            enemyId,
+                            messageId,
+                            myId,
+                            contactName,
+                            context
                         )
 
                     } catch (e: IOException) {
@@ -198,7 +204,13 @@ fun MessageScreen(
                 if (videoByteArray != null) {
                     val messageId = viewModel.generateMessageId()
                     viewModel.sendBinary(
-                        videoByteArray, "PVideo", enemyId, messageId, myId, contactName, context
+                        videoByteArray,
+                        PersonalMessageType.P_VIDEO,
+                        enemyId,
+                        messageId,
+                        myId,
+                        contactName,
+                        context
                     )
                     Log.d("Add Personal", "This has been called again")
                 }
@@ -264,7 +276,7 @@ fun MessageScreen(
     val personalChat by viewModel.personalChats.collectAsState(emptyList())
     val containsMediaMessages = selectedMessages.any { messageId ->
         val messageType = personalChat.find { it.messageId == messageId }?.messageType
-        messageType != "PText" && messageType != "text"
+        messageType == PersonalMessageType.P_VIDEO || messageType == PersonalMessageType.P_IMAGE || messageType == PersonalMessageType.P_AUDIO
     }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val onShowDeleteDialog = { showDeleteDialog = false }
@@ -295,7 +307,7 @@ fun MessageScreen(
                         onCopy = { sortedMessages ->
                             val textMessages = sortedMessages.mapNotNull { messageId ->
                                 personalChat.find { it.messageId == messageId }?.takeIf {
-                                    it.messageType == "PText" || it.messageType == "text"
+                                    it.messageType == PersonalMessageType.P_TEXT
                                 }?.content
                             }
                             val copiedText = if (textMessages.size > 1) {
@@ -432,13 +444,7 @@ fun MessageScreenContent(
     val context = LocalContext.current
     val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
-    var firstVisibleItem by remember { mutableStateOf(0) }
-    var firstVisibleItemOffset by remember { mutableStateOf(0) }
     var initialLoad by remember { mutableStateOf(true) }
-    var debounceJob: Job? = null
-    val coroutineScope = rememberCoroutineScope()
-    val previousChatSize = remember { mutableStateOf(personalChat.size) }
-    val isInitialLoad = remember { mutableStateOf(true) }
     val density = LocalDensity.current
 
     fun toggleMessageSelection(messageId: String) {
@@ -460,47 +466,16 @@ fun MessageScreenContent(
             }
             .distinctUntilChanged()
             .collect { (lastVisibleItemIndex, totalItems) ->
-                // Define a threshold to trigger loading before reaching the very top
                 val threshold = 1
                 if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!!) {
-                    viewModel.loadPersonalChats(myId, enemyId, loadMore = true)
+                    viewModel.loadPersonalChats(
+                        myId,
+                        enemyId,
+                        loadMore = true,
+                        personalChat.last().messageId
+                    )
                 }
             }
-    }
-    val previousFirstMessageId = remember {
-        mutableStateOf(personalChat.firstOrNull()?.messageId)
-    }
-    val previousLastMessageId = remember {
-        mutableStateOf(personalChat.lastOrNull()?.messageId)
-    }
-
-    LaunchedEffect(personalChat.size) {
-        if (personalChat.isNotEmpty()) {
-            val newItemsCount = personalChat.size - previousChatSize.value
-
-            if (newItemsCount > 0) {
-                val previousStartId = previousFirstMessageId.value
-                val currentStartId = personalChat.firstOrNull()?.messageId
-
-                when {
-                    currentStartId != previousStartId -> {
-                        if (scrollState.firstVisibleItemIndex != 0) {
-                            val newIndex = (scrollState.firstVisibleItemIndex + newItemsCount)
-                                .coerceAtMost(personalChat.size - 1) // Ensure index is within bounds
-                            val newOffset = scrollState.firstVisibleItemScrollOffset
-                            scrollState.scrollToItem(index = newIndex, scrollOffset = newOffset)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Update previous state after handling
-        previousChatSize.value = personalChat.size
-        if (personalChat.isNotEmpty()) {
-            previousFirstMessageId.value = personalChat.first().messageId
-            previousLastMessageId.value = personalChat.last().messageId
-        }
     }
     val contentHeight = remember { mutableStateOf(0) }
     val viewportHeight = remember { mutableStateOf(0) }
@@ -563,7 +538,7 @@ fun MessageScreenContent(
                     } else {
                         // Navigation logic when not in selection mode
                         when (message.messageType) {
-                            "PImage" -> {
+                            PersonalMessageType.P_IMAGE -> {
                                 message.mediaUri?.let {
                                     mediaViewModel.setBitmapFromUri(
                                         it, context
@@ -572,8 +547,11 @@ fun MessageScreenContent(
                                 navController.navigate("fullScreenImage")
                             }
 
-                            "PVideo" -> {
+                            PersonalMessageType.P_VIDEO -> {
                                 navController.navigate("fullScreenVideo/${Uri.encode(message.mediaUri)}")
+                            }
+                            else -> {
+
                             }
                         }
                     }
@@ -592,7 +570,7 @@ fun MessageScreenContent(
                         horizontalAlignment = alignment
                     ) {
                         when (message.messageType) {
-                            "PImage" -> {
+                            PersonalMessageType.P_IMAGE -> {
                                 DisplayImage(
                                     message.mediaUri,
                                     shape,
@@ -604,7 +582,7 @@ fun MessageScreenContent(
                                 )
                             }
 
-                            "PVideo" -> {
+                            PersonalMessageType.P_VIDEO -> {
                                 Log.d("isSelectionMode", "is now $isSelectionMode")
                                 DisplayVideo(
                                     message.mediaUri,
@@ -616,7 +594,7 @@ fun MessageScreenContent(
                                 )
                             }
 
-                            "PAudio" -> {
+                            PersonalMessageType.P_AUDIO -> {
                                 Log.d("isSelectionMode", "is now $isSelectionMode")
                                 DisplayAudio(
                                     message.mediaUri,
@@ -627,7 +605,7 @@ fun MessageScreenContent(
                                 )
                             }
 
-                            "PGistInvite" -> {
+                            PersonalMessageType.P_GIST_INVITE -> {
                                 DisplayGistInvite(
                                     topic = message.topic,
                                     shape = shape,
@@ -635,8 +613,10 @@ fun MessageScreenContent(
                                     isSelectionMode = isSelectionMode,
                                     onTapLambda = onTapLambda
                                 ) {
-                                    message.gistId?.let { viewModel.joinGist(it)
-                                    Log.d("PGistInvite", "gist id is $it")}
+                                    message.gistId?.let {
+                                        viewModel.joinGist(it)
+                                        Log.d("PGistInvite", "gist id is $it")
+                                    }
                                     navController.navigate("home")
                                 }
                             }
@@ -990,12 +970,12 @@ fun TextBoxAndMedia(
 }
 
 @Composable
-fun getPersonChatStatusIcon(status: String): ImageVector {
+fun getPersonChatStatusIcon(status: PersonalMessageStatus): ImageVector {
     return when (status) {
-        "sent" -> Icons.Filled.Done // Single checkmark for sent
-        "delivered" -> Icons.Filled.DoneAll // Double checkmark for delivered
+        PersonalMessageStatus.SENT -> Icons.Filled.Done // Single checkmark for sent
+        PersonalMessageStatus.DELIVERED -> Icons.Filled.DoneAll // Double checkmark for delivered
         // "read" -> Icons.Filled.Visibility Eye icon for read (optional, if you want to differentiate read status)
-        else -> Icons.Filled.Schedule // Clock icon for pending or unknown status
+        PersonalMessageStatus.PENDING -> Icons.Filled.Schedule // Clock icon for pending or unknown status
     }
 }
 

@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.widget.Toast
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -169,6 +170,14 @@ fun VideoTrimmingScreen(
     val minTrimDuration = 1000L // 1 second
     var isPlaying by remember { mutableStateOf(false)}
     val handler = Handler(Looper.getMainLooper())
+    val videoStatusUpload by mediaViewModel.videoStatusSubmissionResult.collectAsState()
+    LaunchedEffect(key1 = videoStatusUpload) {
+        if (videoStatusUpload == true) {
+            Toast.makeText(appContext, "Video has successfully been uploaded", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(appContext, "Error successfully uploading the video", Toast.LENGTH_LONG).show()
+        }
+    }
     val videoView = remember {
         VideoView(appContext).apply {
             setVideoURI(uri)
@@ -274,11 +283,9 @@ fun VideoTrimmingScreen(
                         // If the new range exceeds maxTrimDuration
                         newEnd - newStart > maxTrimDuration -> {
                             if (newEnd > endMs) {
-                                // End handle is being dragged to the right, exceeding max duration
                                 startMs = newEnd - maxTrimDuration
                                 endMs = newEnd
                             } else {
-                                // Start handle is being dragged
                                 endMs = newStart + maxTrimDuration
                                 startMs = newStart
                             }

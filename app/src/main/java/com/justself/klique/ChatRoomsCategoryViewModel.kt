@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -25,41 +26,47 @@ class ChatRoomsCategoryViewModel : ViewModel() {
 
     fun fetchCategories() {
         viewModelScope.launch(Dispatchers.IO) {
-            val response = NetworkUtils.makeRequest(
-                "fetchChatRoomCategories",
-                KliqueHttpMethod.GET,
-                emptyMap()
-            )
-            if (response.first) {
-                val campusList = mutableListOf<ChatRoomCategory>()
-                val interestList = mutableListOf<ChatRoomCategory>()
-                val responseJson = JSONArray(response.second)
-                for (i in 0 until responseJson.length()) {
-                    val jsonObject = responseJson.getJSONObject(i)
-                    val type = jsonObject.getString("categoryType")
-                    val categoryId = jsonObject.getInt("categoryId")
-                    val categoryName = jsonObject.getString("categoryName")
-                    val categoryImage = jsonObject.getString("categoryImage")
-                    val chatroomCategory = ChatRoomCategory(
-                        categoryId = categoryId,
-                        categoryName = categoryName,
-                        categoryImage = categoryImage
-                    )
-                    when (type) {
-                        "Campus" -> {
-                            campusList.add(
-                                chatroomCategory
-                            )
-                        }
-                        "Interest" -> {
-                            interestList.add(
-                                chatroomCategory
-                            )
+            try {
+                val response = NetworkUtils.makeRequest(
+                    "fetchChatRoomCategories",
+                    KliqueHttpMethod.GET,
+                    emptyMap()
+                )
+                Log.d("ChatRoom", "$response")
+                if (response.first) {
+                    val campusList = mutableListOf<ChatRoomCategory>()
+                    val interestList = mutableListOf<ChatRoomCategory>()
+                    val responseJson = JSONArray(response.second)
+                    for (i in 0 until responseJson.length()) {
+                        val jsonObject = responseJson.getJSONObject(i)
+                        val type = jsonObject.getString("categoryType")
+                        val categoryId = jsonObject.getInt("categoryId")
+                        val categoryName = jsonObject.getString("categoryName")
+                        val categoryImage = jsonObject.getString("categoryImage")
+                        val chatroomCategory = ChatRoomCategory(
+                            categoryId = categoryId,
+                            categoryName = categoryName,
+                            categoryImage = categoryImage
+                        )
+                        when (type) {
+                            "Campus" -> {
+                                campusList.add(
+                                    chatroomCategory
+                                )
+                            }
+
+                            "Interest" -> {
+                                interestList.add(
+                                    chatroomCategory
+                                )
+                            }
                         }
                     }
+                    _campusesCategories.value = campusList
+                    _interestsCategories.value = interestList
                 }
-                _campusesCategories.value = campusList
-                _interestsCategories.value = interestList
+            } catch (e: Exception) {
+                Log.e("Category Exception", "the exception is $e")
             }
         }
     }

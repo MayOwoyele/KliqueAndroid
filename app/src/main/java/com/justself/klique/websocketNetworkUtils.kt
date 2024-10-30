@@ -4,11 +4,15 @@ package com.justself.klique
 import android.content.Context
 import android.util.Base64
 import android.util.Log
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
 import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
@@ -37,7 +41,7 @@ object WebSocketManager {
         init(null, trustAllCerts, SecureRandom())
     }
 
-    private val listeners = mutableMapOf<String, WebSocketListener>()
+    private val listeners = mutableMapOf<String, WebSocketListener<*>>()
     var isConnected = false
     private var reconnectionAttempts = 0
     private const val MAX_RECONNECT_ATTEMPTS = 10
@@ -55,16 +59,16 @@ object WebSocketManager {
     private var appContext: Context? = null
     private var aReconnection = false
 
-    fun registerListener(listener: WebSocketListener) {
+    fun <T> registerListener(listener: WebSocketListener<T>) {
         listeners[listener.listenerId] = listener
     }
 
-    fun unregisterListener(listener: WebSocketListener) {
+    fun <T> unregisterListener(listener: WebSocketListener<T>) {
         listeners.remove(listener.listenerId)
     }
 
     fun initialize(context: Context) {
-        appContext = context.applicationContext  // Store the application context
+        appContext = context.applicationContext
     }
 
     private fun createWebSocketClient(url: URI, context: Context): WebSocketClient {
@@ -75,17 +79,19 @@ object WebSocketManager {
                 reconnectionAttempts = 0
                 startPingPong()
                 CoroutineScope(Dispatchers.IO).launch {
-                    delay(1000)  // 1 second delay
+                    delay(1000)
                     chatScreenViewModel?.retryPendingMessages(context)
                     chatScreenViewModel?.currentChat?.value?.let { enemyId ->
                         chatScreenViewModel?.subscribeToOnlineStatus(enemyId)
                     }
                     chatScreenViewModel?.fetchNewMessagesFromServer()
+                    chatScreenViewModel?.checkContactUpdate()
                 }
                 if (aReconnection){
                     sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
                         CoroutineScope(Dispatchers.IO).launch {
                             sharedCliqueViewModel?.restoreGistState()
+                            chatRoomViewModel?.retrial()
                         }
                         aReconnection = false
                     }
@@ -172,7 +178,6 @@ object WebSocketManager {
     fun connect(url: String, customerId: Int, fullName: String, context: Context) {
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
 
-        // Use URI and URL constructors to build the URL properly
         val uri = URI.create(url).resolve("?customer_id=$customerId&full_name=$encodedFullName")
 
         this.customerId = customerId
@@ -288,39 +293,71 @@ object WebSocketManager {
     }
 
     private fun routeBinaryMessageToViewModel(prefix: String, jsonObject: JSONObject) {
-        val parts = prefix.split(":")
-        if (parts.size == 2) {
-            val type = parts[0].lowercase()
-            val targetId = parts[1].trim()
-            val listenerId = when (type) {
-                "KImage", "KVideo", "KAudio" -> "SharedCliqueViewModel"
-                else -> targetId
-            }
-
-            listenerId.let {
-                listeners[it]?.onMessageReceived(type, jsonObject)
-                println("Binary message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
-            } ?: println("Unhandled binary data type or target ID: $type, $targetId")
-        } else {
-            println("Invalid prefix format: $prefix")
-        }
+//        val parts = prefix.split(":")
+//        if (parts.size == 2) {
+//            val type = parts[0].lowercase()
+//            val targetId = parts[1].trim()
+//            val listenerId = when (type) {
+//                "KImage", "KVideo", "KAudio" -> "SharedCliqueViewModel"
+//                else -> targetId
+//            }
+//
+//            listenerId.let {
+//                listeners[it]?.onMessageReceived(type, jsonObject)
+//                println("Binary message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
+//            } ?: println("Unhandled binary data type or target ID: $type, $targetId")
+//        } else {
+//            println("Invalid prefix format: $prefix")
+//        }
     }
 
     private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
         Log.d("Websocket", "Type is :$type")
-        val listenerId = when (type) {
-            "gistCreated", "previousMessages", "exitGist", "gistMessageAck", "gistCreationError", "KText", "KImage", "KVideo", "KAudio", "spectatorUpdate", "olderMessages", "gistRefreshUpdate" -> "SharedCliqueViewModel"
-            "is_online", "PText", "ack", "PImage", "PAudio", "PVideo", "PGistInvite" -> "ChatScreenViewModel"
+        val listenerId = when {
+            SharedCliqueReceivingType.entries.any { it.type == type } -> ListenerIdEnum.SHARED_CLIQUE.theId
+            PrivateChatReceivingType.entries.any { it.type == type } -> ListenerIdEnum.PRIVATE_CHAT_SCREEN.theId
+            ChatRoomReceivingType.entries.any { it.type == type } -> ListenerIdEnum.CHAT_ROOM_VIEW_MODEL.theId
+            DmReceivingType.entries.any{it.type == type} -> ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
             else -> targetId
         }
 
         println("Routing text message to listener: $listenerId, Type: $type, TargetId: $targetId")
         println("Raw JSON data from server: $jsonObject")
 
-        listenerId.let {
-            listeners[it]?.onMessageReceived(type, jsonObject)?.also {
-                println("Text message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
-            } ?: println("Unhandled message type or target ID: $type, $targetId")
+        listenerId.let { id ->
+            when (id) {
+                ListenerIdEnum.SHARED_CLIQUE.theId -> {
+                    val enumType = SharedCliqueReceivingType.entries.find { it.type == type }
+                    @Suppress("UNCHECKED_CAST")
+                    enumType?.let {
+                        (listeners[id] as? WebSocketListener<SharedCliqueReceivingType>)?.onMessageReceived(it, jsonObject)
+                    } ?: println("Unknown message type: $type for SharedCliqueViewModel")
+                }
+                ListenerIdEnum.PRIVATE_CHAT_SCREEN.theId -> {
+                    val enumType = PrivateChatReceivingType.entries.find { it.type == type }
+                    @Suppress("UNCHECKED_CAST")
+                    enumType?.let {
+                        (listeners[id] as? WebSocketListener<PrivateChatReceivingType>)?.onMessageReceived(it, jsonObject)
+                    } ?: println("Unknown message type: $type for ChatScreenViewModel")
+                }
+                ListenerIdEnum.CHAT_ROOM_VIEW_MODEL.theId -> {
+                    val enumType = ChatRoomReceivingType.entries.find { it.type == type }
+                    @Suppress("UNCHECKED_CAST")
+                    enumType?.let {
+                        (listeners[id] as? WebSocketListener<ChatRoomReceivingType>)?.onMessageReceived(it, jsonObject)
+                    }?: println("Unknown message type: $type for ChatRoomViewModel")
+                }
+                ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId -> {
+                    val enumType = DmReceivingType.entries.find { it.type == type }
+                    @Suppress("UNCHECKED_CAST")
+                    enumType?.let {
+                        (listeners[id] as? WebSocketListener<DmReceivingType>)?.onMessageReceived(it, jsonObject)
+                    }
+                }
+                else -> {
+                    println("Unhandled message type or target ID: $type, $targetId")
+                }
+            }
         }
     }
 
@@ -349,8 +386,6 @@ object WebSocketManager {
         "messages": [${messagesJsonArray.joinToString(",")}]
     }
     """
-
-        // Simulate receiving the combined message
         webSocketClient?.onMessage(combinedMessage)
     }
 }

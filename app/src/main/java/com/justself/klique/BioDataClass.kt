@@ -4,8 +4,8 @@ import androidx.compose.ui.graphics.Color
 
 data class Post(
     val id: String,
-    val type: String, // "text", "image", "audio", or "video"
-    val content: String, // URL or text content
+    val type: String,
+    val content: String,
     val thumbnail: String? = null,
     val topComments: List<StatusComments>,
     val totalComments: Int,

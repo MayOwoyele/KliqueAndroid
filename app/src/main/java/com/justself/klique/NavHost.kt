@@ -167,7 +167,7 @@ fun NavigationHost(
         ) {
             val source = it.arguments?.getString("source")
                 ?: throw IllegalStateException("where is the source code?")
-            MediaPickerScreen(navController, source, mediaViewModel)
+            MediaPickerScreen(navController, source, mediaViewModel, customerId)
         }
         composable(
             "bioScreen/{enemyId}",
@@ -175,7 +175,7 @@ fun NavigationHost(
         ) {
             val enemyId = it.arguments?.getInt("enemyId")
                 ?: throw IllegalStateException("where is the profileId?")
-            BioScreen(enemyId, navController)
+            BioScreen(enemyId, navController, customerId)
         }
         composable("gistSettings/{gistId}") { backStackEntry ->
             val gistId = backStackEntry.arguments?.getString("gistId")
@@ -207,18 +207,19 @@ fun NavigationHost(
         ) { backStackEntry ->
             val sourceScreen = backStackEntry.arguments?.getString("sourceScreen")?.let {
                 SourceScreen.valueOf(it)
-            } ?: SourceScreen.STATUS // Fallback to default
+            } ?: SourceScreen.STATUS
             ImageCropTool(
                 viewModel = mediaViewModel,
                 navController = navController,
-                sourceScreen = sourceScreen
+                sourceScreen = sourceScreen,
+                customerId = customerId
             )
         }
         composable("statusAudioScreen") {
             StatusAudio(viewModel = mediaViewModel, navController = navController)
         }
         composable("statusTextScreen") {
-            StatusText(viewModel = mediaViewModel, navController = navController)
+            StatusText(viewModel = mediaViewModel, navController = navController, customerId)
         }
         composable("campuses") {
             Log.d("Navigated", "Navigated")
@@ -239,6 +240,7 @@ fun NavigationHost(
             val optionId = backStackEntry.arguments?.getString("chatRoomId")
                 ?: throw IllegalStateException("where is the chatRoomId")
             val chatRoomOptionId = optionId.toIntOrNull()
+            Log.d("ChatRoom", "The id is $optionId")
             if (chatRoomOptionId != null) {
                 ChatRoom(
                     navController,
@@ -251,10 +253,11 @@ fun NavigationHost(
         }
         composable("dmList") { DmList(navController) }
         composable("dmChatScreen/{enemyId}/{enemyName}") { backStackEntry ->
-            val enemyId = backStackEntry.arguments?.getInt("enemyId")
+            val enemyId = backStackEntry.arguments?.getString("enemyId")?.toIntOrNull()
                 ?: throw IllegalStateException("where is the enemyId?")
             val enemyName = backStackEntry.arguments?.getString("enemyName")
                 ?: throw IllegalStateException("where is the enemyName?")
+
             DmRoom(
                 navController = navController,
                 myId = customerId,
@@ -267,7 +270,8 @@ fun NavigationHost(
             UpdateProfileScreen(
                 navController = navController,
                 mediaViewModel = mediaViewModel,
-                chatScreenViewModel = chatScreenViewModel
+                chatScreenViewModel = chatScreenViewModel,
+                customerId = customerId
             )
         }
         composable("contactsScreen") {

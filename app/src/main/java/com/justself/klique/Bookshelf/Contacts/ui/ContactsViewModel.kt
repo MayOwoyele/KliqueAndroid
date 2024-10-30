@@ -24,8 +24,6 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
             _contacts.value = _contactsRepository.getSortedContactsFromDatabase()
         }
     }
-
-    // Load contacts from the contacts repository
     fun refreshContacts() {
         viewModelScope.launch (Dispatchers.IO){
             delay(1000)
@@ -33,7 +31,6 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
             val localContacts = _contactsRepository.getContacts()
             val batchSize = 100
             val mergedContacts = mutableListOf<Contact>()
-            // server is supposed to return only contacts that are on Klique
             localContacts.chunked(batchSize).forEach { batch ->
                 val serverContacts = _contactsRepository.checkContactsOnServer(batch)
                 val mergedBatch = _contactsRepository.mergeContacts(batch, serverContacts)

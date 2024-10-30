@@ -140,12 +140,11 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
                 }
             }
 
-            // Bottom overlay with play/pause button and slider
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f)) // Semi-transparent black background
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {

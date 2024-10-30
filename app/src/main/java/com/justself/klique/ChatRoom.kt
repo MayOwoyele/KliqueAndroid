@@ -68,11 +68,13 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -88,6 +90,13 @@ fun ChatRoom(
         factory = ChatRoomViewModelFactory(LocalContext.current.applicationContext as Application)
     )
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.loadChatRoomDetails(chatRoomId)
+        viewModel.setChatRoomId(chatRoomId)
+    }
+    DisposableEffect(Unit) {
+        onDispose { viewModel.exitChatRoom(chatRoomId, myId) }
+    }
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val imagePickerLauncher =
@@ -99,7 +108,7 @@ fun ChatRoom(
                         val messageId = viewModel.generateMessageId()
                         viewModel.sendBinary(
                             image = imageByteArray,
-                            messageType = "CImage",
+                            messageType = ChatRoomMessageType.CIMAGE,
                             chatRoomId = chatRoomId,
                             messageId = messageId,
                             myId = myId,
@@ -170,7 +179,6 @@ fun CustomCRTopAppBar(
     viewModel: ChatRoomViewModel
 ) {
     val thisChatRoom by viewModel.thisChatRoom.collectAsState()
-
     Surface(
         color = MaterialTheme.colorScheme.background,
         modifier = Modifier.fillMaxWidth()
@@ -209,27 +217,31 @@ fun ChatRoomContent(
     myId: Int,
     mediaViewModel: MediaViewModel
 ) {
-    // State management and initializations as shown previously...
     val chatRoomMessages by viewModel.chatRoomMessages.collectAsState()
+    val toastWarning by viewModel.toastWarning.collectAsState()
     val context = LocalContext.current
     val lazyListState = rememberLazyListState()
     var lastSeenMessageCount by remember { mutableIntStateOf(chatRoomMessages.size) }
     val coroutineScope = rememberCoroutineScope()
     val isAtBottom by remember {
         derivedStateOf {
-            lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lazyListState.layoutInfo.totalItemsCount - 1
+            lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0
         }
     }
     LaunchedEffect(chatRoomId) {
         viewModel.loadChatMessages(chatRoomId)
         lastSeenMessageCount = chatRoomMessages.size
     }
-    val newMessagesExist = chatRoomMessages.size > lastSeenMessageCount
-    LaunchedEffect(chatRoomMessages.size) {
-        if (isAtBottom) {
-            lastSeenMessageCount = chatRoomMessages.size
-        }
+    LaunchedEffect(isAtBottom) {
+        lastSeenMessageCount = chatRoomMessages.size
     }
+    LaunchedEffect(toastWarning) {
+        if (toastWarning != null) {
+            Toast.makeText(context, toastWarning, Toast.LENGTH_LONG).show()
+        }
+        viewModel.resetToastWarning()
+    }
+    val newMessagesExist = chatRoomMessages.size > lastSeenMessageCount
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -237,6 +249,7 @@ fun ChatRoomContent(
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(horizontal = 8.dp),
+            reverseLayout = true,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(chatRoomMessages, key = { it.messageId }) { message ->
@@ -252,7 +265,7 @@ fun ChatRoomContent(
             FloatingActionButton(
                 onClick = {
                     coroutineScope.launch {
-                        lazyListState.animateScrollToItem(chatRoomMessages.size - 1)
+                        lazyListState.animateScrollToItem(0)
                         lastSeenMessageCount = chatRoomMessages.size
                     }
                 },
@@ -309,12 +322,12 @@ fun ChatRoomMessageItem(
                     .padding(8.dp)
             ) {
                 when (message.messageType) {
-                    "CText" -> Text(
+                    ChatRoomMessageType.CTEXT -> Text(
                         text = message.content,
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    "CImage" -> {
+                    ChatRoomMessageType.CIMAGE -> {
                         ChatRoomImageItem(
                             image = message.localPath,
                             shape = shape,
@@ -329,6 +342,7 @@ fun ChatRoomMessageItem(
                 val icon = when (message.status) {
                     ChatRoomStatus.SENDING -> Icons.Default.Schedule
                     ChatRoomStatus.SENT -> Icons.Default.Done
+                    ChatRoomStatus.UNSENT -> Icons.Default.ArrowDownward
                 }
                 Icon(
                     imageVector = icon,
@@ -440,7 +454,7 @@ suspend fun getChatRoomUriFromByteArray(
     mediaType: ChatRoomMediaType
 ): Uri {
     return withContext(Dispatchers.IO) {
-        val customCacheDir = File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_CACHE.directoryName)
+        val customCacheDir = File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_ROOM_CACHE.directoryName)
         if (!customCacheDir.exists()) {
             customCacheDir.mkdir()
         }

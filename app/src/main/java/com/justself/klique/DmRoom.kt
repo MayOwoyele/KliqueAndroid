@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.Manifest
+import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -49,6 +50,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,9 +75,12 @@ fun DmRoom(
     enemyId: Int,
     enemyName: String,
     mediaViewModel: MediaViewModel,
-    viewModel: DmRoomViewModel = viewModel()
+    viewModel: DmRoomViewModel = viewModel(
+        factory = DmRoomViewModelFactory(LocalContext.current.applicationContext as Application)
+    )
 ) {
     val context = LocalContext.current
+    val toastWarning by viewModel.toastWarning.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     val imagePickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -86,12 +91,14 @@ fun DmRoom(
                         Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
                         val messageId = viewModel.generateMessageId()
+                        Log.d("Dm", messageId)
                         viewModel.sendBinary(
                             image = imageByteArray,
-                            messageType = "DmImage",
+                            messageType = DmMessageType.DImage,
                             enemyId = enemyId,
                             messageId = messageId,
                             myId = myId,
+                            context = context
                         )
 
                     } catch (e: IOException) {
@@ -118,6 +125,16 @@ fun DmRoom(
             viewModel.sendTextMessage(message, enemyId, myId)
         }
     }
+    LaunchedEffect(key1 = toastWarning) {
+        if (toastWarning != null){
+            Toast.makeText(context, toastWarning, Toast.LENGTH_LONG).show()
+        }
+        viewModel.resetToastWarning()
+    }
+    LaunchedEffect(Unit) {
+        Log.d("Dm", "$enemyId")
+        viewModel.loadDmMessages(enemyId)
+    }
 
     Scaffold(
         topBar = {
@@ -130,7 +147,8 @@ fun DmRoom(
                 viewModel,
                 myId,
                 enemyId,
-                mediaViewModel
+                mediaViewModel,
+                enemyName
             )
         },
         bottomBar = {
@@ -144,6 +162,7 @@ fun DmRoom(
         }
     )
 }
+
 @Composable
 fun CustomDmTopAppBar(
     navController: NavController,
@@ -173,11 +192,14 @@ fun CustomDmTopAppBar(
                 text = enemyName,
                 color = MaterialTheme.colorScheme.onPrimary,
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 16.dp).clickable { navController.navigate("bioScreen/$enemyId") }
+                modifier = Modifier
+                    .padding(start = 16.dp)
+                    .clickable { navController.navigate("bioScreen/$enemyId") }
             )
         }
     }
 }
+
 @Composable
 fun DmRoomContent(
     navController: NavController,
@@ -185,22 +207,36 @@ fun DmRoomContent(
     viewModel: DmRoomViewModel,
     myId: Int,
     enemyId: Int,
-    mediaViewModel: MediaViewModel
+    mediaViewModel: MediaViewModel,
+    enemyName: String
 ) {
     val dmMessages by viewModel.dmMessages.collectAsState()
     val lazyListState = rememberLazyListState()
-    var lastSeenMessageCount by remember { mutableStateOf(dmMessages.size) }
+    var lastSeenMessageCount by remember { mutableIntStateOf(dmMessages.size) }
     val coroutineScope = rememberCoroutineScope()
+    val isAtTop by remember { derivedStateOf { lazyListState.firstVisibleItemIndex == dmMessages.lastIndex } }
     val isAtBottom by remember { derivedStateOf { lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lazyListState.layoutInfo.totalItemsCount - 1 } }
+    val isScrollable by remember {
+        derivedStateOf {
+            lazyListState.layoutInfo.totalItemsCount > 0 &&
+                    lazyListState.layoutInfo.visibleItemsInfo.size < lazyListState.layoutInfo.totalItemsCount
+        }
+    }
     LaunchedEffect(dmMessages.size) {
         if (isAtBottom) {
             lastSeenMessageCount = dmMessages.size
+        }
+    }
+    LaunchedEffect(isAtTop) {
+        if (isAtTop && isScrollable){
+            dmMessages.lastOrNull()?.let { viewModel.loadAdditionalMessages(it.messageId, enemyId) }
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = lazyListState,
+            reverseLayout = true,
             modifier = Modifier
                 .padding(innerPadding)
                 .padding(horizontal = 8.dp),
@@ -211,7 +247,8 @@ fun DmRoomContent(
                     message = message,
                     isCurrentUser = message.senderId == myId,
                     navController = navController,
-                    mediaViewModel = mediaViewModel
+                    mediaViewModel = mediaViewModel,
+                    enemyName = enemyName
                 )
             }
         }
@@ -228,17 +265,23 @@ fun DmRoomContent(
                     .imePadding(),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(
+                    Icons.Default.ArrowDownward,
+                    contentDescription = "Scroll to bottom",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
 }
+
 @Composable
 fun DmMessageItem(
     message: DmMessage,
     isCurrentUser: Boolean,
     navController: NavController,
-    mediaViewModel: MediaViewModel
+    mediaViewModel: MediaViewModel,
+    enemyName: String
 ) {
     val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
     val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp)
@@ -251,9 +294,8 @@ fun DmMessageItem(
             .padding(8.dp)
     ) {
         if (!isCurrentUser) {
-            // Display senderName's name above the message if not current user
             Text(
-                text = message.senderName,
+                text = enemyName,
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier
@@ -273,13 +315,14 @@ fun DmMessageItem(
                     .background(MaterialTheme.colorScheme.surface, shape)
             ) {
                 when (message.messageType) {
-                    "DmText" -> Text(
+                    DmMessageType.DText -> Text(
                         text = message.content,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    "DmImage" -> {
+
+                    DmMessageType.DImage -> {
                         ChatRoomImageItem(
-                            image = message.media,
+                            image = message.localPath,
                             shape = shape,
                             mediaViewModel = mediaViewModel,
                             navController = navController
@@ -290,24 +333,23 @@ fun DmMessageItem(
 
             if (isCurrentUser) {
                 val icon = when (message.status) {
-                    "sending" -> Icons.Default.Schedule
-                    "sent" -> Icons.Default.Done
-                    else -> null
+                    DmMessageStatus.SENDING -> Icons.Default.Schedule
+                    DmMessageStatus.SENT -> Icons.Default.Done
+                    DmMessageStatus.UNSENT -> Icons.Default.ArrowDownward
                 }
-                icon?.let {
-                    Icon(
-                        imageVector = it,
-                        contentDescription = "Message status",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier
-                            .padding(start = 4.dp)
-                            .size(16.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = "Message status",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .size(16.dp)
+                )
             }
         }
     }
 }
+
 @Composable
 fun DmTextBoxAndMedia(
     navController: NavController,
@@ -357,7 +399,11 @@ fun DmTextBoxAndMedia(
         // Text input field
         TextField(
             value = messageText,
-            onValueChange = { messageText = it },
+            onValueChange = {
+                if (it.length <= 2000) {
+                    messageText = it
+                }
+            },
             placeholder = { Text("1KC per message") },
             modifier = Modifier
                 .weight(1f)
@@ -365,12 +411,11 @@ fun DmTextBoxAndMedia(
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences)
         )
 
-        // Send message button
         IconButton(
             onClick = {
-                if (messageText.isNotEmpty()) {
-                    onSendMessage(messageText)
-                    messageText = "" // Clear the text field
+                if (messageText.trimEnd().isNotEmpty()) {
+                    onSendMessage(messageText.trimEnd())
+                    messageText = ""
                 }
             },
             modifier = Modifier.size(48.dp)

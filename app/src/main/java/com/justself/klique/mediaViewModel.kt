@@ -8,7 +8,6 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -17,6 +16,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -25,6 +26,18 @@ import java.io.IOException
 import java.nio.ByteBuffer
 
 class MediaViewModel(application: Application) : AndroidViewModel(application) {
+    private var _textStatusSubmissionResult = MutableStateFlow<Boolean?>(null)
+    val textStatusSubmissionResult = _textStatusSubmissionResult.asStateFlow()
+
+    private var _audioStatusSubmissionResult = MutableStateFlow<Boolean?>(null)
+    val audioStatusSubmissionResult = _textStatusSubmissionResult.asStateFlow()
+
+    private var _videoStatusSubmissionResult = MutableStateFlow<Boolean?>(null)
+    val videoStatusSubmissionResult = _videoStatusSubmissionResult.asStateFlow()
+
+    private var _imageSubmissionResult = MutableStateFlow<Boolean?>(null)
+    val imageSubmissionResult = _imageSubmissionResult.asStateFlow()
+
     private val _bitmap = MutableLiveData<Bitmap?>()
     val bitmap: LiveData<Bitmap?> get() = _bitmap
     private val _homeScreenUri = MutableLiveData<Uri?>()
@@ -34,6 +47,14 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val messageScreenUri: LiveData<Uri?> get() = _messageScreenUri
     private val _croppedBitmap = MutableLiveData<Bitmap?>()
     val croppedBitmap: LiveData<Bitmap?> get() = _croppedBitmap
+    val customerId = MutableLiveData<Int>()
+
+    fun setCustomerId(value: Int) {
+        customerId.value = value
+    }
+    fun getInteger(): Int? {
+        return customerId.value
+    }
 
     init {
         valueOfHomeScreenUri()
@@ -91,13 +112,10 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         val result = withContext(Dispatchers.IO) {
             val trimmedUri = performTrimming(context, uri, startMs, endMs)
             Log.d("onTrim", "Trimming result: $trimmedUri")
-
-            // Ensure the trimmed file exists before proceeding
             if (trimmedUri != null) {
                 val file = trimmedUri.path?.let { File(it) }
                 if (file != null) {
-                    if (file.exists()) {
-                    } else {
+                    if (!file.exists()) {
                         return@withContext null
                     }
                 }
@@ -129,35 +147,47 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         videoUri?.let { uri ->
             Log.d("Video Status", "Video Uri: $videoUri")
             val videoBytes = FileUtils.loadFileAsByteArray(context, uri)
-            videoBytes?.let {
-                val type = "statusVideo"
-                val typeBytes = type.toByteArray(Charsets.UTF_8)
-
-                val outputStream = ByteArrayOutputStream()
-                outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
-                outputStream.write(typeBytes)
-                outputStream.write(it)
-
-                val message = outputStream.toByteArray()
-                WebSocketManager.sendBinary(message)
+            try {
+                videoBytes?.let {
+                    val userIdJson = """
+                    {
+                    "userId": ${getInteger()}
+                    }
+                """.trimIndent()
+                    viewModelScope.launch {
+                        val response = NetworkUtils.makeRequest(
+                            "sendStatusVideo",
+                            KliqueHttpMethod.POST,
+                            emptyMap(),
+                            jsonBody = userIdJson,
+                            binaryBody = videoBytes
+                        )
+                        _videoStatusSubmissionResult.value = response.first
+                    }
+                }
+            } catch (e: Exception){
+                e.printStackTrace()
             }
         }
     }
 
-    fun uploadCroppedImage(context: Context, bitmap: Bitmap) {
+    fun uploadCroppedImage(context: Context, bitmap: Bitmap, customerId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val byteArray = ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
-                val type = "statusImage"
-                val typeBytes = type.toByteArray(Charsets.UTF_8)
-
-                val outputStream = ByteArrayOutputStream()
-                outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
-                outputStream.write(typeBytes)
-                outputStream.write(byteArray)
-
-                val binaryImageToUpload = outputStream.toByteArray()
-                WebSocketManager.sendBinary(binaryImageToUpload)
+                val byteArray =
+                    ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
+                val userIdJson = """
+                    {
+                    "userId": $customerId
+                    }
+                """.trimIndent()
+                NetworkUtils.makeRequest(
+                    "sendImageStatus",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = userIdJson,
+                    binaryBody = byteArray
+                )
             } catch (e: IOException) {
                 Log.e("UploadError", "Failed to upload image", e)
                 withContext(Dispatchers.Main) {
@@ -174,16 +204,19 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             try {
                 val byteArray = FileUtils.loadFileAsByteArray(context, uri)
                 if (byteArray != null) {
-                    val type = "statusAudioFile"
-                    val typeBytes = type.toByteArray(Charsets.UTF_8)
-
-                    val outputStream = ByteArrayOutputStream()
-                    outputStream.write(ByteBuffer.allocate(4).putInt(typeBytes.size).array())
-                    outputStream.write(typeBytes)
-                    outputStream.write(byteArray)
-
-                    val binaryAudioToUpload = outputStream.toByteArray()
-                    WebSocketManager.sendBinary(binaryAudioToUpload)
+                    val userIdJson = """
+                    {
+                    "userId": ${getInteger()}
+                    }
+                """.trimIndent()
+                    val response = NetworkUtils.makeRequest(
+                        "sendAudioStatus",
+                        KliqueHttpMethod.POST,
+                        emptyMap(),
+                        jsonBody = userIdJson,
+                        binaryBody = byteArray
+                    )
+                    _audioStatusSubmissionResult.value = response.first
                 }
             } catch (e: IOException) {
                 Log.e("UploadError", "Failed to upload audio file", e)
@@ -195,14 +228,41 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-    fun sendTextStatus(text: String){
+
+    fun sendTextStatus(text: String, customerId: Int) {
+        val jsonBody = """
+            {
+            "userId": $customerId,
+            "theText": "$text"
+            }
+        """.trimIndent()
+        try {
+            viewModelScope.launch()
+            {
+                val response = NetworkUtils.makeRequest(
+                    "sendTextStatus",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody
+                )
+                _imageSubmissionResult.value = response.first
+            }
+        } catch (e:Exception){
+            e.printStackTrace()
+        }
     }
+
     fun setCroppedBitmap(bitmap: Bitmap) {
         _croppedBitmap.value = bitmap
         Log.d("Bitmap", "${_croppedBitmap.value}")
     }
-    fun clearCroppedBitmap(){
+
+    fun clearCroppedBitmap() {
         _croppedBitmap.value = null
+    }
+
+    fun resetSubmissionResult() {
+        _textStatusSubmissionResult.value = null
     }
 }
 

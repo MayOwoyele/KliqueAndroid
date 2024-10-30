@@ -11,11 +11,12 @@ data class GistMessage(
     val senderName: String,
     val content: String,
     val status: GistMessageStatus,
-    val messageType: String = "KText",
+    val messageType: GistMessageType = GistMessageType.K_TEXT,
     val localPath: Uri? = null,
     val externalUrl: String? = null,
     val timeStamp: ZonedDateTime
 )
+
 data class UserStatus(
     val isSpeaker: Boolean,
     val isOwner: Boolean
@@ -48,6 +49,7 @@ enum class GistMediaType {
     KImage,
     KAudio,
     KVideo;
+
     fun getFileName(): String {
         val fileName = when (this) {
             KImage -> "KImage_${UUID.randomUUID()}.jpg"
@@ -56,13 +58,7 @@ enum class GistMediaType {
         }
         return fileName
     }
-    fun getTypeString(): String {
-        return when (this) {
-            KImage -> "KImage"
-            KAudio -> "KAudio"
-            KVideo -> "KVideo"
-        }
-    }
+
     fun getGeneralMediaType(): String {
         return when (this) {
             KImage -> "image"
@@ -70,6 +66,7 @@ enum class GistMediaType {
             KVideo -> "video"
         }
     }
+
     companion object {
         fun fromString(type: String): GistMediaType? {
             return when (type) {
@@ -81,7 +78,15 @@ enum class GistMediaType {
         }
     }
 }
+
 enum class GistMessageStatus {
     Sent,
     Pending
+}
+
+enum class GistMessageType(val typeString: String) {
+    K_TEXT("KText"),
+    K_IMAGE("KImage"),
+    K_AUDIO("KAudio"),
+    K_VIDEO("KVideo"),
 }

@@ -10,40 +10,18 @@ import kotlinx.coroutines.launch
 import org.json.JSONObject
 
 class UserDetailsViewModel : ViewModel() {
-    private val _firstName = MutableStateFlow("")
-    private val _lastName = MutableStateFlow("")
-    val firstName = _firstName.asStateFlow()
-    val lastName = _lastName.asStateFlow()
+    private val _name = MutableStateFlow("")
+    val name = _name.asStateFlow()
 
     fun fetchCustomerDetails(customerId: Int) {
         viewModelScope.launch {
             try {
-                Log.d("fetchCustomerDetails", "Starting to fetch details for customer ID: $customerId")
+                val params = mapOf("userId" to "$customerId")
+                val jsonResponse = NetworkUtils.makeRequest("fetchUserName", KliqueHttpMethod.GET, params).second
 
-                /*val endpoint = "getCustomerDetails/$senderId"
-                val response = NetworkUtils.makeRequest(endpoint, "GET", emptyMap())
-                // remember to replace with the JsonObject call with 'response' later */
-                val fakeJsonResponse = """
-                {
-                    "user": {
-                        "first_name": "Mayokun",
-                        "last_name": "Beckley"
-                    }
-                }
-                """
-                Log.d("fetchCustomerDetails", "Fake JSON response: $fakeJsonResponse")
-
-                val responseObject = JSONObject(fakeJsonResponse)
-                Log.d("fetchCustomerDetails", "Parsed JSONObject: $responseObject")
-
-                if (responseObject.has("user")) {
-                    val user = responseObject.getJSONObject("user")
-                    Log.d("fetchCustomerDetails", "User JSONObject: $user")
-
-                    _firstName.value = user.getString("first_name")
-                    _lastName.value = user.getString("last_name")
-
-                    Log.d("fetchCustomerDetails", "First name: ${_firstName.value}, Last name: ${_lastName.value}")
+                val responseObject = JSONObject(jsonResponse)
+                if (responseObject.has("name")) {
+                    _name.value = responseObject.getString("name")
                 } else {
                     val error = responseObject.optString("error", "Unknown error occurred")
                     Log.e("UserDetailsError", "Error fetching customer details: $error")

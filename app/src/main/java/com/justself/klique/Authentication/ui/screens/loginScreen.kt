@@ -1,5 +1,6 @@
 package com.justself.klique.Authentication.ui.screens
 
+import android.app.Application
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
@@ -37,19 +38,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
+import com.justself.klique.Authentication.ui.viewModels.ViewModelProviderFactory
 import java.util.Calendar
 import java.util.Locale
-
 
 @Composable
 fun RegistrationScreen(
     navController: NavHostController,
-    authViewModel: AuthViewModel = viewModel()
+    authViewModel: AuthViewModel = viewModel(factory = ViewModelProviderFactory(LocalContext.current.applicationContext as Application))
 ) {
     val registrationStep by authViewModel.registrationStep.collectAsState()
     val aiMessage by authViewModel.aiMessage.collectAsState()
@@ -171,8 +173,6 @@ fun CountryCodePicker(selectedCountry: String, onCountrySelected: (String) -> Un
     }.sortedBy { it.first }
 
     var expanded by remember { mutableStateOf(false) }
-
-    // Display the country code as a clickable text
     Box {
         Text(
             text = "+${getCountryCodeForRegion(selectedCountry)}",
@@ -215,8 +215,11 @@ fun isValidPhoneNumber(number: String, region: String, phoneUtil: PhoneNumberUti
 fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
     var confirmationCode by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
-    var activeCell by remember { mutableStateOf(0) }
+    var activeCell by remember { mutableIntStateOf(0) }
     val errorMessage by authViewModel.errorMessage.collectAsState()
+    val countdown by authViewModel.countdown.collectAsState()
+    val canResendCode by authViewModel.canResendCode.collectAsState()
+
 
     Column(
         modifier = Modifier
@@ -226,6 +229,7 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
     ) {
         LaunchedEffect(Unit) {
             authViewModel.setErrorMessageToNull()
+            authViewModel.startCountdown()
         }
         Text(
             text = "Enter the confirmation code sent to your phone",
@@ -294,14 +298,29 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
             )
         }
 
+        if (!canResendCode) {
+            Text(
+                text = "Resend code available in $countdown seconds",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+        }
+
+        if (canResendCode) {
+            Button(
+                onClick = { authViewModel.resendCode() }
+            ) {
+                Text("Resend Code")
+            }
+        }
+
         Button(
             onClick = {
                 if (confirmationCode.length == 6) {
-                    // Add logic here to verify the code
                     authViewModel.retryConfirmationCode(confirmationCode)
                 }
             },
-            enabled = confirmationCode.length == 6 // Enable button only when 6 digits are entered
+            enabled = confirmationCode.length == 6
         ) {
             Text("Verify")
         }
@@ -327,7 +346,6 @@ fun NameScreen(authViewModel: AuthViewModel) {
         TextField(
             value = name,
             onValueChange = { newName ->
-                // Allow only up to 30 characters
                 if (newName.length <= 30) {
                     name = newName
                 }
@@ -338,15 +356,13 @@ fun NameScreen(authViewModel: AuthViewModel) {
         )
 
         Spacer(Modifier.height(16.dp))
-
-        // Continue Button
         Button(
             onClick = {
                 if (isNameValid) {
                     authViewModel.verifyName(name)
                 }
             },
-            enabled = isNameValid // Button enabled only if name is valid
+            enabled = isNameValid
         ) {
             Text("Continue")
         }
@@ -371,40 +387,37 @@ fun NameScreen(authViewModel: AuthViewModel) {
 
 @Composable
 fun GenderScreen(authViewModel: AuthViewModel) {
-    var gender by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf<Gender?>(null) }
     LaunchedEffect(Unit){
         authViewModel.setErrorMessageToNull()
     }
 
     Column {
-        // Radio Buttons for Gender Selection
         Row {
             StyledRadioButton(
-                selected = gender == "Male",
-                onClick = { gender = "Male" },
+                selected = gender == Gender.MALE,
+                onClick = { gender = Gender.MALE },
                 label = "Male"
             )
             Spacer(Modifier.width(8.dp))
             StyledRadioButton(
-                selected = gender == "Female",
-                onClick = { gender = "Female" },
+                selected = gender == Gender.FEMALE,
+                onClick = { gender = Gender.FEMALE },
                 label = "Female"
             )
             Spacer(Modifier.width(8.dp))
             StyledRadioButton(
-                selected = gender == "Other",
-                onClick = { gender = "Other" },
+                selected = gender == Gender.OTHER,
+                onClick = { gender = Gender.OTHER },
                 label = "Other"
             )
         }
         Spacer(Modifier.height(16.dp))
         Button(
             onClick = {
-                if (gender.isNotBlank()) {
-                    authViewModel.verifyGender(gender)
-                }
+                authViewModel.verifyGender(gender!!)
             },
-            enabled = gender.isNotEmpty()
+            enabled = gender != null
         ) {
             Text("Continue")
         }
@@ -502,11 +515,11 @@ fun formatDateToString(day: Int, month: Int, year: Int): String {
         "July", "August", "September", "October", "November", "December"
     )
     val daySuffix = when {
-        day in 11..13 -> "th" // 11th, 12th, 13th
-        day % 10 == 1 -> "st" // 1st, 21st, 31st
-        day % 10 == 2 -> "nd" // 2nd, 22nd
-        day % 10 == 3 -> "rd" // 3rd, 23rd
-        else -> "th"          // 4th, 5th, etc.
+        day in 11..13 -> "th"
+        day % 10 == 1 -> "st"
+        day % 10 == 2 -> "nd"
+        day % 10 == 3 -> "rd"
+        else -> "th"
     }
 
     return "You were born on the ${day}${daySuffix} of ${months[month]}, the year $year?"
@@ -520,7 +533,6 @@ fun DatePickerDialogSample(
     val context = LocalContext.current
     val calendar = Calendar.getInstance()
 
-    // Using a boolean state to control the display of the dialog
     var showDialog by remember { mutableStateOf(true) }
 
     if (showDialog) {
@@ -542,10 +554,14 @@ fun DatePickerDialogSample(
 fun RegistrationCompleteScreen(authViewModel: AuthViewModel) {
     Button(
         onClick = {
-            // Trigger navigation to the app's main screen
             authViewModel.completeRegistration()
         }
     ) {
         Text("Continue")
     }
+}
+enum class Gender(val nameString: String) {
+    MALE("Male"),
+    FEMALE("Female"),
+    OTHER("Other")
 }

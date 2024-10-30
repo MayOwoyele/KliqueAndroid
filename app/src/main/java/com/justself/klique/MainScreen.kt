@@ -336,9 +336,7 @@ fun MainContent(
     onDisplayTextChange: (String, Int) -> Unit
 ) {
     val customerId = authViewModel.customerId.collectAsState().value
-    val firstName = userDetailsViewModel.firstName.collectAsState().value
-    val lastName = userDetailsViewModel.lastName.collectAsState().value
-    val fullName = "$firstName $lastName".trim()
+    val fullName = userDetailsViewModel.name.collectAsState().value
     Log.d("Names", "Full Name: $fullName")
 
     val context = LocalContext.current
@@ -350,8 +348,8 @@ fun MainContent(
         }
     }
 
-    LaunchedEffect(key1 = customerId, key2 = firstName, key3 = lastName) {
-        if (customerId != 0 && firstName.isNotEmpty() && lastName.isNotEmpty()) {
+    LaunchedEffect(key1 = customerId, key2 = fullName) {
+        if (customerId != 0 && fullName.isNotEmpty()) {
             Log.d(
                 "WebSocket",
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"

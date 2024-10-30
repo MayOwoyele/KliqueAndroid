@@ -69,7 +69,9 @@ fun OptionItem(option: ChatRoomOption, navController: NavController) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
-            .clickable { navController.navigate("chatRoom/{${option.chatRoomId}}") },
+            .clickable {
+                Log.d("ChatRoom", "The Option room id is ${option.chatRoomId}")
+                navController.navigate("chatRoom/${option.chatRoomId}") },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Image(

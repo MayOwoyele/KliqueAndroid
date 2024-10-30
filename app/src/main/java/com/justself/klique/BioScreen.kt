@@ -39,6 +39,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +78,8 @@ import java.net.URL
 @Composable
 fun BioScreen(
     enemyId: Int,
-    navController: NavController
+    navController: NavController,
+    customerId: Int
 ) {
     val context = LocalContext.current
     val contentResolver = context.contentResolver
@@ -85,13 +87,12 @@ fun BioScreen(
     val bioViewModel: BioViewModel = viewModel(
         factory = BioViewModelFactory(contactsRepository)
     )
-    val profile by bioViewModel.fetchProfile(enemyId).observeAsState()
+    val profile by bioViewModel.profile.collectAsState()
     val contactName by bioViewModel.checkIfContact(enemyId).observeAsState()
 
     var showClassSection by remember { mutableStateOf(false) }
     var expandedPostId by remember { mutableStateOf<String?>(null) }
-    val postComments by bioViewModel.fetchPostComments(expandedPostId ?: "")
-        .observeAsState(emptyList())
+    val postComments by bioViewModel.postComments.collectAsState()
     val animatedPadding = remember { Animatable(initialValue = 370f) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -106,6 +107,9 @@ fun BioScreen(
                     )
                 }
             }
+    }
+    LaunchedEffect(key1 = Unit) {
+        bioViewModel.fetchProfile(enemyId, customerId)
     }
 
     profile?.let { profileData ->
@@ -274,25 +278,27 @@ fun BioScreen(
                                     style = MaterialTheme.typography.displayLarge,
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
-                                Button(
-                                    onClick = {
-                                        if (profileData.isSpectator) {
-                                            bioViewModel.leaveSeat() // Call this function if the user is a spectator
-                                        } else {
-                                            bioViewModel.takeSeat() // Call this function if the user is not a spectator
-                                        }
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    ),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text(
-                                        text = if (profileData.isSpectator) "LEAVE" else "TAKE A SEAT",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                if (enemyId != customerId){
+                                    Button(
+                                        onClick = {
+                                            if (profileData.isSpectator) {
+                                                bioViewModel.leaveSeat(enemyId, customerId)
+                                            } else {
+                                                bioViewModel.takeSeat(enemyId, customerId)
+                                            }
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        ),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (profileData.isSpectator) "LEAVE" else "TAKE A SEAT",
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -378,6 +384,7 @@ fun BioScreen(
                 }
             }
             expandedPostId?.let { postId ->
+                bioViewModel.fetchPostComments(postId)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -386,8 +393,7 @@ fun BioScreen(
                     var commentText by remember { mutableStateOf("") }
                     Column {
                         var replyingTo by remember { mutableStateOf<String?>(null) }
-                        var replyingToId by remember { mutableStateOf<String?>(null) }
-                        // Back arrow icon to close the comments section
+                        var replyingToId by remember { mutableStateOf<Int?>(null) }
                         IconButton(onClick = { expandedPostId = null }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -430,14 +436,13 @@ fun BioScreen(
                                         .padding(start = 20.dp)
                                         .clickable {
                                             replyingTo = comment.name
-                                            replyingToId = comment.customerId.toString()
+                                            replyingToId = comment.customerId
                                             commentText = ""
                                         }
                                 )
                             }
                         }
 
-                        // Input field and send button at the bottom
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -469,11 +474,10 @@ fun BioScreen(
                                             replyingToId = null
                                         }
 
-                                        // Update commentText after handling prefix alteration
-                                        if (replyingTo != null) {
-                                            commentText = sanitizedText.removePrefix(prefix)
+                                        commentText = if (replyingTo != null) {
+                                            sanitizedText.removePrefix(prefix)
                                         } else {
-                                            commentText = sanitizedText
+                                            sanitizedText
                                         }
                                     },
                                     placeholder = { Text("Add a comment...") },
@@ -491,12 +495,16 @@ fun BioScreen(
                                 )
                             }
                             IconButton(onClick = {
-                                val commentData = mapOf(
-                                    "text" to commentText,
-                                    "postId" to postId,
-                                    "replyingToId" to replyingToId
-                                )
-                                bioViewModel.sendComment(commentData)
+                                val comment = """
+                                    {
+                                    "replyingToId": ${replyingToId ?: "null"},
+                                    "replyingTo": ${replyingTo?.let { "\"$it\"" } ?: "null"},
+                                    "postId": $postId,
+                                    "userId": $customerId,
+                                    "commentText": "$commentText"
+                                    }
+                                """.trimIndent()
+                                bioViewModel.sendComment(comment, customerId)
                                 commentText = ""
                                 replyingTo = null
                                 replyingToId = null

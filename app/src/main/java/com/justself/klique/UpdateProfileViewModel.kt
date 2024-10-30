@@ -1,7 +1,6 @@
 package com.justself.klique
 
 import android.content.Context
-import android.net.Network
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -9,7 +8,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.nio.ByteBuffer
+import org.json.JSONArray
+import org.json.JSONObject
 
 class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : ViewModel() {
     var profilePictureUrl: String =
@@ -18,14 +18,20 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
     var bio: String = "This is the user's bio."
         private set
 
-    fun updateProfile(newProfilePictureUri: Uri?, newBio: String, averageColor: String, context: Context) {
+    fun updateProfile(
+        newProfilePictureUri: Uri?,
+        newBio: String,
+        averageColor: String,
+        context: Context,
+        customerId: Int
+    ) {
         if (newProfilePictureUri != null) {
             Log.d("Update Profile", "Uri is $newProfilePictureUri")
             viewModelScope.launch(Dispatchers.IO) {
                 val chatParticipantIds = chatScreenViewModel.fetchRelevantIds()
                 val byteArray = FileUtils.loadFileAsByteArray(context, newProfilePictureUri)
                 if (byteArray != null) {
-                    sendProfileUpdateToServer(byteArray, chatParticipantIds, averageColor)
+                    sendProfilePictureUpdateToServer(byteArray, chatParticipantIds, averageColor, customerId)
                 } else {
                     Log.d("Profile Picture", "Byte array null")
                 }
@@ -33,34 +39,54 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
         }
         if (newBio != bio) {
             Log.d("Update Profile", "Bio is called?")
+            updateBio(newBio, customerId)
         }
     }
 
-    private fun sendProfileUpdateToServer(byteArray: ByteArray, chatParticipantIds: List<Int>, averageColor: String) {
-        // Convert chatParticipantIds to JSON and then to ByteArray
-        val chatParticipantIdsJson = chatParticipantIds.joinToString(prefix = "[", postfix = "]") { it.toString() }
-        val chatIdsByteArray = chatParticipantIdsJson.toByteArray(Charsets.UTF_8)
-
-        // Convert averageColor to ByteArray
-        val colorByteArray = averageColor.toByteArray(Charsets.UTF_8)
-
-        // Combine lengths and actual data
-        val metadataLength = chatIdsByteArray.size + colorByteArray.size
-
-        val metadataByteArray = ByteBuffer.allocate(4 + metadataLength)
-            .putInt(chatIdsByteArray.size)  // Store the length of chatIdsByteArray
-            .put(chatIdsByteArray)          // Store the chatParticipantIds byte array
-            .put(colorByteArray)            // Store the color byte array
-            .array()
-
-        // Combine metadata and image data
-        val finalByteArray = ByteBuffer.allocate(metadataByteArray.size + byteArray.size)
-            .put(metadataByteArray)  // Add metadata
-            .put(byteArray)          // Add image data
-            .array()
-
-        // Now you can send finalByteArray to your WebSocket
-        WebSocketManager.sendBinary(finalByteArray)
+    private fun sendProfilePictureUpdateToServer(
+        byteArray: ByteArray,
+        chatParticipantIds: List<Int>,
+        averageColor: String,
+        customerId: Int
+    ) {
+        val uploadJsonObject = JSONObject().apply {
+            put("averageColor", averageColor)
+            put("userId", customerId)
+            put("chatParticipantIds", JSONArray(chatParticipantIds))
+        }.toString()
+        val participantJson = JSONObject().apply {
+            put("type", "chatListArray")
+            put("chatParticipantIds", JSONArray(chatParticipantIds))
+        }.toString()
+        try {
+            viewModelScope.launch {
+                val response = NetworkUtils.makeRequest(
+                    "uploadBioImage",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    binaryBody = byteArray,
+                    jsonBody = uploadJsonObject
+                )
+                if (response.first) {
+                    WebSocketManager.send(participantJson)
+                }
+            }
+        }catch (e: Exception){
+            e.printStackTrace()
+        }
+    }
+    private fun updateBio(text: String, customerId: Int) {
+        val bioJson = JSONObject().apply {
+            put("userId", customerId)
+            put("text", text)
+        }.toString()
+        try {
+            viewModelScope.launch {
+                NetworkUtils.makeRequest("updateBioText", KliqueHttpMethod.POST, emptyMap(), jsonBody = bioJson)
+            }
+        } catch (e:Exception){
+            e.printStackTrace()
+        }
     }
 }
 

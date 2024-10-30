@@ -46,7 +46,7 @@ fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewM
         val uiState by viewModel.uiState.collectAsState()
         Row(modifier = Modifier) {
             Button(
-                onClick = { currentTab = CurrentTab.TRENDING },
+                onClick = { currentTab = CurrentTab.TRENDING; viewModel.fetchTrendingGists(customerId) },
                 colors = ButtonDefaults.buttonColors()
                     .copy(containerColor = if (currentTab == CurrentTab.TRENDING) MaterialTheme.colorScheme.primary else Color.Gray),
                 modifier = Modifier

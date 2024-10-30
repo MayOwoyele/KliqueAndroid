@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -20,24 +19,23 @@ import android.content.pm.PackageManager
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.ui.semantics.Role.Companion.Button
 import androidx.core.content.ContextCompat
 
 @Composable
-fun MediaPickerScreen(navController: NavController, source: String, mediaViewModel: MediaViewModel) {
+fun MediaPickerScreen(navController: NavController, source: String, mediaViewModel: MediaViewModel, customerId: Int) {
     when (source) {
-        "video" -> VideoPickerScreen(navController = navController)
+        "video" -> VideoPickerScreen(navController = navController, customerId = customerId, mediaViewModel)
         "image" -> ImagePickerScreen(navController = navController, mediaViewModel = mediaViewModel)
     }
 }
 
 @Composable
-fun VideoPickerScreen(navController: NavController) {
+fun VideoPickerScreen(navController: NavController, customerId: Int, mediaViewModel: MediaViewModel) {
+    mediaViewModel.setCustomerId(customerId)
     val context = LocalContext.current
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -58,7 +56,6 @@ fun VideoPickerScreen(navController: NavController) {
     fun pickVideo() {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                // Request the new media permission for Android 13 and above
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_VIDEO) == PackageManager.PERMISSION_GRANTED) {
                     videoPickerLauncher.launch("video/*")
                 } else {
@@ -66,7 +63,6 @@ fun VideoPickerScreen(navController: NavController) {
                 }
             }
             else -> {
-                // Request the legacy external storage permission for Android 12 and below
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                     videoPickerLauncher.launch("video/*")
                 } else {

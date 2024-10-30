@@ -4,7 +4,7 @@ import com.justself.klique.gists.data.models.GistModel
 
 data class GistUiState(
     val trendingGists: List<GistModel> = generateGistModels(),
-    val myGists: List<GistModel> = generateGistModels(true)
+    val myGists: List<GistModel>
 )
 
 fun generateGistModels(reverse: Boolean = false): List<GistModel> {

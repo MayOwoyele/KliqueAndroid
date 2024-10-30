@@ -3,6 +3,7 @@ package com.justself.klique
 import android.graphics.Bitmap
 import android.graphics.RectF
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -30,6 +31,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableFloatStateOf
@@ -50,7 +53,7 @@ import androidx.navigation.NavController
 import kotlin.math.abs
 
 @Composable
-fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourceScreen: SourceScreen = SourceScreen.STATUS) {
+fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourceScreen: SourceScreen = SourceScreen.STATUS, customerId: Int) {
     val bitmap by viewModel.bitmap.observeAsState()
     val scale = remember { mutableStateOf(1f) }
     val offsetX = remember { mutableStateOf(0f) }
@@ -60,16 +63,22 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
     var aspectRatio by remember { mutableFloatStateOf(1f) }
     val cropRect = remember { mutableStateOf(RectF()) }
     val context = LocalContext.current
+    val imageSubmissionResult by viewModel.imageSubmissionResult.collectAsState()
+    LaunchedEffect(key1 = imageSubmissionResult) {
+        if (imageSubmissionResult == true) {
+            Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(context, "Image failed to upload", Toast.LENGTH_LONG).show()
+        }
+    }
     bitmap?.let {
         if (cropRect.value.isEmpty) {
             val bitmapWidthPx = it.width.toFloat()
             val bitmapHeightPx = it.height.toFloat()
             val imageAspectRatio = bitmapWidthPx / bitmapHeightPx
 
-            // Define the desired aspect ratio for the cropping rectangle
-            val cropAspectRatio = 1f // Example: 1:1 aspect ratio for a square crop
+            val cropAspectRatio = 1f
 
-            // Calculate the initial crop rectangle dimensions
             val initialWidth: Float
             val initialHeight: Float
 
@@ -338,11 +347,11 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
                                     1.dp,
                                     MaterialTheme.colorScheme.onPrimary
                                 ), shape = RoundedCornerShape(8.dp)
-                            )  // Add border
+                            )
                             .clickable {
                                 isCropping.value = true
                             }
-                            .padding(16.dp)  // Optional: add padding inside the border
+                            .padding(16.dp)
                     ) {
                         Text(
                             "Cancel",
@@ -357,23 +366,23 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
                                     1.dp,
                                     MaterialTheme.colorScheme.onPrimary
                                 ), shape = RoundedCornerShape(8.dp)
-                            )  // Add border
+                            )
                             .clickable {
                                 croppedBitmap.value?.let { bitmap ->
                                     when (sourceScreen) {
                                         SourceScreen.STATUS -> {
-                                            viewModel.uploadCroppedImage(context, bitmap)
+                                            viewModel.uploadCroppedImage(context, bitmap, customerId)
                                             navController.popBackStack()
                                         }
+
                                         SourceScreen.PROFILE -> {
-                                            // Logic to update profile picture
                                             viewModel.setCroppedBitmap(bitmap)
                                             navController.popBackStack()
                                         }
                                     }
                                 }
                             }
-                            .padding(16.dp)  // Optional: add padding inside the border
+                            .padding(16.dp)
                     ) {
                         Text("Post", color = onPrimary, style = MaterialTheme.typography.bodyLarge)
                     }

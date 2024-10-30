@@ -86,7 +86,7 @@ fun GistTile(
             Column(modifier = Modifier.weight(9F)) {
 
                 Text(
-                    text = "Topic: $title",
+                    text = title,
                     style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

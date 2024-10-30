@@ -51,7 +51,8 @@ import coil.compose.rememberAsyncImagePainter
 fun UpdateProfileScreen(
     navController: NavController,
     mediaViewModel: MediaViewModel,
-    chatScreenViewModel: ChatScreenViewModel
+    chatScreenViewModel: ChatScreenViewModel,
+    customerId: Int
 ) {
     val viewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModelFactory(chatScreenViewModel)
@@ -65,16 +66,12 @@ fun UpdateProfileScreen(
     var averageColor by remember { mutableStateOf("#FFFFFF") }
     croppedBitmap?.let { bitmap ->
         averageColor = ImageUtils.calculateAverageColor(bitmap)
-        // Convert the Bitmap to ByteArray
         val byteArray = FileUtils.bitmapToByteArray(bitmap)
-        // Save the ByteArray to a file and get the Uri
         val uri = FileUtils.saveImage(context, byteArray, true)
         mediaViewModel.clearCroppedBitmap()
-        // Now you have the Uri that you can pass to your SaveChangesButton or other logic
         uri?.let {
             newProfilePictureUri = uri
         } ?: run {
-            // Handle error if the Uri is null
             Toast.makeText(context, "Failed to save image.", Toast.LENGTH_SHORT).show()
         }
     }
@@ -99,8 +96,7 @@ fun UpdateProfileScreen(
             profilePictureChanged = newProfilePictureUri != null,
             bioChanged = bioChanged,
             onSaveChanges = {
-                // Logic to save changes
-                viewModel.updateProfile(newProfilePictureUri, bio, averageColor, context)
+                viewModel.updateProfile(newProfilePictureUri, bio, averageColor, context, customerId)
             }
         )
     }

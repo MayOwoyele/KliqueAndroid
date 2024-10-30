@@ -1,107 +1,151 @@
 package com.justself.klique
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.liveData
 import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.Locale
+import android.graphics.Color as AndroidColor
 
 class BioViewModel(private val contactsRepository: ContactsRepository) : ViewModel() {
-    // This is a placeholder function to simulate fetching data from a server
-    fun fetchProfile(enemyId: Int) = liveData {
-        val profile = Profile(
-            customerId = 20,
-            bioImage = "https://images.unsplash.com/photo-1599566150163-29194dcaad36?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
-            backgroundColor = Color.White,
-            fullName = "Tatiana Manois",
-            bioText = "This life is fucked and I don’t care",
-            posts = listOf(
-                Post(
-                    id = "25",
-                    type = "image",
-                    content = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg",
-                    topComments = listOf(StatusComments(name = "Alice", customerId = 1, text = "Oya no lie, you be stripper"),
-                        StatusComments(name = "Bob", customerId = 2, text = "You are gorgeous darling")),
-                    totalComments = 2087,
-                    kcLikesCount = 500000
-                ),
-                Post(
-                    id = "26",
-                    type = "text",
-                    content = "Had a wonderful day exploring the city!",
-                    topComments = listOf(StatusComments(name = "Charlie", customerId = 3, text = "Looks like fun!"),
-                        StatusComments(name = "Dave", customerId = 4, text = "I wish I was there!")),
-                    totalComments = 134,
-                    kcLikesCount = 12500
-                ),
-                Post(
-                    "27",
-                    type = "image",
-                    content = "https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg",
-                    topComments = listOf(StatusComments(name = "Eve", customerId = 5, text = "Amazing view!"),
-                        StatusComments(name = "Frank", customerId = 6, text = "Stunning photo!")),
-                    totalComments = 562,
-                    kcLikesCount = 134000
-                ),
-                Post(
-                    "28",
-                    type = "image",
-                    content = "https://ix-marketing.imgix.net/Break%20Through%20Image.jpg?auto=format,compress&w=3038",
-                    topComments = listOf(StatusComments(name = "Grace", customerId = 7, text = "Great shot!"),
-                        StatusComments(name = "Heidi", customerId = 8, text = "Lovely picture! We should also meet up on sunday so that we can have sex, shouldn't we? Or what else do you think?")),
-                    totalComments = 321,
-                    kcLikesCount = 89000
-                ),
-                Post("29",
-                    type = "text",
-                    content = "Excited about the new project coming up!",
-                    topComments = listOf(StatusComments(name = "Ivan", customerId = 9, text = "Can't wait to see it!"),
-                        StatusComments(name = "Judy", customerId = 10, text = "Good luck!")),
-                    totalComments = 89,
-                    kcLikesCount = 42000
-                ),
-                Post("30",
-                    type = "video",
-                    content = "https://everythinglucii.com/SVideos/24-heures-8b214f67.mp4",
-                    thumbnail = "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg",
-                    topComments = listOf(
-                        StatusComments(name = "Alice", customerId = 1, text = "Great video!"),
-                        StatusComments(name = "Bob", customerId = 2, text = "Amazing visuals!")
-                    ),
-                    totalComments = 2087,
-                    kcLikesCount = 500000
-                ),
-                Post(
-                    id = "31", // Unique identifier for the post
-                    type = "audio", // Indicates the post type is audio
-                    content = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", // URL of the audio file
-                    topComments = listOf(
-                        StatusComments(name = "Sam", customerId = 11, text = "This audio is fantastic!"),
-                        StatusComments(name = "Alex", customerId = 12, text = "I love the melody!")
-                    ),
-                    totalComments = 47,
-                    kcLikesCount = 7500
-                )
-            ),
-            classSection = "Class 1",
-            isSpectator = true,
-            seatedCount = 950000,
-            isVerified = true
-        )
-        emit(profile)
-    }
-    fun leaveSeat(){
+    private val _postComments = MutableStateFlow<List<StatusComments>>(emptyList())
+    val postComments = _postComments.asStateFlow()
 
+    private val _profile = MutableStateFlow<Profile?>(null)
+    val profile = _profile.asStateFlow()
+    fun fetchProfile(bioUserId: Int, spectatorUserId: Int) {
+        val params = mapOf(
+            "bioUserId" to "$bioUserId",
+            "spectatorUserId" to "$spectatorUserId"
+        )
+
+        viewModelScope.launch {
+            try {
+                val response =
+                    NetworkUtils.makeRequest("fetchProfile", KliqueHttpMethod.GET, params)
+                if (response.first) {
+                    val jsonResponse = response.second
+                    val jsonObject = JSONObject(jsonResponse)
+
+                    val profileAssigned = Profile(
+                        customerId = jsonObject.getInt("userId"),
+                        bioImage = jsonObject.getString("bioImage"),
+                        backgroundColor = colorFromHex(jsonObject.getString("backgroundColor")),
+                        fullName = jsonObject.getString("fullName"),
+                        bioText = jsonObject.getString("bioText"),
+                        posts = parsePosts(jsonObject.getJSONArray("posts")),
+                        classSection = jsonObject.getString("classSection"),
+                        isSpectator = jsonObject.getBoolean("isSpectator"),
+                        seatedCount = jsonObject.getInt("seatedCount"),
+                        isVerified = jsonObject.getBoolean("isVerified")
+                    )
+
+                    _profile.value = profileAssigned
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
-    fun takeSeat(){
+
+    private fun parsePosts(postsArray: JSONArray): List<Post> {
+        val posts = mutableListOf<Post>()
+        for (i in 0 until postsArray.length()) {
+            val postJson = postsArray.getJSONObject(i)
+            val post = Post(
+                id = postJson.getString("id"),
+                type = postJson.getString("type"),
+                content = postJson.getString("content"),
+                thumbnail = postJson.optString("thumbnail", ""),
+                topComments = parseComments(postJson.getJSONArray("topComments")),  // Parse top comments
+                totalComments = postJson.getInt("totalComments"),
+                kcLikesCount = postJson.getInt("kcLikesCount")
+            )
+            posts.add(post)
+        }
+        return posts
     }
+
+    private fun parseComments(commentsArray: JSONArray): List<StatusComments> {
+        val comments = mutableListOf<StatusComments>()
+        for (i in 0 until commentsArray.length()) {
+            val commentJson = commentsArray.getJSONObject(i)
+            val comment = StatusComments(
+                name = commentJson.getString("name"),
+                customerId = commentJson.getInt("customerId"),
+                text = commentJson.getString("text")
+            )
+            comments.add(comment)
+        }
+        return comments
+    }
+
+    private fun colorFromHex(hex: String): Color {
+        val androidColorInt = AndroidColor.parseColor(hex)
+        return Color(androidColorInt)
+    }
+
+    fun leaveSeat(enemyId: Int, customerId: Int) {
+        val json = """
+            {
+            "enemyId": $enemyId,
+            "userId": $customerId
+            }
+        """.trimIndent()
+        viewModelScope.launch {
+            try {
+                val response = NetworkUtils.makeRequest(
+                    "leaveSeat",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody = json
+                )
+                if (response.first){
+                    _profile.value = _profile.value?.copy(isSpectator = false)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun takeSeat(enemyId: Int, customerId: Int) {
+        val json = """
+            {
+            "enemyId": $enemyId,
+            "userId": $customerId
+            }
+        """.trimIndent()
+        viewModelScope.launch {
+            try {
+                val response = NetworkUtils.makeRequest(
+                    "takeSeat",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody = json
+                )
+                if (response.first){
+                    _profile.value = _profile.value?.copy(isSpectator = true)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun checkIfContact(enemyId: Int): LiveData<String?> = liveData {
         val contact = contactsRepository.getContactByCustomerId(enemyId)
         emit(contact?.name)
     }
+
     fun formatSpectatorCount(count: Int): String {
         return when {
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
@@ -109,30 +153,63 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             else -> count.toString()
         }
     }
-    fun sendComment(comment: Map<String, String?>){
-        //remember to handle notifications for these replies
-        Log.d("Comment", "comment: $comment")
-    }
-    fun fetchPostComments(postId: String) = liveData {
-        // List of predefined comments for demonstration
-        val postComments = listOf(
-            StatusComments(name = "Alice", customerId = 1, text = "Oya no lie, you be stripper"),
-            StatusComments(name = "Bob", customerId = 2, text = "You are gorgeous darling"),
-            StatusComments(name = "Carol", customerId = 3, text = "This picture is stunning! The colors are so vibrant."),
-            StatusComments(name = "Dave", customerId = 4, text = "Where was this taken? It looks amazing!"),
-            StatusComments(name = "Eve", customerId = 5, text = "You have such a great eye for photography."),
-            StatusComments(name = "Frank", customerId = 6, text = "The composition of this shot is perfect. Great job!"),
-            StatusComments(name = "Grace", customerId = 7, text = "I'm in love with this photo! So beautiful."),
-            StatusComments(name = "Heidi", customerId = 8, text = "The lighting in this picture is just perfect."),
-            StatusComments(name = "Ivan", customerId = 9, text = "This is art! Truly mesmerizing."),
-            StatusComments(name = "Judy", customerId = 10, text = "You've captured such a beautiful moment. Love it!")
-        )
 
-        // Emit the list of comments
-        emit(postComments)
+    fun sendComment(comment: String, customerId: Int) {
+        viewModelScope.launch {
+            try {
+                val response = NetworkUtils.makeRequest(
+                    "sendStatusComment",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = comment
+                )
+                if (response.first) {
+                    val newComment = StatusComments(
+                        name = "You",
+                        customerId = customerId,
+                        text = comment
+                    )
+                    val updatedComments = _postComments.value.toMutableList()
+                    updatedComments.add(newComment)
+                    _postComments.value = updatedComments
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
     }
 
+    fun fetchPostComments(postId: String) {
+        val params = mapOf("postId" to postId)
+        try {
+            viewModelScope.launch {
+                val response =
+                    NetworkUtils.makeRequest("fetchStatusPostComments", KliqueHttpMethod.GET, params)
+                if (response.first) {
+                    val jsonResponse = response.second
+                    val jsonObject = JSONObject(jsonResponse)
+                    val commentsArray = jsonObject.getJSONArray("comments")
+                    val commentsList = mutableListOf<StatusComments>()
+
+                    for (i in 0 until commentsArray.length()) {
+                        val commentJson = commentsArray.getJSONObject(i)
+                        val statusComment = StatusComments(
+                            name = commentJson.getString("name"),
+                            customerId = commentJson.getInt("customer_id"),
+                            text = commentJson.getString("text")
+                        )
+                        commentsList.add(statusComment)
+                    }
+                    _postComments.value = commentsList
+
+                }
+            }
+        } catch (e: Exception){
+            e.printStackTrace()
+        }
+    }
 }
+
 class BioViewModelFactory(
     private val contactsRepository: ContactsRepository
 ) : ViewModelProvider.Factory {

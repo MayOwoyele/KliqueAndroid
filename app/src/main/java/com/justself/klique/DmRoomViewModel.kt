@@ -1,67 +1,85 @@
 package com.justself.klique
 
+import android.app.Application
+import android.content.Context
+import android.net.Uri
+import android.util.Log
+import androidx.core.content.FileProvider
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import com.justself.klique.gists.ui.viewModel.DownloadState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.nio.ByteBuffer
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 data class DmMessage(
     val messageId: String,
     val senderId: Int,
-    val senderName: String,
     val content: String,
-    val messageType: String, // "text" or "image"
+    val messageType: DmMessageType,
     val timeStamp: Long,
-    val media: ByteArray? = null,
-    val status: String = "sending" // "sent", "delivered", or "read"
-) {
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (javaClass != other?.javaClass) return false
+    val externalUrl: String? = null,
+    val localPath: Uri? = null,
+    val status: DmMessageStatus
+)
 
-        other as DmMessage
+enum class DmMediaType {
+    IMAGE;
 
-        if (messageId != other.messageId) return false
-        if (senderId != other.senderId) return false
-        if (senderName != other.senderName) return false
-        if (content != other.content) return false
-        if (messageType != other.messageType) return false
-        if (timeStamp != other.timeStamp) return false
-        if (media != null) {
-            if (other.media == null) return false
-            if (!media.contentEquals(other.media)) return false
-        } else if (other.media != null) return false
-        if (status != other.status) return false
-
-        return true
-    }
-
-    override fun hashCode(): Int {
-        var result = messageId.hashCode()
-        result = 31 * result + senderId
-        result = 31 * result + senderName.hashCode()
-        result = 31 * result + content.hashCode()
-        result = 31 * result + messageType.hashCode()
-        result = 31 * result + timeStamp.hashCode()
-        result = 31 * result + (media?.contentHashCode() ?: 0)
-        result = 31 * result + status.hashCode()
-        return result
+    fun getFileName(): String {
+        when (this) {
+            IMAGE -> return "DmImage${UUID.randomUUID()}.jpg"
+        }
     }
 }
 
-class DmRoomViewModel : ViewModel() {
+enum class DmMessageStatus {
+    SENDING,
+    SENT,
+    UNSENT
+}
+
+enum class DmMessageType(val inString: String) {
+    DText("DText"),
+    DImage("DImage")
+}
+
+class DmRoomViewModel(application: Application) : AndroidViewModel(application), WebSocketListener<DmReceivingType> {
+    override val listenerId: String
+        get() = ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
     private val _dmMessages = MutableStateFlow<List<DmMessage>>(emptyList())
     val dmMessages: StateFlow<List<DmMessage>> = _dmMessages
+    private val _toastWarning = MutableStateFlow<String?>(null)
+    val toastWarning = _toastWarning.asStateFlow()
+
+    init {
+        WebSocketManager.registerListener(this)
+    }
+
     fun generateMessageId(): String = UUID.randomUUID().toString()
 
-    fun sendBinary(image: ByteArray, messageType: String, enemyId: Int, messageId: String, myId: Int) {
+    fun sendBinary(
+        image: ByteArray,
+        messageType: DmMessageType,
+        enemyId: Int,
+        messageId: String,
+        myId: Int,
+        context: Context
+    ) {
         val timeStamp = System.currentTimeMillis()
-        val status = "sending"
 
-        // Combine metadata and image bytes
-        val metadata = "$messageId;$myId;$messageType;$timeStamp;$status"
+        val metadata = "${messageType.inString}:$messageId:$enemyId"
         val metadataBytes = metadata.toByteArray(Charsets.UTF_8)
 
         val outputStream = ByteArrayOutputStream()
@@ -71,77 +89,319 @@ class DmRoomViewModel : ViewModel() {
 
         val combinedBytes = outputStream.toByteArray()
         WebSocketManager.sendBinary(combinedBytes)
+        viewModelScope.launch {
+            val imageUri = getDMRoomUriFromByteArray(image, context, DmMediaType.IMAGE)
 
-        // Create and add new message
-        val newMessage = DmMessage(
-            messageId = messageId,
-            senderId = myId,
-            senderName = "Me",
-            content = "",
-            messageType = messageType,
-            timeStamp = timeStamp,
-            media = image,
-            status = status
-        )
-        _dmMessages.value += newMessage
+            val newMessage = DmMessage(
+                messageId = messageId,
+                senderId = myId,
+                content = "",
+                messageType = messageType,
+                timeStamp = timeStamp,
+                localPath = imageUri,
+                status = DmMessageStatus.SENDING
+            )
+            _dmMessages.value = listOf(newMessage) + _dmMessages.value
+        }
+    }
+
+    override fun onMessageReceived(type: DmReceivingType, jsonObject: JSONObject) {
+        when (type) {
+            DmReceivingType.D_TEXT -> {
+                val messageId = jsonObject.getString("messageId")
+                val senderId = jsonObject.getInt("senderId")
+                val message = jsonObject.getString("content")
+                val timeStamp = jsonObject.getLong("timeStamp")
+                val newMessage = DmMessage(
+                    messageId = messageId,
+                    senderId = senderId,
+                    content = message,
+                    messageType = DmMessageType.DText,
+                    status = DmMessageStatus.SENT,
+                    timeStamp = timeStamp
+                )
+                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+            }
+            DmReceivingType.D_IMAGE -> {
+                val messageId = jsonObject.getString("messageId")
+                val senderId = jsonObject.getInt("senderId")
+                val message = jsonObject.getString("content")
+                val timeStamp = jsonObject.getLong("timeStamp")
+                val externalUrl = jsonObject.getString("externalUrl")
+                val newMessage = DmMessage(
+                    messageId = messageId,
+                    senderId = senderId,
+                    content = message,
+                    messageType = DmMessageType.DImage,
+                    status = DmMessageStatus.SENT,
+                    timeStamp = timeStamp,
+                    externalUrl = externalUrl
+                )
+                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                if (externalUrl.isNotEmpty()) {
+                    handleMediaDownload(newMessage)
+                }
+            }
+            DmReceivingType.DM_KC_ERROR -> {
+                Log.d("Websocket", "DmKc triggered: $jsonObject")
+                val messageId = jsonObject.getString("messageId")
+                val message = jsonObject.getString("message")
+                Log.d("Websocket", "DmKc triggered: $message")
+                _dmMessages.value = _dmMessages.value.map {
+                    if (messageId == it.messageId) {
+                        it.copy(status = DmMessageStatus.UNSENT)
+                    } else {
+                        it
+                    }
+                }
+                _toastWarning.value = message
+            }
+            DmReceivingType.PREVIOUS_DM_MESSAGES -> {
+                try {
+                    val messagesArray = jsonObject.getJSONArray("messages")
+                    Log.d("Parsing", "messagesArray length: ${messagesArray.length()}")
+
+                    val previousMessages = (0 until messagesArray.length()).map { i ->
+                        val message = messagesArray.getJSONObject(i)
+
+                        // Log the entire message JSON for debugging
+                        Log.d("Parsing", "Message JSON: ${message.toString()}")
+
+                        val content = message.getString("message")
+                        Log.d("Parsing", "content: $content")
+
+                        val messageId = message.getString("messageId")
+                        Log.d("Parsing", "messageId: $messageId")
+
+                        val mType = message.getString("messageType")
+                        val messageType = when (mType) {
+                            DmMessageType.DText.inString -> DmMessageType.DText
+                            DmMessageType.DImage.inString -> DmMessageType.DImage
+                            else -> DmMessageType.DText
+                        }
+                        Log.d("Parsing", "messageType: $messageType")
+
+                        val senderId = message.getInt("senderId")
+                        Log.d("Parsing", "senderId: $senderId")
+
+                        // Corrected key name: "timestamp"
+                        val timeStamp = message.getLong("timestamp")
+                        Log.d("Parsing", "timeStamp: $timeStamp")
+
+                        // Handle externalUrl which can be null
+                        val externalUrl = if (!message.isNull("externalUrl")) message.getString("externalUrl") else null
+                        Log.d("Parsing", "externalUrl: $externalUrl")
+
+                        val messageInstance = DmMessage(
+                            content = content,
+                            messageId = messageId,
+                            messageType = messageType,
+                            senderId = senderId,
+                            timeStamp = timeStamp,
+                            status = DmMessageStatus.SENT,
+                            externalUrl = if (messageType != DmMessageType.DText) externalUrl else null
+                        )
+
+                        if (!externalUrl.isNullOrBlank()) {
+                            handleMediaDownload(messageInstance)
+                        }
+                        messageInstance
+                    }
+
+                    _dmMessages.value = previousMessages
+                } catch (e: Exception) {
+                    Log.e("ParsingError", "Error parsing previousDmMessages: ${e.message}", e)
+                }
+            }
+            DmReceivingType.ADDITIONAL_DM_MESSAGES -> {
+                val messagesArray = jsonObject.getJSONArray("messages")
+                val extraPaginatedMessages = (0 until messagesArray.length()).map {
+                    val message = messagesArray.getJSONObject(it)
+                    val content = message.getString("message")
+                    val messageId = message.getString("messageId")
+                    val mType = message.getString("messageType")
+                    val messageType = when (mType){
+                        DmMessageType.DText.inString -> DmMessageType.DText
+                        DmMessageType.DImage.inString -> DmMessageType.DImage
+                        else -> DmMessageType.DText
+                    }
+                    val senderId = message.getInt("senderId")
+                    val timeStamp = message.getLong("timeStamp")
+                    val externalUrl = message.getString("externalUrl")
+                    val messageInstance = DmMessage(
+                        content = content,
+                        messageId = messageId,
+                        messageType = messageType,
+                        senderId = senderId,
+                        timeStamp = timeStamp,
+                        status = DmMessageStatus.SENT,
+                        externalUrl = if (messageType != DmMessageType.DText) externalUrl else null
+                    )
+                    if (externalUrl.isNotBlank()){
+                        handleMediaDownload(messageInstance)
+                    }
+                    messageInstance
+                }
+                _dmMessages.value = extraPaginatedMessages + _dmMessages.value
+            }
+            DmReceivingType.DM_DELIVERY -> {
+                val messageId = jsonObject.getString("messageId")
+                _dmMessages.value = _dmMessages.value.map {
+                    if (it.messageId == messageId) {
+                        it.copy(status = DmMessageStatus.SENT)
+                    } else {
+                        it
+                    }
+                }
+            }
+        }
     }
 
     fun sendTextMessage(message: String, dmRoomId: Int, myId: Int) {
         val messageId = generateMessageId()
+        Log.d("Dm", "messageId: $messageId")
         val timeStamp = System.currentTimeMillis()
-        val status = "sending"
+        val status = DmMessageStatus.SENDING
 
         val newMessage = DmMessage(
             messageId = messageId,
             senderId = myId,
-            senderName = "Me",
             content = message,
-            messageType = "DmText",
+            messageType = DmMessageType.DText,
             timeStamp = timeStamp,
             status = status
         )
 
-        _dmMessages.value += newMessage
+        _dmMessages.value = listOf(newMessage) + _dmMessages.value
 
         val textToSend = """
         {
-        "type": "dmRoomText",
+        "type": "${DmMessageType.DText.inString}",
         "message": "$message",
-        "dmRoomId": "$dmRoomId",
-        "myId": "$myId",
+        "dmRoomId": $dmRoomId,
         "messageId": "$messageId",
         "timeStamp": "$timeStamp"
         }
         """.trimIndent()
-
         send(textToSend)
     }
 
     fun send(textToSend: String) {
         WebSocketManager.send(textToSend)
     }
+    private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
+
+    private fun handleMediaDownload(message: DmMessage) {
+        if (message.externalUrl != null && message.localPath == null) {
+            when (val state = downloadedMediaUrls[message.externalUrl]) {
+                is DownloadState.Downloaded -> {
+                    updateMessageLocalPath(message.messageId, state.uri)
+                    return
+                }
+
+                is DownloadState.Downloading -> {
+                    return
+                }
+
+                else -> {
+                    // Proceed to download
+                }
+            }
+            val context = getApplication<Application>().applicationContext
+            downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
+
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val byteArray = downloadFromUrl(message.externalUrl)
+                    val uri =
+                        getChatRoomUriFromByteArray(byteArray, context, ChatRoomMediaType.IMAGE)
+                    downloadedMediaUrls[message.externalUrl] = DownloadState.Downloaded(uri)
+                    updateMessageLocalPath(message.messageId, uri)
+                } catch (e: Exception) {
+                    downloadedMediaUrls.remove(message.externalUrl)
+                }
+            }
+        }
+    }
+
+    private fun updateMessageLocalPath(messageId: String, uri: Uri) {
+        _dmMessages.value = _dmMessages.value.map {
+            if (it.messageId == messageId) {
+                it.copy(localPath = uri)
+            } else {
+                it
+            }
+        }
+    }
+    fun loadAdditionalMessages(messageId: String, enemyId: Int){
+        val message = """
+            {
+            "type":
+            }
+        """.trimIndent()
+    }
+    fun resetToastWarning(){
+        _toastWarning.value = null
+    }
 
     fun loadDmMessages(dmRoomId: Int) {
-        val fakeMessages = listOf(
-            DmMessage(
-                messageId = generateMessageId(),
-                senderId = 1,
-                senderName = "Alice",
-                content = "Hey!",
-                messageType = "text",
-                timeStamp = System.currentTimeMillis(),
-                status = "sent"
-            ),
-            DmMessage(
-                messageId = generateMessageId(),
-                senderId = 2,
-                senderName = "Bob",
-                content = "Did you see the news?",
-                messageType = "text",
-                timeStamp = System.currentTimeMillis(),
-                status = "sent"
-            )
-        )
-        _dmMessages.value = fakeMessages
+        _dmMessages.value = emptyList()
+        val theJson = """
+            {
+            "type": "loadDmMessages",
+            "enemyId": $dmRoomId
+            }
+        """.trimIndent()
+        send(theJson)
+
+//        val fakeMessages = listOf(
+//            DmMessage(
+//                messageId = generateMessageId(),
+//                senderId = 1,
+//                content = "Hey!",
+//                messageType = DmMessageType.DText,
+//                timeStamp = System.currentTimeMillis(),
+//                status = DmMessageStatus.SENT
+//            ),
+//            DmMessage(
+//                messageId = generateMessageId(),
+//                senderId = 2,
+//                content = "Did you see the news?",
+//                messageType = DmMessageType.DText,
+//                timeStamp = System.currentTimeMillis(),
+//                status = DmMessageStatus.SENT
+//            )
+//        )
+//        _dmMessages.value = fakeMessages
+    }
+}
+
+suspend fun getDMRoomUriFromByteArray(
+    byteArray: ByteArray,
+    context: Context,
+    mediaType: DmMediaType
+): Uri {
+    return withContext(Dispatchers.IO) {
+        val customCacheDir =
+            File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_ROOM_CACHE.directoryName)
+        if (!customCacheDir.exists()) {
+            customCacheDir.mkdir()
+        }
+
+        val file = File(customCacheDir, mediaType.getFileName())
+        file.writeBytes(byteArray)
+
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    }
+}
+class DmRoomViewModelFactory(
+    private val application: Application
+) : ViewModelProvider.AndroidViewModelFactory(application) {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(DmRoomViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return DmRoomViewModel(application) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

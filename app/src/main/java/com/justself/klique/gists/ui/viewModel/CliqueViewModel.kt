@@ -21,14 +21,17 @@ import com.justself.klique.GistComment
 import com.justself.klique.GistMediaType
 import com.justself.klique.GistMessage
 import com.justself.klique.GistMessageStatus
+import com.justself.klique.GistMessageType
 import com.justself.klique.GistState
 import com.justself.klique.GistStateDao
 import com.justself.klique.GistStateEntity
 import com.justself.klique.GistTopRow
 import com.justself.klique.KliqueHttpMethod
+import com.justself.klique.ListenerIdEnum
 import com.justself.klique.Members
 import com.justself.klique.NetworkUtils
 import com.justself.klique.Reply
+import com.justself.klique.SharedCliqueReceivingType
 import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
@@ -45,15 +48,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.buildJsonObject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.nio.ByteBuffer
 import java.time.Instant
 import java.time.ZoneId
@@ -70,9 +68,9 @@ class SharedCliqueViewModel(
     private val contactDao: ContactDao,
     private val getGistStateDao: GistStateDao
 ) :
-    AndroidViewModel(application), WebSocketListener {
-    override val listenerId: String = "SharedCliqueViewModel"
-    private val _uiState = MutableStateFlow(GistUiState())
+    AndroidViewModel(application), WebSocketListener<SharedCliqueReceivingType> {
+    override val listenerId: String = ListenerIdEnum.SHARED_CLIQUE.theId
+    private val _uiState = MutableStateFlow(GistUiState(myGists = emptyList(), trendingGists = emptyList()))
     val uiState: StateFlow<GistUiState> = _uiState
 
     private val _gistCreatedOrJoined = MutableLiveData<GistState?>()
@@ -122,7 +120,6 @@ class SharedCliqueViewModel(
             restoreGistState()
         }
         generateMembersList()
-        updateSimulatedGistComments()
     }
 
     fun onGistMessageChange(newMessage: TextFieldValue) {
@@ -204,6 +201,28 @@ class SharedCliqueViewModel(
                 val gists = parseGistsFromResponse(response)
                 _uiState.value = _uiState.value.copy(
                     myGists = gists
+                )
+            } catch (e: Exception) {
+                Log.e("fetchGists", "Exception is $e")
+            }
+        }
+    }
+    fun fetchTrendingGists(customerId: Int){
+        viewModelScope.launch {
+            try {
+                val endpoint = "gists/trending"
+                val method = KliqueHttpMethod.GET
+                val params = mapOf("userId" to customerId.toString())
+
+                val response = NetworkUtils.makeRequest(
+                    endpoint = endpoint,
+                    method = method,
+                    params = params
+                ).second
+                val gists = parseGistsFromResponse(response)
+                Log.d("Gists", "Gists: $gists")
+                _uiState.value = _uiState.value.copy(
+                    trendingGists = gists
                 )
             } catch (e: Exception) {
                 Log.e("fetchGists", "Exception is $e")
@@ -310,9 +329,9 @@ class SharedCliqueViewModel(
         return randomUUID
     }
 
-    override fun onMessageReceived(type: String, jsonObject: JSONObject) {
+    override fun onMessageReceived(type: SharedCliqueReceivingType, jsonObject: JSONObject) {
         when (type) {
-            "gistCreated" -> {
+            SharedCliqueReceivingType.GIST_CREATED -> {
                 val gistId = jsonObject.getString("gistId")
                 val topic = jsonObject.getString("topic")
                 _gistCreatedOrJoined.postValue(GistState(topic, gistId))
@@ -351,16 +370,23 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "gistCreationError" -> {
+            SharedCliqueReceivingType.GIST_CREATION_ERROR -> {
                 val errorMessage = jsonObject.getString("message")
                 _gistCreationError.postValue(errorMessage)
             }
 
-            "previousMessages" -> {
+            SharedCliqueReceivingType.PREVIOUS_MESSAGES -> {
                 val messagesJsonArray = jsonObject.getJSONArray("messages")
                 val messages = (0 until messagesJsonArray.length()).map { i ->
                     val msg = messagesJsonArray.getJSONObject(i)
                     val messageType = msg.getString("messageType")
+                    val theMessageType = when (messageType) {
+                        GistMessageType.K_AUDIO.typeString -> GistMessageType.K_AUDIO
+                        GistMessageType.K_IMAGE.typeString -> GistMessageType.K_IMAGE
+                        GistMessageType.K_VIDEO.typeString -> GistMessageType.K_VIDEO
+                        GistMessageType.K_TEXT.typeString -> GistMessageType.K_TEXT
+                        else -> GistMessageType.K_TEXT
+                    }
                     val timeStampString = msg.getString("timeStamp")
                     val timeStamp: ZonedDateTime = try {
                         ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
@@ -381,7 +407,7 @@ class SharedCliqueViewModel(
                         senderName = msg.getString("fullName"),
                         content = content,
                         status = GistMessageStatus.Sent,
-                        messageType = messageType,
+                        messageType = theMessageType,
                         timeStamp = timeStamp,
                         externalUrl = externalUrl
                     )
@@ -392,7 +418,7 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "KText" -> {
+            SharedCliqueReceivingType.K_TEXT -> {
                 val gistId = jsonObject.getString("gistId")
                 val messageId = jsonObject.getString("messageId")
                 val customerId = jsonObject.getInt("senderId")
@@ -400,7 +426,6 @@ class SharedCliqueViewModel(
                 val content = deEscapeContent(jsonObject.getString("content"))
                 val timeStampString = jsonObject.getString("timeStamp")
                 val timeStamp: ZonedDateTime = try {
-                    // Case 1: If it's ISO 8601 format
                     ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
                 } catch (e: Exception) {
                     val millis = timeStampString.toLongOrNull() ?: 0L
@@ -413,14 +438,14 @@ class SharedCliqueViewModel(
                     senderName = senderName,
                     content = content,
                     status = GistMessageStatus.Sent,
-                    messageType = "KText",
+                    messageType = GistMessageType.K_TEXT,
                     timeStamp = timeStamp
                 )
                 Log.d("Called", "Add message called")
                 addMessage(message)
             }
 
-            "gistMessageAck" -> {
+            SharedCliqueReceivingType.GIST_MESSAGE_ACK -> {
                 Log.d("Called", "this function called")
                 val gistId = jsonObject.getString("gistId")
                 val messageId = jsonObject.getString("messageId")
@@ -428,13 +453,19 @@ class SharedCliqueViewModel(
                 messageAcknowledged(gistId, messageId)
             }
 
-            "KImage", "KAudio", "KVideo" -> {
+            SharedCliqueReceivingType.K_IMAGE, SharedCliqueReceivingType.K_AUDIO, SharedCliqueReceivingType.K_VIDEO -> {
                 val messageId = jsonObject.getString("messageId")
                 val gistId = jsonObject.getString("gistId")
                 val senderId = jsonObject.getInt("senderId")
                 val senderName = jsonObject.getString("senderName")
                 val content = jsonObject.getString("content")
                 val messageType = jsonObject.getString("messageType")
+                val theMessageType = when (messageType) {
+                    GistMessageType.K_AUDIO.typeString -> GistMessageType.K_AUDIO
+                    GistMessageType.K_IMAGE.typeString -> GistMessageType.K_IMAGE
+                    GistMessageType.K_VIDEO.typeString -> GistMessageType.K_VIDEO
+                    else -> GistMessageType.K_IMAGE
+                }
                 val timeStampString = jsonObject.getString("timeStamp")
                 val timeStamp: ZonedDateTime = try {
                     ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
@@ -449,14 +480,14 @@ class SharedCliqueViewModel(
                     senderName = senderName,
                     content = content,
                     status = GistMessageStatus.Sent,
-                    messageType = messageType,
+                    messageType = theMessageType,
                     externalUrl = content,
                     timeStamp = timeStamp
                 )
                 addMessage(messageObject)
             }
 
-            "spectatorUpdate" -> {
+            SharedCliqueReceivingType.SPECTATOR_UPDATE -> {
                 val activeSpectatorsUpdate = jsonObject.getInt("activeSpectators")
                 val gistId = jsonObject.getString("gistId")
                 if (gistId == _gistCreatedOrJoined.value?.gistId) {
@@ -469,11 +500,17 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "olderMessages" -> {
+            SharedCliqueReceivingType.OLDER_MESSAGES -> {
                 val messagesArray = jsonObject.getJSONArray("theMessages")
                 val messages = (0 until messagesArray.length()).map { i ->
                     val msg = messagesArray.getJSONObject(i)
                     val messageType = msg.getString("messageType")
+                    val theMessageType = when (messageType) {
+                        GistMessageType.K_AUDIO.typeString -> GistMessageType.K_AUDIO
+                        GistMessageType.K_IMAGE.typeString -> GistMessageType.K_IMAGE
+                        GistMessageType.K_VIDEO.typeString -> GistMessageType.K_VIDEO
+                        else -> GistMessageType.K_IMAGE
+                    }
                     val timeStampString = msg.getString("timeStamp")
                     val timeStamp: ZonedDateTime = try {
                         ZonedDateTime.parse(timeStampString, DateTimeFormatter.ISO_ZONED_DATE_TIME)
@@ -494,7 +531,7 @@ class SharedCliqueViewModel(
                         senderName = msg.getString("fullName"),
                         content = content,
                         status = GistMessageStatus.Sent,
-                        messageType = messageType,
+                        messageType = theMessageType,
                         timeStamp = timeStamp,
                         externalUrl = externalUrl
                     )
@@ -507,7 +544,7 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "gistRefreshUpdate" -> {
+            SharedCliqueReceivingType.GIST_REFRESH_UPDATE -> {
                 val isSpeaker = jsonObject.getBoolean("isSpeaker")
                 val isOwner = jsonObject.getBoolean("isOwner")
                 val activeSpectators = jsonObject.getInt("activeSpectators")
@@ -533,7 +570,7 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "roleUpdate" -> {
+            SharedCliqueReceivingType.ROLE_UPDATE -> {
                 val isSpeaker = jsonObject.getBoolean("isSpeaker")
                 val isOwner = jsonObject.getBoolean("isOwner")
                 _userStatus.value = UserStatus(isSpeaker = isSpeaker, isOwner = isOwner)
@@ -556,7 +593,7 @@ class SharedCliqueViewModel(
                 }
             }
 
-            "membersList" -> {
+            SharedCliqueReceivingType.MEMBERS_LIST -> {
                 val membersArray = jsonObject.getJSONArray("members")
                 val membersList = (0 until membersArray.length()).map { member ->
                     val theMember = membersArray.getJSONObject(member)
@@ -574,12 +611,12 @@ class SharedCliqueViewModel(
                 fetchMembersAndCompare(membersList)
             }
 
-            "memberLeft" -> {
+            SharedCliqueReceivingType.MEMBER_LEFT -> {
                 val userId = jsonObject.getInt("userId")
                 removeMemberById(userId)
             }
 
-            "memberJoined" -> {
+            SharedCliqueReceivingType.MEMBER_JOINED -> {
                 val userId = jsonObject.getInt("userId")
                 val fullName = jsonObject.getString("fullName")
                 val isSpeaker = jsonObject.getBoolean("isSpeaker")
@@ -593,7 +630,7 @@ class SharedCliqueViewModel(
                 addNewMember(member)
             }
 
-            "subscriberRoleUpdate" -> {
+            SharedCliqueReceivingType.SUBSCRIBER_ROLE_UPDATE -> {
                 val userId = jsonObject.getInt("userId")
                 val fullName = jsonObject.getString("fullName")
                 val newRole = jsonObject.getString("newRole")
@@ -609,7 +646,7 @@ class SharedCliqueViewModel(
                 updateMemberRole(updatedMember)
             }
 
-            "exitGist" -> {
+            SharedCliqueReceivingType.EXIT_GIST -> {
                 val context = getApplication<Application>().applicationContext
                 _gistCreatedOrJoined.value = null
                 _messages.value = emptyList()
@@ -669,25 +706,25 @@ class SharedCliqueViewModel(
 
     fun addMessage(message: GistMessage) {
         Log.d("Logging", "Add message logging: ${_messages.value}")
+        if (_gistCreatedOrJoined.value?.gistId == message.gistId){
+            val updatedMessages = _messages.value.toMutableList()
+            val messageExists = updatedMessages.any { it.id == message.id }
 
-        // Check if the message already exists in the list
-        val updatedMessages = _messages.value.toMutableList()
-        val messageExists = updatedMessages.any { it.id == message.id }
+            // Only add the message if it doesn't already exist
+            if (!messageExists) {
+                updatedMessages.add(0, message)
+                _messages.value = updatedMessages
+                Log.d("Logging", "Add message post-logging: ${_messages.value}")
+                Log.d("CliqueViewModel", "Message added: $message")
 
-        // Only add the message if it doesn't already exist
-        if (!messageExists) {
-            updatedMessages.add(0, message)
-            _messages.value = updatedMessages
-            Log.d("Logging", "Add message post-logging: ${_messages.value}")
-            Log.d("CliqueViewModel", "Message added: $message")
-
-            // Handle media download if necessary
-            if (message.externalUrl != null && message.localPath == null) {
-                handleMediaDownload(message)
-                Log.d("Called", "handle media called external")
+                // Handle media download if necessary
+                if (message.externalUrl != null && message.localPath == null) {
+                    handleMediaDownload(message)
+                    Log.d("Called", "handle media called external")
+                }
+            } else {
+                Log.d("CliqueViewModel", "Duplicate message prevented: $message")
             }
-        } else {
-            Log.d("CliqueViewModel", "Duplicate message prevented: $message")
         }
     }
 
@@ -792,7 +829,7 @@ class SharedCliqueViewModel(
                     val messageId = generateUUIDString()
                     sendBinary(
                         videoByteArray,
-                        GistMediaType.KVideo.getTypeString(),
+                        GistMessageType.K_VIDEO.typeString,
                         gistId,
                         messageId,
                         customerId,
@@ -807,7 +844,7 @@ class SharedCliqueViewModel(
                         senderName = myName,
                         content = "",
                         status = GistMessageStatus.Pending,
-                        messageType = GistMediaType.KVideo.getTypeString(),
+                        messageType = GistMessageType.K_VIDEO,
                         localPath = videoUri,
                         timeStamp = ZonedDateTime.now()
                     )
@@ -892,8 +929,6 @@ class SharedCliqueViewModel(
         _listOfSpeakers.value = speakers
     }
 
-    //This is a test function for testing the sorting power
-
     fun generateMembersList() {
         val membersList = mutableListOf<Members>()
         for (i in 1..40) { // Generate 40 members
@@ -913,7 +948,7 @@ class SharedCliqueViewModel(
         Log.d("Called", "handle media called internal")
         if (message.externalUrl != null && message.localPath == null) {
             Log.d("Called", "handle media called internal 2")
-            val mediaType = GistMediaType.fromString(message.messageType)
+            val mediaType = GistMediaType.fromString(message.messageType.typeString)
             if (mediaType == null) {
                 Log.e("SharedCliqueViewModel", "Unknown media type: ${message.messageType}")
                 return

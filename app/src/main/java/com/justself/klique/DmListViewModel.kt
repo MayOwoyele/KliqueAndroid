@@ -1,8 +1,14 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import org.json.JSONArray
+import org.json.JSONObject
+
 data class DmItem(
     val imageLink: String,
     val fullName: String,
@@ -19,26 +25,42 @@ class DmListViewModel : ViewModel() {
     private val _dmList = MutableStateFlow<List<DmItem>>(emptyList())
     val dmList: StateFlow<List<DmItem>> = _dmList
 
-    init {
-        fetchDmList()
-    }
+    fun fetchDmList(customerId: Int) {
+        viewModelScope.launch {
+            val params = mapOf("userId" to "$customerId")
+            val response = NetworkUtils.makeRequest("fetchDmList", KliqueHttpMethod.GET, params)
+            if (response.first) {
+                try {
+                    val jsonArray = JSONArray(response.second)
+                    val dmItems = (0 until jsonArray.length()).map { i ->
+                        val jsonObject = jsonArray.getJSONObject(i)
 
-    private fun fetchDmList() {
-        // Replace with real data fetching logic
-        _dmList.value = listOf(
-            DmItem(
-                imageLink = "https://example.com/user1.jpg",
-                fullName = "John Doe",
-                enemyId = 1,
-                lastMessage = LastMessage.Text("Hey, how are you?")
-            ),
-            DmItem(
-                imageLink = "https://example.com/user2.jpg",
-                fullName = "Jane Smith",
-                enemyId = 2,
-                lastMessage = LastMessage.Photo
-            ),
-            // Add more dummy data as needed
-        )
+                        val imageLink = jsonObject.getString("imageLink")
+                        val fullName = jsonObject.getString("fullName")
+                        val enemyId = jsonObject.getInt("enemyId")
+
+                        val lastMessageType = jsonObject.getString("lastMessageType")
+                        val lastMessage = when (lastMessageType) {
+                            "Text" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
+                            "Photo" -> LastMessage.Photo
+                            else -> LastMessage.Text("")
+                        }
+
+                        DmItem(
+                            imageLink = imageLink,
+                            fullName = fullName,
+                            enemyId = enemyId,
+                            lastMessage = lastMessage
+                        )
+                    }
+                    _dmList.value = dmItems
+
+                } catch (e: Exception) {
+                    Log.e("fetchDmList", "Error parsing response: ${e.message}")
+                }
+            } else {
+                Log.e("fetchDmList", "Request failed: ${response.second}")
+            }
+        }
     }
 }

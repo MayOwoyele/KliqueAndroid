@@ -385,7 +385,7 @@ fun GistRoom(
                     if (gistId != null) {
                         viewModel.sendBinary(
                             audioByteArray,
-                            GistMediaType.KAudio.getTypeString(),
+                            GistMessageType.K_AUDIO.typeString,
                             gistId,
                             messageId,
                             customerId,
@@ -402,7 +402,7 @@ fun GistRoom(
                             senderName = myName,
                             content = "",
                             status = GistMessageStatus.Pending,
-                            messageType = GistMediaType.KAudio.getTypeString(),
+                            messageType = GistMessageType.K_AUDIO,
                             localPath = audioUri,
                             timeStamp = ZonedDateTime.now()
                         )
@@ -468,7 +468,7 @@ fun GistRoom(
                                 senderName = myName,
                                 content = message.text.trimEnd(),
                                 status = GistMessageStatus.Pending,
-                                messageType = "KText",
+                                messageType = GistMessageType.K_TEXT,
                                 timeStamp = ZonedDateTime.now()
                             )
                         }
@@ -697,7 +697,7 @@ fun MessageContent(
                                 .clickable { navController.navigate("bioScreen/${message.senderId}") })
                     }
                     when (message.messageType) {
-                        "KImage" -> {
+                        GistMessageType.K_IMAGE -> {
                             var bitmap by remember { mutableStateOf<Bitmap?>(null) }
                             LaunchedEffect(message.localPath) {
                                 Log.d("Local path", "Local path called or not: $message")
@@ -728,7 +728,7 @@ fun MessageContent(
                             }
                         }
 
-                        "KVideo" -> {
+                        GistMessageType.K_VIDEO -> {
                             var videoUri by remember { mutableStateOf<Uri?>(null) }
                             LaunchedEffect(message.localPath) {
                                 videoUri = message.localPath
@@ -789,7 +789,7 @@ fun MessageContent(
                             }
                         }
 
-                        "KAudio" -> {
+                        GistMessageType.K_AUDIO -> {
                             var audioUri by remember {
                                 mutableStateOf<Uri?>(null)
                             }
@@ -814,14 +814,10 @@ fun MessageContent(
                             }
                         }
 
-                        "KText" -> {
+                        GistMessageType.K_TEXT -> {
                             Text(
                                 text = message.content, color = MaterialTheme.colorScheme.background
                             )
-                        }
-
-                        else -> {
-                            Log.d("Gist", "Type not recognized")
                         }
                     }
                     if (isCurrentUser) {
@@ -1113,7 +1109,7 @@ private fun launchPicker(
     permissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
     launcher: (String) -> Unit,
     context: Context,
-    mediaType: String // "image" or "video"
+    mediaType: String
 ) {
     val permissionToCheck: String
     val mimeType: String
@@ -1163,7 +1159,7 @@ fun handleImageUri(
                 val messageId = viewModel.generateUUIDString()
                 viewModel.sendBinary(
                     imageByteArray,
-                    GistMediaType.KImage.getTypeString(),
+                    GistMessageType.K_IMAGE.typeString,
                     gistId,
                     messageId,
                     customerId,
@@ -1177,7 +1173,7 @@ fun handleImageUri(
                     senderName = myName,
                     content = "",
                     status = GistMessageStatus.Pending,
-                    messageType = GistMediaType.KImage.getTypeString(),
+                    messageType = GistMessageType.K_IMAGE,
                     localPath = imageUri,
                     timeStamp = ZonedDateTime.now()
                 )

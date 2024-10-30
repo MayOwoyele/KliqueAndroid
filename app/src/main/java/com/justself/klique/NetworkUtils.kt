@@ -71,7 +71,8 @@ object NetworkUtils {
         endpoint: String,
         method: KliqueHttpMethod = KliqueHttpMethod.POST,
         params: Map<String, String>,
-        jsonBody: String? = null
+        jsonBody: String? = null,
+        binaryBody: ByteArray? = null
     ): Pair<Boolean, String> {
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
@@ -89,29 +90,35 @@ object NetworkUtils {
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = method.method
                 if (method == KliqueHttpMethod.POST) {
-                    setRequestProperty(
-                        "Content-Type",
-                        jsonBody?.let { "application/json" }
-                            ?: "application/x-www-form-urlencoded")
-                    doOutput = true
-                    if (jsonBody != null) {
-                        OutputStreamWriter(outputStream).use { writer ->
-                            writer.write(jsonBody)
-                        }
-                    } else {
-                        BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
-                            writer.write(params.map { (key, value) ->
-                                "${URLEncoder.encode(key, "UTF-8")}=${
-                                    URLEncoder.encode(
-                                        value, "UTF-8"
-                                    )
-                                }"
-                            }.joinToString("&"))
+                    if (binaryBody != null) {
+                        setRequestProperty("Content-Type", "application/octet-stream")
+                        doOutput = true
+                        outputStream.use { it.write(binaryBody) }
+                    }
+                    else {
+                        setRequestProperty(
+                            "Content-Type",
+                            jsonBody?.let { "application/json" }
+                                ?: "application/x-www-form-urlencoded")
+                        doOutput = true
+                        if (jsonBody != null) {
+                            OutputStreamWriter(outputStream).use { writer ->
+                                writer.write(jsonBody)
+                            }
+                        } else {
+                            BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
+                                writer.write(params.map { (key, value) ->
+                                    "${URLEncoder.encode(key, "UTF-8")}=${
+                                        URLEncoder.encode(
+                                            value, "UTF-8"
+                                        )
+                                    }"
+                                }.joinToString("&"))
+                            }
                         }
                     }
                 }
             }
-
             val response = try {
                 BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             } catch (e: IOException) {
@@ -119,8 +126,6 @@ object NetworkUtils {
             } finally {
                 connection.disconnect()
             }
-
-            // Log the HTTP response code and the method used
             Log.d("NetworkUtils", "HTTP ${method} Response Code: ${connection.responseCode}")
 
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
@@ -233,7 +238,6 @@ suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO
     if (connection.responseCode != HttpURLConnection.HTTP_OK) {
         throw IOException("Failed to download file: HTTP ${connection.responseCode}")
     }
-
     connection.inputStream.use { it.readBytes() }
 }
 enum class KliqueHttpMethod(val method: String) {

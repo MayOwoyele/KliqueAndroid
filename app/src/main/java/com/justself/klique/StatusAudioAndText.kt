@@ -30,7 +30,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -47,7 +46,9 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,7 +73,19 @@ fun StatusAudio(viewModel: MediaViewModel, navController: NavController) {
     val coroutineScope = rememberCoroutineScope()
     var permissionsGranted by remember { mutableStateOf(false) }
     var audioUri by remember { mutableStateOf<Uri?>(null) }
-    var recordingDuration by remember { mutableStateOf(0) }
+    var recordingDuration by remember { mutableIntStateOf(0) }
+    val audioStatus by viewModel.audioStatusSubmissionResult.collectAsState()
+
+    LaunchedEffect(audioStatus) {
+        audioStatus?.let {statusSent ->
+            if (statusSent) {
+                Toast.makeText(context, "Audio status sent successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Audio status couldn't send", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -309,11 +322,23 @@ fun CustomAudioPlayer(audioUri: Uri) {
 }
 
 @Composable
-fun StatusText(viewModel: MediaViewModel, navController: NavController) {
+fun StatusText(viewModel: MediaViewModel, navController: NavController, customerId: Int) {
     val context = LocalContext.current
     var textState by remember { mutableStateOf(TextFieldValue("")) }
     val charLimit = 100
     var showConfirmationDialog by remember { mutableStateOf(false) }
+    val submissionResult by viewModel.textStatusSubmissionResult.collectAsState()
+
+    LaunchedEffect(submissionResult) {
+        submissionResult?.let { success ->
+            if (success) {
+                Toast.makeText(context, "Text status sent successfully!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(context, "Failed to send status. Try again.", Toast.LENGTH_SHORT).show()
+            }
+            viewModel.resetSubmissionResult()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -406,7 +431,7 @@ fun StatusText(viewModel: MediaViewModel, navController: NavController) {
     if (showConfirmationDialog) {
         AlertDialog(onDismissRequest = { showConfirmationDialog = false }, confirmButton = {
             TextButton(onClick = {
-                viewModel.sendTextStatus(textState.text)
+                viewModel.sendTextStatus(textState.text, customerId)
                 showConfirmationDialog = false
                 navController.popBackStack()
             }) {

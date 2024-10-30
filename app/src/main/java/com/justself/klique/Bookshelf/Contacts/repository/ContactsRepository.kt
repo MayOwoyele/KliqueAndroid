@@ -72,7 +72,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         return contactList
     }
 
-    suspend fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
+    fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
         val jsonArray = JSONArray().apply {
             localContacts.forEach {
                 put(JSONObject().apply {
@@ -97,15 +97,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
                     }
                 }
             }.toString()
-
-            // Simulate a network request using mock response instead of actual network call
-            // val jsonResponse = makeRequest(
-            //     endpoint = "/checkContacts",
-            //     method = "POST",
-            //     jsonBody = jsonArray.toString(),
-            //     params = emptyMap()
-            // )
-            val jsonResponse = mockJsonResponse // Use mock response directly
+            val jsonResponse = mockJsonResponse
 
             val serverContacts = mutableListOf<ServerContactResponse>()
             try {

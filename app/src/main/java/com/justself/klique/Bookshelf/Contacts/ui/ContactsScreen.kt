@@ -66,7 +66,6 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
     val viewModel = remember { ContactsViewModel(repository) };
     val contactList by viewModel.contacts.collectAsState()
 
-
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -90,12 +89,10 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
         }
     }
 
-
     Box(modifier = Modifier.fillMaxSize()) {
-        // Contact list content
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(top = 56.dp) // Adjust padding to avoid overlap with the icon
+            modifier = Modifier.padding(top = 56.dp)
         ) {
             items(contactList.size) { index ->
                 ContactTile(contact = contactList[index], navController = navController, chatScreenViewModel, customerId)
@@ -143,7 +140,7 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
         ) {
             Box(
                 modifier = Modifier
-                    .size(50.dp) // Ensure the size is consistent
+                    .size(50.dp)
                     .weight(3F),
                 contentAlignment = Alignment.Center
             ) {
@@ -177,7 +174,7 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
                         painter = painter,
                         contentDescription = null,
                         modifier = Modifier
-                            .size(50.dp) // Ensure the size matches the parent Box
+                            .size(50.dp)
                             .clip(CircleShape)
                     )
                 } else {
@@ -204,7 +201,6 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
                     }
                 }
             }
-
             Column(modifier = Modifier.weight(9F)) {
                 Text(
                     text = contact.name,

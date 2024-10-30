@@ -31,8 +31,15 @@ interface ChatDao {
 
     @Query("SELECT * FROM chats WHERE myId = :myId")
     fun getAllChats(myId: Int): List<ChatList>
+
     @Query("UPDATE chats SET contactname = :contactName, profilePhoto = :profilePhoto, isVerified = :isVerified WHERE enemyId = :enemyId")
-    suspend fun updateProfile(enemyId: Int, contactName: String, profilePhoto: String, isVerified: Boolean)
+    suspend fun updateProfile(
+        enemyId: Int,
+        contactName: String,
+        profilePhoto: String,
+        isVerified: Boolean
+    )
+
     @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + 1 WHERE enemyId = :enemyId")
     suspend fun incrementUnreadMsgCounter(enemyId: Int)
 
@@ -41,10 +48,13 @@ interface ChatDao {
 
     @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + :count WHERE enemyId = :enemyId")
     suspend fun incrementUnreadMsgCounterBy(enemyId: Int, count: Int)
+
     @Query("UPDATE chats SET lastMsg = :lastMsg, lastMsgAddtime = :timeStamp WHERE enemyId = :enemyId")
     suspend fun updateLastMessage(enemyId: Int, lastMsg: String, timeStamp: String)
+
     @Query("SELECT EXISTS(SELECT 1 FROM chats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))")
     suspend fun chatExists(myId: Int, enemyId: Int): Boolean
+
     @Query("SELECT * FROM chats WHERE myId = :myId AND contactName LIKE :query")
     fun searchChats(myId: Int, query: String): List<ChatList>
 }
@@ -54,32 +64,53 @@ interface ChatDao {
 abstract class ChatListDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 }
-// Personal Chats database Management
 @Entity(tableName = "personalChats")
 data class PersonalChat(
-    @PrimaryKey val messageId: String,  // Primary key with auto generation
+    @PrimaryKey val messageId: String,
     val enemyId: Int,
     val myId: Int,
     val content: String,
-    val status: String,
-    val messageType: String,
+    val status: PersonalMessageStatus,
+    val messageType: PersonalMessageType,
     val timeStamp: String,
     val mediaUri: String? = null,
     val gistId: String? = null,
     val topic: String? = null
 )
+
 @Dao
 interface PersonalChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addPersonalChat(personalChat: PersonalChat)
+
     @Update
     suspend fun updatePersonalChat(personalChat: PersonalChat)
+
     @Query("DELETE FROM personalChats WHERE messageId = :messageId")
     suspend fun deletePersonalChat(messageId: String)
-    @Query("SELECT * FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId) ORDER BY timeStamp DESC LIMIT :pageSize OFFSET :offset")
-    fun getPersonalChats(myId: Int, enemyId: Int, pageSize: Int, offset: Int): List<PersonalChat>
+
+    @Query("""
+    SELECT * FROM personalChats 
+    WHERE ((myId = :myId AND enemyId = :enemyId) 
+       OR (myId = :enemyId AND enemyId = :myId))
+      AND timeStamp < (
+        SELECT timeStamp FROM personalChats
+        WHERE messageId = :lastMessageId
+        LIMIT 1
+      )
+    ORDER BY timeStamp DESC 
+    LIMIT :pageSize
+""")
+    suspend fun getPersonalChatsBefore(
+        myId: Int,
+        enemyId: Int,
+        lastMessageId: String,
+        pageSize: Int
+    ): List<PersonalChat>
+
     @Query("DELETE FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId)")
     suspend fun deletePersonalChatsForEnemy(myId: Int, enemyId: Int)
+
     @Query("SELECT * FROM personalChats WHERE messageId = :messageId LIMIT 1")
     suspend fun getPersonalChatById(messageId: String): PersonalChat?
 
@@ -87,17 +118,26 @@ interface PersonalChatDao {
     suspend fun getPersonalChatsByEnemyId(myId: Int, enemyId: Int): List<PersonalChat>
 
     @Query("SELECT * FROM personalChats WHERE status = :status")
-    suspend fun getMessagesByStatus(status: String): List<PersonalChat>
+    suspend fun getMessagesByStatus(status: PersonalMessageStatus): List<PersonalChat>
 
     @Query("UPDATE personalChats SET status = :newStatus WHERE messageId = :messageId")
-    suspend fun updateStatus(messageId: String, newStatus: String)
+    suspend fun updateStatus(messageId: String, newStatus: PersonalMessageStatus)
+    @Query("SELECT * FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId) ORDER BY timeStamp DESC LIMIT :pageSize")
+    suspend fun getInitialPersonalChats(
+        myId: Int,
+        enemyId: Int,
+        pageSize: Int
+    ): List<PersonalChat>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(personalChat: PersonalChat)
 }
+
 @Database(entities = [PersonalChat::class], version = 1)
 abstract class PersonalChatDatabase : RoomDatabase() {
     abstract fun personalChatDao(): PersonalChatDao
 }
 
-// Initialize Database
 object DatabaseProvider {
     private var CHATLIST_DATABASE_INSTANCE: ChatListDatabase? = null
 
@@ -115,6 +155,7 @@ object DatabaseProvider {
         }
         return CHATLIST_DATABASE_INSTANCE!!
     }
+
     private var CONTACTS_INSTANCE: ContactsDatabase? = null
 
     fun getContactsDatabase(context: Context): ContactsDatabase {
@@ -131,28 +172,44 @@ object DatabaseProvider {
         }
         return CONTACTS_INSTANCE!!
     }
+
     private var PERSONALCHAT_DATABASE_INSTANCE: PersonalChatDatabase? = null
     fun getPersonalChatDatabase(context: Context): PersonalChatDatabase {
         if (PERSONALCHAT_DATABASE_INSTANCE == null) {
             synchronized(PersonalChatDatabase::class) {
                 PERSONALCHAT_DATABASE_INSTANCE = Room.databaseBuilder(
-                    context.applicationContext, PersonalChatDatabase::class.java, "personal_chats.db"
+                    context.applicationContext,
+                    PersonalChatDatabase::class.java,
+                    "personal_chats.db"
                 ).fallbackToDestructiveMigration()
                     .build()
             }
         }
         return PERSONALCHAT_DATABASE_INSTANCE!!
     }
+
     private var GIST_STATE_DATABASE: GistRoomCreatedBase? = null
     fun getGistRoomCreatedBase(context: Context): GistRoomCreatedBase {
-       if (GIST_STATE_DATABASE == null ) {
-           synchronized(GistRoomCreatedBase::class) {
-               GIST_STATE_DATABASE = Room.databaseBuilder(
-                   context.applicationContext, GistRoomCreatedBase::class.java, "gist_state.db"
-               ).fallbackToDestructiveMigration()
-                   .build()
-           }
-       }
+        if (GIST_STATE_DATABASE == null) {
+            synchronized(GistRoomCreatedBase::class) {
+                GIST_STATE_DATABASE = Room.databaseBuilder(
+                    context.applicationContext, GistRoomCreatedBase::class.java, "gist_state.db"
+                ).fallbackToDestructiveMigration()
+                    .build()
+            }
+        }
         return GIST_STATE_DATABASE!!
     }
+}
+enum class PersonalMessageType(val typeString: String){
+    P_IMAGE("PImage"),
+    P_TEXT("PText"),
+    P_VIDEO("PVideo"),
+    P_AUDIO("PAudio"),
+    P_GIST_INVITE("PGistInvite")
+}
+enum class PersonalMessageStatus {
+    PENDING,
+    SENT,
+    DELIVERED
 }
