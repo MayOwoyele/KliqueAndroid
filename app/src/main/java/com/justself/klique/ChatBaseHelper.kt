@@ -6,12 +6,12 @@ import androidx.room.*
 // ChatList Database Management
 @Entity(tableName = "chats")
 data class ChatList(
-    @PrimaryKey val enemyId: Int,  // Primary key and integer
+    @PrimaryKey val enemyId: Int,
     val contactName: String,
     val lastMsg: String,
-    val lastMsgAddtime: String,
+    val lastMsgAddTime: String,
     val profilePhoto: String,
-    val myId: Int,  // Renamed from recipientId to myId
+    val myId: Int,
     val unreadMsgCounter: Int,
     val isVerified: Boolean = true
 )
@@ -22,9 +22,6 @@ interface ChatDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addChat(chat: ChatList)
-
-    @Update
-    suspend fun updateChat(chat: ChatList)
 
     @Query("DELETE FROM chats WHERE enemyId = :enemyId")
     suspend fun deleteChat(enemyId: Int)
@@ -49,7 +46,7 @@ interface ChatDao {
     @Query("UPDATE chats SET unreadMsgCounter = unreadMsgCounter + :count WHERE enemyId = :enemyId")
     suspend fun incrementUnreadMsgCounterBy(enemyId: Int, count: Int)
 
-    @Query("UPDATE chats SET lastMsg = :lastMsg, lastMsgAddtime = :timeStamp WHERE enemyId = :enemyId")
+    @Query("UPDATE chats SET lastMsg = :lastMsg, lastMsgAddTime = :timeStamp WHERE enemyId = :enemyId")
     suspend fun updateLastMessage(enemyId: Int, lastMsg: String, timeStamp: String)
 
     @Query("SELECT EXISTS(SELECT 1 FROM chats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))")
@@ -82,9 +79,6 @@ data class PersonalChat(
 interface PersonalChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addPersonalChat(personalChat: PersonalChat)
-
-    @Update
-    suspend fun updatePersonalChat(personalChat: PersonalChat)
 
     @Query("DELETE FROM personalChats WHERE messageId = :messageId")
     suspend fun deletePersonalChat(messageId: String)

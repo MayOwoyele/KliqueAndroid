@@ -175,9 +175,8 @@ fun MessageScreen(
             uri?.let {
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
-                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
+                        val imageByteArray = ImageUtils.processImageToByteArray(context, uri, 1080)
                         Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
-
                         val messageId = viewModel.generateMessageId()
                         viewModel.sendBinary(
                             imageByteArray,
@@ -477,22 +476,22 @@ fun MessageScreenContent(
                 }
             }
     }
-    val contentHeight = remember { mutableStateOf(0) }
-    val viewportHeight = remember { mutableStateOf(0) }
+    val contentHeight = remember { mutableIntStateOf(0) }
+    val viewportHeight = remember { mutableIntStateOf(0) }
 
     LaunchedEffect(scrollState) {
         snapshotFlow { scrollState.layoutInfo }.collect { layoutInfo ->
-            contentHeight.value =
+            contentHeight.intValue =
                 layoutInfo.totalItemsCount * layoutInfo.viewportSize.height / (layoutInfo.visibleItemsInfo.size.takeIf { it > 0 }
                     ?: 1)
-            viewportHeight.value = layoutInfo.viewportSize.height
+            viewportHeight.intValue = layoutInfo.viewportSize.height
         }
     }
 
     val scrollBarHeight = remember {
         derivedStateOf {
-            if (contentHeight.value > 0 && viewportHeight.value > 0) {
-                (viewportHeight.value.toFloat() / contentHeight.value * viewportHeight.value).coerceAtLeast(
+            if (contentHeight.intValue > 0 && viewportHeight.intValue > 0) {
+                (viewportHeight.intValue.toFloat() / contentHeight.intValue * viewportHeight.intValue).coerceAtLeast(
                     with(density) { 20.dp.toPx() })
             } else {
                 with(density) { 20.dp.toPx() }
@@ -536,7 +535,6 @@ fun MessageScreenContent(
                     if (isSelectionMode) {
                         toggleMessageSelection(message.messageId)
                     } else {
-                        // Navigation logic when not in selection mode
                         when (message.messageType) {
                             PersonalMessageType.P_IMAGE -> {
                                 message.mediaUri?.let {

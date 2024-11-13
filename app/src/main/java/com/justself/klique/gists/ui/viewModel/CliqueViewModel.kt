@@ -536,7 +536,7 @@ class SharedCliqueViewModel(
                         externalUrl = externalUrl
                     )
                 }
-                val currentMessages = _messages.value ?: emptyList()
+                val currentMessages = _messages.value
                 val updatedMessages = currentMessages + messages
                 _messages.value = updatedMessages
                 updatedMessages.forEach { message ->
@@ -661,7 +661,7 @@ class SharedCliqueViewModel(
 
     private fun clearGistState() {
         viewModelScope.launch {
-            getGistStateDao.deleteGistState() // Defaults to id = 1
+            getGistStateDao.deleteGistState()
         }
     }
 
@@ -709,8 +709,6 @@ class SharedCliqueViewModel(
         if (_gistCreatedOrJoined.value?.gistId == message.gistId){
             val updatedMessages = _messages.value.toMutableList()
             val messageExists = updatedMessages.any { it.id == message.id }
-
-            // Only add the message if it doesn't already exist
             if (!messageExists) {
                 updatedMessages.add(0, message)
                 _messages.value = updatedMessages
@@ -857,22 +855,6 @@ class SharedCliqueViewModel(
         }
     }
 
-    fun updateSpectatorCount(newCount: Int) {
-        _gistTopRow.value = _gistTopRow.value?.copy(activeSpectators = (formatUserCount(newCount)))
-    }
-
-    var activeSpectatorsCount = 0
-    fun startUpdatingActiveSpectators() {
-        viewModelScope.launch {
-            while (isActive) {
-                delay(3000) // Delay for 3 seconds
-                val randomIncrement = Random.nextInt(1, 10000)
-                activeSpectatorsCount += randomIncrement
-                updateSpectatorCount(activeSpectatorsCount)
-            }
-        }
-    }
-
     private fun formatUserCount(count: Int): String {
         return when {
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
@@ -904,10 +886,6 @@ class SharedCliqueViewModel(
             compareAndUpdateMembers(members, contacts)
         }
     }
-
-    // trigger the fetchMembersFromServer function first using the existing LaunchedEffect
-    // Use the onMessage function to trigger fetchMembersAndCompare
-    // Pass the membersFromServer List to fetchMembersAndCompare
     fun fetchMembersFromServer(gistId: String) {
         val fetchRequest = """
             {
@@ -929,7 +907,7 @@ class SharedCliqueViewModel(
         _listOfSpeakers.value = speakers
     }
 
-    fun generateMembersList() {
+    private fun generateMembersList() {
         val membersList = mutableListOf<Members>()
         for (i in 1..40) { // Generate 40 members
             val owner = Random.nextFloat() < 0.3
@@ -1009,19 +987,13 @@ class SharedCliqueViewModel(
         // Create a new list to ensure StateFlow recognizes the change
         val updatedMessages = _messages.value.map { message ->
             Log.d("Local path Message id", "${message.id} and $messageId")
-            // Update only the message that matches the ID
             if (message.id == messageId) {
-                Log.d("Local path Message id", "Is this part even logging?")
                 message.copy(localPath = uri)
             } else {
                 message
             }
         }.toMutableList()
-
-        Log.d("Local path Message id", "value of updated messages: $updatedMessages")
         _messages.value = updatedMessages
-        Log.d("SharedCliqueViewModel", "Updated message $messageId with local URI: $uri")
-        Log.d("Local path", "print messages: ${_messages.value}")
     }
 
     fun removeAsSpeaker(userId: Int) {
@@ -1083,11 +1055,12 @@ class SharedCliqueViewModel(
         addNewMember(updatedMember)
     }
 
-    fun sendUpdatedDescription(editedText: String) {
+    fun sendUpdatedDescription(editedText: String, gistId: String) {
         viewModelScope.launch {
             try {
                 val jsonBody = """{
-                "descriptionUpdate": "$editedText"
+                "descriptionUpdate": "$editedText",
+                "gistId": "$gistId"
             """.trimMargin()
                 val response = NetworkUtils.makeRequest(
                     "updateGistDescription",
@@ -1246,7 +1219,7 @@ class SharedCliqueViewModel(
         )
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = NetworkUtils.makeRequest("addUpvotes", KliqueHttpMethod.GET, params)
+                val response = NetworkUtils.makeRequest("addUpVotes", KliqueHttpMethod.GET, params)
                 if (response.first) {
                     _comments.value = _comments.value.map { comment ->
                         if (comment.id == commentId) comment.copy(upVotes = comment.upVotes + 1) else {

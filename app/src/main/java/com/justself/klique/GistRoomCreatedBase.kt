@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
 
 @Entity(tableName = "gistState")
 data class GistStateEntity(
-    @PrimaryKey val id: Int = 1, // Fixed primary key
+    @PrimaryKey val id: Int = 1,
     val gistId: String,
     val topic: String,
     val description: String,

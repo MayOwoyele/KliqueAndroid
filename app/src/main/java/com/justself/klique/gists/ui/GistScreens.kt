@@ -19,6 +19,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,6 +41,9 @@ enum class CurrentTab {
 }
 @Composable
 fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewModel, navController: NavController) {
+    LaunchedEffect(key1 = Unit) {
+        viewModel.fetchTrendingGists(customerId)
+    }
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
 

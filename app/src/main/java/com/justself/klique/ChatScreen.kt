@@ -1,6 +1,5 @@
 package com.justself.klique
 
-import android.graphics.Paint.Align
 import android.net.Uri
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
@@ -8,12 +7,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
@@ -49,7 +44,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SearchBar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -61,7 +55,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,8 +70,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 
 @Composable
 fun ChatListScreen(
@@ -95,8 +86,8 @@ fun ChatListScreen(
     val searchBarHeight by animateDpAsState(
         targetValue = if (isSearchVisible) 65.dp else 0.dp,
         animationSpec = tween(
-            durationMillis = 500, // Duration in milliseconds
-            easing = FastOutSlowInEasing // Easing function for the animation
+            durationMillis = 500,
+            easing = FastOutSlowInEasing
         )
     )
     val context = LocalContext.current
@@ -238,8 +229,6 @@ fun ChatListScreen(
                 )
             }
         }
-        val databaseInjection: List<ChatList> = viewModel.getMockChats(customerId)
-        val coroutineScope = rememberCoroutineScope()
         var menuExpanded by remember { mutableStateOf(false) }
         // Floating Action Button at the bottom right
         Box(
@@ -432,7 +421,7 @@ fun ChatItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(text = chat.lastMsgAddtime, fontSize = 12.sp)
+                Text(text = chat.lastMsgAddTime, fontSize = 12.sp)
             }
             if (isSelectionMode) {
                 Checkbox(

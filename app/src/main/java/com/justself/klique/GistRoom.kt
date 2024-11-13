@@ -182,10 +182,8 @@ fun GistRoom(
     // Image Picker Launcher
     val imagePickerLauncher: (String) -> Unit = { mimeType ->
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // For Android 14+ (TIRAMISU and above), launch the PickVisualMedia launcher
             imagePickerLauncher14Plus.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         } else {
-            // For Android 13 and below, launch the GetContent launcher with the MIME type
             imagePickerLauncherBelow14.launch(mimeType)
         }
     }

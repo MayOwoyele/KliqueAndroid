@@ -18,12 +18,10 @@ import java.net.HttpURLConnection
 class ChatViewModel : ViewModel() {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages
-    private val _messageText = MutableStateFlow("")
-    val messageText: StateFlow<String> = _messageText
-    private val _sendMessageStatus = MutableStateFlow<SendMessageStatus>(SendMessageStatus.None)
+    private val _sendMessageStatus = MutableStateFlow(SendMessageStatus.None)
     val sendMessageStatus: StateFlow<SendMessageStatus> = _sendMessageStatus
 
-    private val activePollingInterval = 5000L  // Poll every 5 seconds when screen is active
+    private val activePollingInterval = 5000L
     private var pollingJob: Job? = null
     fun fetchMessages(customerId: Int, chatPartnerId: Int) {
         viewModelScope.launch {
@@ -53,7 +51,7 @@ class ChatViewModel : ViewModel() {
     }
 
 
-    fun parseMessages(jsonString: String): List<Message> {
+    private fun parseMessages(jsonString: String): List<Message> {
         if (jsonString.isBlank() || jsonString == "[]") {
 
             return emptyList() // Return an empty list if the JSON string is empty or just an empty array
@@ -67,9 +65,6 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    fun setMessageText(text: String) {
-        _messageText.value = text
-    }
 
     fun sendMessage(customerId: Int, chatPartnerId: Int, messageText: String) {
         viewModelScope.launch {

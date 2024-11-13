@@ -245,7 +245,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                         } else {
                             text = editedText
                             isEditing = false
-                            editedText?.let { viewModel.sendUpdatedDescription(it) }
+                            editedText?.let { viewModel.sendUpdatedDescription(it, gistId!!) }
                             errorMessage = null
                         }
                     }, modifier = Modifier.weight(1f)

@@ -30,8 +30,8 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
             // Define test URLs for debug build
-            resValue("string", "base_url", "http://172.20.0.190:8080/")
-            resValue("string", "websocket_url", "ws://172.20.0.190:3030/")
+            resValue("string", "base_url", "http://10.0.2.2:8080/")
+            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
         }
         release {
             isMinifyEnabled = false

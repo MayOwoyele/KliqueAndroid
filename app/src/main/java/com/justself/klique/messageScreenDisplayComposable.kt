@@ -258,7 +258,6 @@ fun ClickableMessageText(
                 },
                 onTap = { offset ->
                     layoutResult?.let { textLayoutResult ->
-                        // Convert the Offset (tap position) to a character index
                         val position = textLayoutResult.getOffsetForPosition(offset)
                         if (isSelectionMode) {
                             onTapLambda()
@@ -273,7 +272,6 @@ fun ClickableMessageText(
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     context.startActivity(Intent.createChooser(intent, "Open link with"))
                                 } ?: run {
-                                // Handle non-URL tap
                                 onTapLambda()
                             }
                         }

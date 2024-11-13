@@ -155,7 +155,7 @@ fun HomeScreen(
                     customerId = customerId,
                     viewModel = viewModel,
                     navController
-                ) // Display GistScreen behind the AddButton
+                )
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)

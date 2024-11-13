@@ -211,6 +211,9 @@ fun DmRoomContent(
     enemyName: String
 ) {
     val dmMessages by viewModel.dmMessages.collectAsState()
+    LaunchedEffect(dmMessages){
+        Log.d("Parsing", "Ui log $dmMessages")
+    }
     val lazyListState = rememberLazyListState()
     var lastSeenMessageCount by remember { mutableIntStateOf(dmMessages.size) }
     val coroutineScope = rememberCoroutineScope()

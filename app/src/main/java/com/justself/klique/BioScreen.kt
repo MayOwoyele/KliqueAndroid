@@ -225,15 +225,17 @@ fun BioScreen(
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
-                                Icon(
-                                    imageVector = Icons.Default.Email,
-                                    contentDescription = "Direct Message",
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .align(Alignment.CenterVertically)
-                                        .clickable { navController.navigate("dmChatScreen/${profileData.customerId}/${profileData.fullName}") },
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
+                                if (enemyId != customerId) {
+                                    Icon(
+                                        imageVector = Icons.Default.Email,
+                                        contentDescription = "Direct Message",
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .align(Alignment.CenterVertically)
+                                            .clickable { navController.navigate("dmChatScreen/${profileData.customerId}/${profileData.fullName}") },
+                                        tint = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                }
                                 Spacer(modifier = Modifier.width(40.dp))
 
                                 if (isBioExpanded && profileData.bioText.length > 35) {

@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,12 +28,13 @@ import coil.compose.rememberAsyncImagePainter
 import coil.compose.rememberImagePainter
 
 @Composable
-fun DmList(navController: NavController, dmListViewModel: DmListViewModel = viewModel()) {
+fun DmList(navController: NavController, customerId: Int, dmListViewModel: DmListViewModel = viewModel()) {
 
     val dmList by dmListViewModel.dmList.collectAsState()
 
-    // Replace with your actual UI layout
-    // For example, a LazyColumn for displaying the list of DMs
+    LaunchedEffect(key1 = Unit) {
+        dmListViewModel.fetchDmList(customerId)
+    }
     LazyColumn {
         items(dmList) { dmItem ->
             DmListItem(dmItem, navController)
@@ -42,7 +44,6 @@ fun DmList(navController: NavController, dmListViewModel: DmListViewModel = view
 
 @Composable
 fun DmListItem(dmItem: DmItem, navController: NavController) {
-    // Layout for a single DM item
     Row(
         modifier = Modifier
             .fillMaxWidth()

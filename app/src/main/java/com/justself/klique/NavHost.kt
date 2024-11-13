@@ -251,7 +251,7 @@ fun NavigationHost(
                 )
             }
         }
-        composable("dmList") { DmList(navController) }
+        composable("dmList") { DmList(navController, customerId) }
         composable("dmChatScreen/{enemyId}/{enemyName}") { backStackEntry ->
             val enemyId = backStackEntry.arguments?.getString("enemyId")?.toIntOrNull()
                 ?: throw IllegalStateException("where is the enemyId?")

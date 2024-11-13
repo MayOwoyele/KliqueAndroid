@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.liveData
 import androidx.compose.ui.graphics.Color
@@ -26,7 +27,6 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             "bioUserId" to "$bioUserId",
             "spectatorUserId" to "$spectatorUserId"
         )
-
         viewModelScope.launch {
             try {
                 val response =
@@ -47,7 +47,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         seatedCount = jsonObject.getInt("seatedCount"),
                         isVerified = jsonObject.getBoolean("isVerified")
                     )
-
+                    Log.d("ProfileJson", profileAssigned.toString())
                     _profile.value = profileAssigned
                 }
             } catch (e: Exception) {
@@ -133,6 +133,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     jsonBody = json
                 )
                 if (response.first){
+                    Log.d("Response", "response successful")
                     _profile.value = _profile.value?.copy(isSpectator = true)
                 }
             } catch (e: Exception) {

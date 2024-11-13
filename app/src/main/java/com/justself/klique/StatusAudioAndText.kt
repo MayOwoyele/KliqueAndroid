@@ -366,7 +366,7 @@ fun StatusText(viewModel: MediaViewModel, navController: NavController, customer
                 .weight(1f),
             placeholder = {
                 Text(
-                    "What's on your mind in 100 characters",
+                    "What's on your mind in $charLimit characters",
                     color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f)
                 )
             },

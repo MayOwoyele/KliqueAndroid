@@ -97,7 +97,7 @@ fun ImagePickerScreen(navController: NavController, mediaViewModel: MediaViewMod
     ) { uri: Uri? ->
         uri?.let {
             mediaViewModel.setBitmapFromUri(uri.toString(), context)
-            navController.navigate("imageEditScreen")
+            navController.navigate("imageEditScreen/${SourceScreen.STATUS.name}")
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -112,7 +112,6 @@ fun ImagePickerScreen(navController: NavController, mediaViewModel: MediaViewMod
     fun pickImage() {
         when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                // Request the new media permission for Android 13 and above
                 if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED) {
                     imagePickerLauncher.launch("image/*")
                 } else {

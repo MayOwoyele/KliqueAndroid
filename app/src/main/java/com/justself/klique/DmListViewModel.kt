@@ -32,6 +32,7 @@ class DmListViewModel : ViewModel() {
             if (response.first) {
                 try {
                     val jsonArray = JSONArray(response.second)
+                    Log.d("Parsing", response.second)
                     val dmItems = (0 until jsonArray.length()).map { i ->
                         val jsonObject = jsonArray.getJSONObject(i)
 
@@ -41,8 +42,8 @@ class DmListViewModel : ViewModel() {
 
                         val lastMessageType = jsonObject.getString("lastMessageType")
                         val lastMessage = when (lastMessageType) {
-                            "Text" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
-                            "Photo" -> LastMessage.Photo
+                            "DText" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
+                            "DImage" -> LastMessage.Photo
                             else -> LastMessage.Text("")
                         }
 
@@ -62,5 +63,12 @@ class DmListViewModel : ViewModel() {
                 Log.e("fetchDmList", "Request failed: ${response.second}")
             }
         }
+//        val list = listOf(DmItem(
+//            imageLink = "www.google.com",
+//            fullName = "May",
+//            enemyId = 2,
+//            lastMessage = LastMessage.Text("coolies")
+//        ))
+//        _dmList.value = list
     }
 }

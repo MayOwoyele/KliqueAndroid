@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.gists.ui.viewModel.DownloadState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,6 +67,11 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
     init {
         WebSocketManager.registerListener(this)
     }
+    override fun onCleared() {
+        super.onCleared()
+        Log.d("DmRoomViewModel", "ViewModel cleared")
+        WebSocketManager.unregisterListener(this)
+    }
 
     fun generateMessageId(): String = UUID.randomUUID().toString()
 
@@ -106,6 +112,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
     }
 
     override fun onMessageReceived(type: DmReceivingType, jsonObject: JSONObject) {
+        Log.d("Parsing", "type is ${type.name}")
         when (type) {
             DmReceivingType.D_TEXT -> {
                 val messageId = jsonObject.getString("messageId")
@@ -157,6 +164,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                 _toastWarning.value = message
             }
             DmReceivingType.PREVIOUS_DM_MESSAGES -> {
+                Log.d("Parsing", "Logging previous")
                 try {
                     val messagesArray = jsonObject.getJSONArray("messages")
                     Log.d("Parsing", "messagesArray length: ${messagesArray.length()}")
@@ -164,33 +172,24 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                     val previousMessages = (0 until messagesArray.length()).map { i ->
                         val message = messagesArray.getJSONObject(i)
 
-                        // Log the entire message JSON for debugging
-                        Log.d("Parsing", "Message JSON: ${message.toString()}")
-
                         val content = message.getString("message")
-                        Log.d("Parsing", "content: $content")
-
                         val messageId = message.getString("messageId")
-                        Log.d("Parsing", "messageId: $messageId")
-
                         val mType = message.getString("messageType")
                         val messageType = when (mType) {
                             DmMessageType.DText.inString -> DmMessageType.DText
                             DmMessageType.DImage.inString -> DmMessageType.DImage
                             else -> DmMessageType.DText
                         }
-                        Log.d("Parsing", "messageType: $messageType")
 
                         val senderId = message.getInt("senderId")
-                        Log.d("Parsing", "senderId: $senderId")
-
-                        // Corrected key name: "timestamp"
                         val timeStamp = message.getLong("timestamp")
-                        Log.d("Parsing", "timeStamp: $timeStamp")
 
-                        // Handle externalUrl which can be null
-                        val externalUrl = if (!message.isNull("externalUrl")) message.getString("externalUrl") else null
-                        Log.d("Parsing", "externalUrl: $externalUrl")
+                        // Handle externalUrl renaming if present
+                        val externalUrl = if (!message.isNull("externalUrl")) {
+                            message.getString("externalUrl").replace("127.0.0.1", "10.0.2.2")
+                        } else {
+                            null
+                        }
 
                         val messageInstance = DmMessage(
                             content = content,
@@ -202,8 +201,12 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                             externalUrl = if (messageType != DmMessageType.DText) externalUrl else null
                         )
 
+                        // Initiate media download if `externalUrl` is not blank or null
                         if (!externalUrl.isNullOrBlank()) {
-                            handleMediaDownload(messageInstance)
+                            viewModelScope.launch {
+                                delay(10)
+                                handleMediaDownload(messageInstance)
+                            }
                         }
                         messageInstance
                     }
@@ -242,7 +245,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                     }
                     messageInstance
                 }
-                _dmMessages.value = extraPaginatedMessages + _dmMessages.value
+                updateDmMessages(extraPaginatedMessages + _dmMessages.value)
             }
             DmReceivingType.DM_DELIVERY -> {
                 val messageId = jsonObject.getString("messageId")
@@ -285,6 +288,10 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
         """.trimIndent()
         send(textToSend)
     }
+    private fun updateDmMessages(newMessages: List<DmMessage>) {
+        _dmMessages.value = newMessages
+        Log.d("Parsing", "Updated _dmMessages: ${_dmMessages.value}")
+    }
 
     fun send(textToSend: String) {
         WebSocketManager.send(textToSend)
@@ -292,14 +299,18 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
     private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
 
     private fun handleMediaDownload(message: DmMessage) {
+        Log.d("Parsing", "Called download")
         if (message.externalUrl != null && message.localPath == null) {
             when (val state = downloadedMediaUrls[message.externalUrl]) {
                 is DownloadState.Downloaded -> {
+                    Log.d("Parsing", "Called download 3")
+                    Log.d("Parsing", "Local Path 3: ${state.uri}")
                     updateMessageLocalPath(message.messageId, state.uri)
                     return
                 }
 
                 is DownloadState.Downloading -> {
+                    Log.d("Parsing", "Called download 4")
                     return
                 }
 
@@ -311,10 +322,12 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
 
             viewModelScope.launch(Dispatchers.IO) {
+                Log.d("Parsing", "Called download 2")
                 try {
                     val byteArray = downloadFromUrl(message.externalUrl)
                     val uri =
-                        getChatRoomUriFromByteArray(byteArray, context, ChatRoomMediaType.IMAGE)
+                        getDMRoomUriFromByteArray(byteArray, context, DmMediaType.IMAGE)
+                    Log.d("Parsing", "Local Path 2: $uri")
                     downloadedMediaUrls[message.externalUrl] = DownloadState.Downloaded(uri)
                     updateMessageLocalPath(message.messageId, uri)
                 } catch (e: Exception) {
@@ -325,20 +338,25 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
     }
 
     private fun updateMessageLocalPath(messageId: String, uri: Uri) {
-        _dmMessages.value = _dmMessages.value.map {
+        val updatedMessages = _dmMessages.value.map {
             if (it.messageId == messageId) {
+                Log.d("Parsing", "Local path updated?")
                 it.copy(localPath = uri)
             } else {
                 it
             }
         }
+        updateDmMessages(updatedMessages)
     }
     fun loadAdditionalMessages(messageId: String, enemyId: Int){
         val message = """
             {
-            "type":
+            "type": "loadMoreDmMessages",
+            "enemyId": $enemyId,
+            "messageId": "$messageId"
             }
         """.trimIndent()
+        send(message)
     }
     fun resetToastWarning(){
         _toastWarning.value = null
@@ -353,6 +371,9 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             }
         """.trimIndent()
         send(theJson)
+        downloadedMediaUrls.forEach { (url, state) ->
+            Log.d("DownloadHashMap", "URL: $url, State: $state")
+        }
 
 //        val fakeMessages = listOf(
 //            DmMessage(
@@ -373,6 +394,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
 //            )
 //        )
 //        _dmMessages.value = fakeMessages
+        Log.d("Parsing", "loaded again?")
     }
 }
 
@@ -383,7 +405,7 @@ suspend fun getDMRoomUriFromByteArray(
 ): Uri {
     return withContext(Dispatchers.IO) {
         val customCacheDir =
-            File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_ROOM_CACHE.directoryName)
+            File(context.cacheDir, KliqueCacheDirString.CUSTOM_DM_CACHE.directoryName)
         if (!customCacheDir.exists()) {
             customCacheDir.mkdir()
         }

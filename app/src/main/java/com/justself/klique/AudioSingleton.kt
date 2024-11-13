@@ -37,6 +37,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.core.app.ActivityCompat
 import com.arthenica.mobileffmpeg.FFmpeg
 import java.io.FileOutputStream
@@ -140,7 +141,7 @@ fun AudioPlayer(
     val context = LocalContext.current
     val mediaPlayer = remember { MediaPlayer() }
     var progress by remember { mutableStateOf(0f) }
-    var duration by remember { mutableStateOf(0) }
+    var duration by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         onDispose {

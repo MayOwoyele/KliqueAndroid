@@ -1,7 +1,6 @@
 package com.justself.klique
 
 import android.app.Application
-import android.app.Person
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -63,6 +62,7 @@ class ChatScreenViewModel(
 
     init {
         WebSocketManager.registerListener(this)
+        retryPendingMessages(getApplication<Application>().applicationContext)
     }
 
     override fun onMessageReceived(type: PrivateChatReceivingType, jsonObject: JSONObject) {
@@ -89,8 +89,8 @@ class ChatScreenViewModel(
                 Log.d("Websocket", "PText Function called")
                 // Extract fields from the JSON object
                 val messageId = jsonObject.optString("messageId", "")
-                val enemyId = jsonObject.optInt("enemyId", 0) // Parse as Int
-                val myId = jsonObject.optInt("myId", 0)       // Parse as Int
+                val enemyId = jsonObject.optInt("enemyId", 0)
+                val myId = jsonObject.optInt("myId", 0)
                 val content = jsonObject.optString("content", "")
                 val status = PersonalMessageStatus.SENT
                 val messageType = PersonalMessageType.P_TEXT
@@ -128,12 +128,10 @@ class ChatScreenViewModel(
                 }
                 val timeStamp = System.currentTimeMillis().toString()
 
-                // Check if the message already exists in the database
                 CoroutineScope(Dispatchers.IO).launch {
                     val messageExists = personalChatDao.getPersonalChatById(messageId) != null
 
                     if (messageExists) {
-                        // If message exists, send delivery acknowledgment immediately
                         sendDeliveryAcknowledgment(messageId)
                         Log.d("Websocket", "Message already exists, acknowledgment sent.")
                     } else {
@@ -259,7 +257,7 @@ class ChatScreenViewModel(
         }
     }
 
-    fun downloadFileFromUrl(url: String): ByteArray? {
+    private fun downloadFileFromUrl(url: String): ByteArray? {
         return try {
             val connection = URL(url).openConnection() as HttpURLConnection
             connection.inputStream.use { input ->
@@ -275,12 +273,6 @@ class ChatScreenViewModel(
         _isNewChat.value = isNew
     }
 
-    fun addChat(chat: ChatList) {
-        viewModelScope.launch(Dispatchers.IO) {
-            chatDao.addChat(chat)
-            loadChats(myUserId.value!!)
-        }
-    }
     fun checkContactUpdate(){
         val message = """
             {
@@ -288,12 +280,6 @@ class ChatScreenViewModel(
             }
         """.trimIndent()
         send(message)
-    }
-    fun updateChat(chat: ChatList) {
-        viewModelScope.launch(Dispatchers.IO) {
-            chatDao.updateChat(chat)
-            loadChats(myUserId.value)
-        }
     }
 
     fun deleteChat(enemyId: Int, context: Context) {
@@ -457,18 +443,6 @@ class ChatScreenViewModel(
         }
     }
 
-    // Apparently, the server needs to be keep delivery statuses of messages. Remember to do this
-    private fun bulkUpdateUnreadMessageCounters(newMessages: List<PersonalChat>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val unreadCounts =
-                newMessages.groupBy { val enemy = it.myId; enemy }.mapValues { it.value.size }
-            for ((enemyId, count) in unreadCounts) {
-                chatDao.incrementUnreadMsgCounterBy(enemyId, count)
-            }
-            loadChats(myUserId.value)
-        }
-    }
-
     // Use this as a baseline to build message receipt of all types
     // This function is supposed to be called from the Websocket Parser
     // Remember to also implement a function to let the websocket know it has been delivered
@@ -517,10 +491,10 @@ class ChatScreenViewModel(
             }
             val chat = ChatList(
                 enemyId = enemyId,
-                contactName = "Your NewFriend", // Set a default or fetch the actual name
+                contactName = "Your NewFriend",
                 lastMsg = lastMsg,
-                lastMsgAddtime = timeStamp,
-                profilePhoto = "", // Placeholder or actual profile photo
+                lastMsgAddTime = timeStamp,
+                profilePhoto = "",
                 myId = myUserId.value,
                 unreadMsgCounter = if (_currentChat.value != enemyId) 1 else 0
             )
@@ -544,7 +518,7 @@ class ChatScreenViewModel(
 
     private suspend fun getSortedChats(myId: Int): List<ChatList> {
         return withContext(Dispatchers.IO) {
-            chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddtime }
+            chatDao.getAllChats(myId).sortedByDescending { it.lastMsgAddTime }
         }
     }
 
@@ -577,7 +551,6 @@ class ChatScreenViewModel(
         _isLoading.value = true
         Log.d("Database", "Still executing")
         viewModelScope.launch(Dispatchers.IO) {
-            val offset = if (loadMore) _currentPage * _pageSize else 0
             val personalChatList = if (loadMore) {
                 lastMessageId?.let { theLastMessageId ->
                     Log.d("LoadMore", "called, last MessageId: $theLastMessageId")
@@ -781,112 +754,6 @@ class ChatScreenViewModel(
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
     }
 
-    // This simulation should be replaced by the onMessage logic from the websocket
-    private fun simulateOnlineStatusOscillation() {
-        viewModelScope.launch {
-            var isOnline = false
-            while (true) {
-                isOnline = !isOnline
-                val simulatedMessage = createSimulatedOnlineStatusMessage(123, isOnline)
-                handleWebSocketMessage(simulatedMessage)
-                delay(4000)
-            }
-        }
-    }
-
-    private fun createSimulatedOnlineStatusMessage(userId: Int, onlineStatus: Boolean): String {
-        val jsonObject = JSONObject().apply {
-            put("type", "onlineStatus")
-            val statusesArray = JSONArray().apply {
-                put(JSONObject().apply {
-                    put("userId", userId)
-                    put("onlineStatus", onlineStatus)
-                })
-            }
-            put("statuses", statusesArray)
-        }
-        return jsonObject.toString()
-    }
-
-    // This might be replaced by a differnt but similar websocket parsing logic
-    private fun handleWebSocketMessage(websocketMessage: String) {
-        val jsonObject = JSONObject(websocketMessage)
-        when (jsonObject.getString("type")) {
-            "onlineStatus" -> {
-                val onlineStatusUpdates = parseOnlineStatusMessage(jsonObject)
-                val updatedStatuses = _onlineStatuses.value.toMutableMap()
-                updatedStatuses.putAll(onlineStatusUpdates)
-                _onlineStatuses.value = updatedStatuses
-            }
-
-            "bulkMessageSync" -> {
-                val newMessages = parseNewMessages(jsonObject)
-                handleBulkMessagesRefresh(newMessages)
-            }
-        }
-    }
-
-    // This is for handling the websocket response type for 'fetch new messages' function
-    private fun handleBulkMessagesRefresh(newBulkMessages: List<PersonalChat>) {
-        viewModelScope.launch(Dispatchers.IO) {
-            newBulkMessages.forEach { message ->
-                personalChatDao.addPersonalChat(message)
-                val enemyId = message.myId
-                chatDao.updateLastMessage(
-                    enemyId = enemyId,
-                    lastMsg = message.content,
-                    timeStamp = message.timeStamp
-                )
-            }
-            bulkUpdateUnreadMessageCounters(newBulkMessages)
-            Log.d("Add Personal", "Add Personal handlebulk ")
-        }
-    }
-
-    private fun parseNewMessages(jsonObject: JSONObject): List<PersonalChat> {
-        val messages = mutableListOf<PersonalChat>()
-        val messagesArray = jsonObject.getJSONArray("messages")
-        for (i in 0 until messagesArray.length()) {
-            val message = messagesArray.getJSONObject(i)
-            messages.add(
-                PersonalChat(
-                    messageId = message.getString("messageId"),
-                    enemyId = message.getInt("enemyId"),
-                    myId = message.getInt("myId"),
-                    content = message.getString("content"),
-                    status = PersonalMessageStatus.DELIVERED,
-                    messageType = when (message.getString("messageType")) {
-                        PersonalMessageType.P_TEXT.typeString -> PersonalMessageType.P_TEXT
-                        PersonalMessageType.P_IMAGE.typeString -> PersonalMessageType.P_IMAGE
-                        PersonalMessageType.P_AUDIO.typeString -> PersonalMessageType.P_AUDIO
-                        PersonalMessageType.P_VIDEO.typeString -> PersonalMessageType.P_VIDEO
-                        PersonalMessageType.P_GIST_INVITE.typeString -> PersonalMessageType.P_GIST_INVITE
-                        else -> throw IllegalArgumentException(
-                            "Unknown messageType: ${
-                                message.getString(
-                                    "messageType"
-                                )
-                            }"
-                        )
-                    },
-                    timeStamp = message.getString("timeStamp")
-                )
-            )
-        }
-        return messages
-    }
-
-    private fun parseOnlineStatusMessage(jsonObject: JSONObject): Map<Int, Boolean> {
-        val statusMap = mutableMapOf<Int, Boolean>()
-        val statuses = jsonObject.getJSONArray("statuses")
-        for (i in 0 until statuses.length()) {
-            val status = statuses.getJSONObject(i)
-            val userId = status.getInt("userId")
-            val onlineStatus = status.getBoolean("onlineStatus")
-            statusMap[userId] = onlineStatus
-        }
-        return statusMap
-    }
 
     fun handleRecordedAudio(
         file: File,
@@ -1082,140 +949,6 @@ class ChatScreenViewModel(
     """.trimIndent()
         Log.d("Websocket", "Sending $acknowledgmentJson")
         send(acknowledgmentJson)
-    }
-
-    fun getMockChats(myId: Int): List<ChatList> {
-        return listOf(
-            ChatList(
-                contactName = "John Doe",
-                enemyId = 123,
-                lastMsg = "Hey there!",
-                lastMsgAddtime = "2024-07-05 12:34:56",
-                profilePhoto = "https://randomuser.me/api/portraits/men/1.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 2
-            ), ChatList(
-                contactName = "Jane Smith",
-                enemyId = 124,
-                lastMsg = "Hello!",
-                lastMsgAddtime = "2024-07-05 14:34:56",
-                profilePhoto = "https://randomuser.me/api/portraits/women/2.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Alice Johnson",
-                enemyId = 125,
-                lastMsg = "Good morning! How are you, I hope you are doing well and I hope to see you tomorrow. Help me say hi to the family and thanks for yesterday",
-                lastMsgAddtime = "2024-07-05 09:34:56",
-                profilePhoto = "https://randomuser.me/api/portraits/women/3.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 1
-            ), ChatList(
-                contactName = "Bob Brown",
-                enemyId = 126,
-                lastMsg = "Did you get my last message?",
-                lastMsgAddtime = "2024-07-06 08:20:00",
-                profilePhoto = "https://randomuser.me/api/portraits/men/4.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 3
-            ), ChatList(
-                contactName = "Charlie Davis",
-                enemyId = 127,
-                lastMsg = "Sure, let's meet at the usual place.",
-                lastMsgAddtime = "2024-07-06 10:15:45",
-                profilePhoto = "https://randomuser.me/api/portraits/men/5.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Diana Evans",
-                enemyId = 128,
-                lastMsg = "It was great catching up with you last night. Let's do it again soon!",
-                lastMsgAddtime = "2024-07-06 11:30:25",
-                profilePhoto = "https://randomuser.me/api/portraits/women/6.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 55
-            ), ChatList(
-                contactName = "Ethan Fox",
-                enemyId = 129,
-                lastMsg = "I've attached the documents you requested. Please review and let me know your thoughts.",
-                lastMsgAddtime = "2024-07-06 13:45:30",
-                profilePhoto = "https://randomuser.me/api/portraits/men/7.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Fiona Green",
-                enemyId = 130,
-                lastMsg = "Can't wait for the weekend! Do you have any plans?",
-                lastMsgAddtime = "2024-07-06 14:50:10",
-                profilePhoto = "https://randomuser.me/api/portraits/women/8.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 2
-            ), ChatList(
-                contactName = "George Harris",
-                enemyId = 131,
-                lastMsg = "Just sent you the files. Let me know if you need anything else.",
-                lastMsgAddtime = "2024-07-06 16:00:00",
-                profilePhoto = "https://randomuser.me/api/portraits/men/9.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 1
-            ), ChatList(
-                contactName = "Hannah Irvine",
-                enemyId = 132,
-                lastMsg = "Can we reschedule our meeting to next week? I've got a conflict.",
-                lastMsgAddtime = "2024-07-06 17:10:45",
-                profilePhoto = "https://randomuser.me/api/portraits/women/10.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Ian Jackson",
-                enemyId = 133,
-                lastMsg = "Thank you for your help! I really appreciate it.",
-                lastMsgAddtime = "2024-07-06 18:25:30",
-                profilePhoto = "https://randomuser.me/api/portraits/men/11.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Jackie Kim",
-                enemyId = 134,
-                lastMsg = "Do you have any recommendations for a good restaurant in town?",
-                lastMsgAddtime = "2024-07-06 19:35:20",
-                profilePhoto = "https://randomuser.me/api/portraits/women/12.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 4
-            ), ChatList(
-                contactName = "Karen Lee",
-                enemyId = 135,
-                lastMsg = "Let's catch up over coffee sometime this week.",
-                lastMsgAddtime = "2024-07-06 20:45:50",
-                profilePhoto = "https://randomuser.me/api/portraits/women/13.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 0
-            ), ChatList(
-                contactName = "Larry Moore",
-                enemyId = 136,
-                lastMsg = "I've been meaning to tell you about the new project I'm working on.",
-                lastMsgAddtime = "2024-07-06 21:55:10",
-                profilePhoto = "https://randomuser.me/api/portraits/men/14.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 1
-            ), ChatList(
-                contactName = "Megan Nelson",
-                enemyId = 137,
-                lastMsg = "Thanks for the invite! I'll definitely be there.",
-                lastMsgAddtime = "2024-07-06 22:05:35",
-                profilePhoto = "https://randomuser.me/api/portraits/women/15.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 3
-            ), ChatList(
-                contactName = "Nathan Owens",
-                enemyId = 138,
-                lastMsg = "Can you send me the details for tomorrow's meeting?",
-                lastMsgAddtime = "2024-07-06 23:15:50",
-                profilePhoto = "https://randomuser.me/api/portraits/men/16.jpg",
-                myId = myId,  // Use the provided myId
-                unreadMsgCounter = 2
-            )
-        )
     }
 }
 
