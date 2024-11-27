@@ -141,14 +141,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun serverVerifyCode(code: String): ServerResponse {
-        return if (code == "123456") {
-            ServerResponse(isSuccess = true, errorMessage = "")
-        } else {
-            ServerResponse(isSuccess = false, errorMessage = "Incorrect code, try again")
-        }
-    }
-
     fun verifyPhoneNumber(phoneNumber: String) {
         _errorMessage.value = ""
         viewModelScope.launch {
@@ -191,18 +183,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun simulateServerVerifyPhoneNumber(phoneNumber: String): ServerResponse {
-        // Simulate server response for phone number verification
-        return if (phoneNumber == "+441234567890") {
-            ServerResponse(isSuccess = true, errorMessage = "")
-        } else {
-            ServerResponse(
-                isSuccess = false,
-                errorMessage = "Invalid phone number or rate limited. Please try again."
-            )
-        }
-    }
-
     fun verifyName(name: String) {
         _errorMessage.value = ""
         try {
@@ -223,18 +203,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-        }
-    }
-
-    private suspend fun simulateNameSubmission(name: String): ServerResponse {
-        delay(1000) // Simulate network delay
-        return if (name.length in 2..30) {
-            ServerResponse(isSuccess = true, errorMessage = "")
-        } else {
-            ServerResponse(
-                isSuccess = false,
-                errorMessage = "Name must be between 2 and 30 characters."
-            )
         }
     }
 

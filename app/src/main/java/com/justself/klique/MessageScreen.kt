@@ -101,7 +101,6 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
@@ -119,7 +118,6 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -187,7 +185,6 @@ fun MessageScreen(
                             contactName,
                             context
                         )
-
                     } catch (e: IOException) {
                         Log.e("ChatRoom", "Error processing image: ${e.message}", e)
                     }
@@ -250,7 +247,6 @@ fun MessageScreen(
             Toast.makeText(context, "Permission Denied", Toast.LENGTH_SHORT).show()
         }
     }
-
     val stopRecording: (File?) -> Unit = { file ->
         isRecording.value = false
         file?.let {
@@ -438,7 +434,6 @@ fun MessageScreenContent(
     onShowDeleteDialog: () -> Unit
 ) {
     val personalChat by viewModel.personalChats.collectAsState(emptyList())
-    Log.d("MessageLoading", "Displaying ${personalChat.size} messages in LazyColumn")
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
     val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
@@ -451,9 +446,6 @@ fun MessageScreenContent(
     }
     LaunchedEffect(key1 = enemyId) {
         viewModel.loadPersonalChats(myId, enemyId)
-        val isNewChat = viewModel.checkChatExistsSync(myId, enemyId).not()
-        viewModel.setIsNewChat(isNewChat)
-        Log.d("isNewChat", "$isNewChat")
         initialLoad = true
     }
     LaunchedEffect(scrollState) {
@@ -466,7 +458,8 @@ fun MessageScreenContent(
             .distinctUntilChanged()
             .collect { (lastVisibleItemIndex, totalItems) ->
                 val threshold = 1
-                if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!!) {
+                if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!! && personalChat.size >= viewModel.pageSize) {
+                    Log.d("PersonalChats", "Load More loading")
                     viewModel.loadPersonalChats(
                         myId,
                         enemyId,
@@ -501,10 +494,10 @@ fun MessageScreenContent(
 
     val scrollBarOffset = remember {
         derivedStateOf {
-            if (contentHeight.value > 0) {
+            if (contentHeight.intValue > 0) {
                 (scrollState.firstVisibleItemIndex.toFloat() / (personalChat.size - 1).toFloat() * (viewportHeight.value - scrollBarHeight.value)).coerceIn(
                     0f,
-                    viewportHeight.value - scrollBarHeight.value
+                    viewportHeight.intValue - scrollBarHeight.value
                 )
             } else {
                 0f
@@ -520,7 +513,7 @@ fun MessageScreenContent(
                 .padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(personalChat, key = { it.messageId }) { message ->
+            items(personalChat, key = {it.messageId}) { message ->
                 Log.d(
                     "MessageLoading",
                     "Displaying messageId: ${message.messageId}, type: ${message.messageType}, timeStamp: ${message.timeStamp}, content ${message.content}"
@@ -548,6 +541,7 @@ fun MessageScreenContent(
                             PersonalMessageType.P_VIDEO -> {
                                 navController.navigate("fullScreenVideo/${Uri.encode(message.mediaUri)}")
                             }
+
                             else -> {
 
                             }
@@ -613,7 +607,6 @@ fun MessageScreenContent(
                                 ) {
                                     message.gistId?.let {
                                         viewModel.joinGist(it)
-                                        Log.d("PGistInvite", "gist id is $it")
                                     }
                                     navController.navigate("home")
                                 }
@@ -682,16 +675,14 @@ fun MessageScreenContent(
                 }
             }
         }
-        if (contentHeight.value > viewportHeight.value) {
+        if (contentHeight.intValue > viewportHeight.intValue) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .padding(vertical = 8.dp)
                     .width(8.dp)
                     .fillMaxHeight()
-
             )
-
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -970,10 +961,9 @@ fun TextBoxAndMedia(
 @Composable
 fun getPersonChatStatusIcon(status: PersonalMessageStatus): ImageVector {
     return when (status) {
-        PersonalMessageStatus.SENT -> Icons.Filled.Done // Single checkmark for sent
-        PersonalMessageStatus.DELIVERED -> Icons.Filled.DoneAll // Double checkmark for delivered
-        // "read" -> Icons.Filled.Visibility Eye icon for read (optional, if you want to differentiate read status)
-        PersonalMessageStatus.PENDING -> Icons.Filled.Schedule // Clock icon for pending or unknown status
+        PersonalMessageStatus.SENT -> Icons.Filled.Done
+        PersonalMessageStatus.DELIVERED -> Icons.Filled.DoneAll
+        PersonalMessageStatus.PENDING -> Icons.Filled.Schedule
     }
 }
 

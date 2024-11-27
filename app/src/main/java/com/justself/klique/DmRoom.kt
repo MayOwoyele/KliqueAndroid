@@ -322,7 +322,6 @@ fun DmMessageItem(
                         text = message.content,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
                     DmMessageType.DImage -> {
                         ChatRoomImageItem(
                             image = message.localPath,

@@ -5,6 +5,8 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.Cursor
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -18,7 +20,6 @@ import java.io.*
 import java.io.File
 
 object FileUtils {
-
     fun getPath(context: Context, uri: Uri): String? {
         return when (uri.scheme) {
             "file" -> {
@@ -68,11 +69,10 @@ object FileUtils {
     fun saveMedia(
         context: Context,
         data: ByteArray,
-        mediaType: MediaType,  // Now we use MediaType enum
+        mediaType: MediaType,
         toPublic: Boolean = false
     ): Uri? {
         val fileName = mediaType.generateFileName()
-
         return if (toPublic) {
             saveToPublicDirectory(context, data, fileName, mediaType)
         } else {
@@ -117,7 +117,7 @@ object FileUtils {
     }
 
     fun saveAudio(context: Context, data: ByteArray, toPublic: Boolean = false): Uri? {
-        val fileName = "kliqueAudio_${System.currentTimeMillis()}.mp3"
+        val fileName = "kliqueAudio_${System.currentTimeMillis()}.m4a"
         return if (toPublic) {
             saveToPublicDirectory(context, data, fileName, MediaType.AUDIO)
         } else {

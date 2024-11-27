@@ -21,7 +21,6 @@ fun TrendingGists(trendingGists: List<GistModel>, customerId: Int, viewModel: Sh
                 gist.image,
                 gist.activeSpectators,
                 onTap = {viewModel.enterGist(gist.gistId)
-                    // viewModel.simulateGistCreated()
                 })
         }
     }

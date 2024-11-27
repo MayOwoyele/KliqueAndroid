@@ -1,4 +1,4 @@
-package com.justself.klique.Bookshelf.Contacts.ui
+package com.justself.klique.ContactsBlock.Contacts.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -20,11 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,7 +36,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,14 +44,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import coil.compose.rememberImagePainter
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
-import com.justself.klique.Bookshelf.Contacts.data.Contact
-import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import com.justself.klique.ContactsBlock.Contacts.data.Contact
+import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ChatScreenViewModel
-import com.justself.klique.R
 import com.justself.klique.useful_extensions.initials
 
 @Composable
@@ -70,7 +65,7 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
         if (isGranted) {
-            viewModel.refreshContacts()
+            viewModel.refreshContacts(context)
         }
     }
 
@@ -78,7 +73,7 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
         Log.d("Check Permissions", "Check")
         when (PackageManager.PERMISSION_GRANTED) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) -> {
-                viewModel.refreshContacts()
+                viewModel.refreshContacts(context)
                 Log.d("Check Permissions", "Check")
             }
 

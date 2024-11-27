@@ -73,7 +73,8 @@ object NetworkUtils {
         params: Map<String, String>,
         jsonBody: String? = null,
         binaryBody: ByteArray? = null
-    ): Pair<Boolean, String> {
+    ): Triple<Boolean, String, Int> {
+        Log.d("GistDescription", endpoint)
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
 
@@ -126,14 +127,14 @@ object NetworkUtils {
             } finally {
                 connection.disconnect()
             }
-            Log.d("NetworkUtils", "HTTP ${method} Response Code: ${connection.responseCode}")
+            Log.d("NetworkUtils", "HTTP $method Response Code: ${connection.responseCode}")
 
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 throw IOException("HTTP error code: ${connection.responseCode} - $response")
             }
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
             Log.d("NetworkUtils", "response is $response, $isSuccessful")
-            Pair(isSuccessful, response)
+            Triple(isSuccessful, response, connection.responseCode)
         }
     }
 
@@ -177,56 +178,27 @@ object NetworkUtils {
                 connection.disconnect()
             }
 
-            Log.d("NetworkUtils", "HTTP ${method} Response Code: $responseCode")
+            Log.d("NetworkUtils", "HTTP $method Response Code: $responseCode")
             Pair(responseBody, responseCode)
         }
     }
-
-    suspend fun resourceRequest(
-        endpoint: String,
-        method: String = "GET", // Default to GET for plain resource fetching
-        params: Map<String, String> = emptyMap()
-    ): ByteArray {
-        val baseUrl = baseUrl ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
-
-        return withContext(Dispatchers.IO) {
-            // Construct query string for GET requests (same logic as before)
-            val query = if (method == "GET" && params.isNotEmpty()) {
-                "?" + params.map {
-                    "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
-                }.joinToString("&")
-            } else ""
-
-            val url = URL(baseUrl + endpoint + query)
-
-            val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = method
-
-                // No content-type specific settings unless absolutely necessary
-            }
-
-            // Get the raw input stream
-            val response = try {
-                connection.inputStream.use { it.readBytes() }
-            } catch (e: IOException) {
-                // Handle errors appropriately
-                throw e // You might want to customize error handling
-            } finally {
-                connection.disconnect()
-            }
-
-            Log.d("NetworkUtils", "HTTP ${method} Response Code: ${connection.responseCode}")
-
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("HTTP error code: ${connection.responseCode}")
-            }
-
-            response
+    fun fixLocalHostUrl(url: String): String {
+        return if (url.contains("127.0.0.1")) {
+            baseUrl?.let { base ->
+                val ip = base.removePrefix("http://")
+                    .removeSuffix("/")
+                    .split(":")
+                    .firstOrNull() ?: return url
+                url.replace("127.0.0.1", ip)
+            } ?: url
+        } else {
+            url
         }
     }
 }
 suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO) {
-    val connection = URL(url).openConnection() as HttpURLConnection
+    val newUrl = NetworkUtils.fixLocalHostUrl(url = url)
+    val connection = URL(newUrl).openConnection() as HttpURLConnection
     connection.apply {
         requestMethod = "GET"
         connectTimeout = 10000
@@ -234,7 +206,6 @@ suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO
         doInput = true
         connect()
     }
-
     if (connection.responseCode != HttpURLConnection.HTTP_OK) {
         throw IOException("Failed to download file: HTTP ${connection.responseCode}")
     }

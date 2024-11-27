@@ -213,7 +213,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
 
         val combinedBytes = outputStream.toByteArray()
         WebSocketManager.sendBinary(combinedBytes)
-        viewModelScope.launch {
+        viewModelScope.launch{
             val imageLocalPath =
                 getChatRoomUriFromByteArray(image, context, ChatRoomMediaType.IMAGE)
             val newMessage = ChatRoomMessage(
@@ -332,7 +332,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun loadChatRoomDetails(chatRoomId: Int) {
-        val params = mapOf("chatR  oomId" to "$chatRoomId")
+        val params = mapOf("chatRoomId" to "$chatRoomId")
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val response =

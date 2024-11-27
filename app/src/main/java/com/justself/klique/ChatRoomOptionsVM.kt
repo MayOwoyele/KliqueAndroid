@@ -13,9 +13,6 @@ import org.json.JSONArray
 class ChatRoomOptionsViewModel : ViewModel() {
     private val _options = MutableStateFlow<List<ChatRoomOption>>(emptyList())
     val options: StateFlow<List<ChatRoomOption>> = _options.asStateFlow()
-    init {
-        //populateOptions()
-    }
     fun fetchOptions(categoryId: Int) {
         val params = mapOf("categoryId" to "$categoryId")
         viewModelScope.launch(Dispatchers.IO) {
@@ -42,20 +39,6 @@ class ChatRoomOptionsViewModel : ViewModel() {
             } catch (e: Exception) {
                 Log.e("ChatRoom Options", "The options are $e")
             }
-        }
-    }
-    fun send(fetchMessage: String) {
-        WebSocketManager.send(fetchMessage)
-    }
-    private fun populateOptions(){
-        viewModelScope.launch {
-            // Replace with actual data fetching logic
-            val fetchedOptions = listOf(
-                ChatRoomOption(1, "Option 1", "https://example.com/image1.jpg"),
-                ChatRoomOption(2, "Option 2", "https://example.com/image2.jpg"),
-                ChatRoomOption(3, "Option 3", "https://example.com/image3.jpg")
-            )
-            _options.value = fetchedOptions
         }
     }
 }

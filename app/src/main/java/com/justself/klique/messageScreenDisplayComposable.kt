@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.text.ClickableText
@@ -69,30 +70,32 @@ fun DisplayImage(
         var bitmap by remember { mutableStateOf<Bitmap?>(null) }
 
         LaunchedEffect(mediaUri) {
-            withContext(Dispatchers.IO) {
-                val uri = Uri.parse(it)
-                val decodedBitmap = ImageDecoder.decodeBitmap(
-                    ImageDecoder.createSource(
-                        context.contentResolver,
-                        uri
+            try {
+                withContext(Dispatchers.IO) {
+                    val uri = Uri.parse(mediaUri)
+                    val decodedBitmap = ImageDecoder.decodeBitmap(
+                        ImageDecoder.createSource(context.contentResolver, uri)
                     )
-                )
-                bitmap = decodedBitmap
+                    bitmap = decodedBitmap
+                }
+            } catch (e: Exception) {
+                Log.e("ImageDecoder", "Error decoding image: ${e.message}", e)
             }
         }
-
         bitmap?.let { bmp ->
             Log.d("isSelectionMode", "isSelectionModeImageLogger if Bitmap: $isSelectionMode")
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier
-                    .height(200.dp)
+                    .sizeIn(maxWidth = 250.dp, maxHeight = 200.dp)
+                    .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat(), matchHeightConstraintsFirst = true)
                     .clip(shape)
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onLongPress = { onLongPressLambda() },
-                            onTap = {Log.d("isSelectionMode", "Image Selected $isSelectionMode")
+                            onTap = {
+                                Log.d("isSelectionMode", "Image Selected $isSelectionMode")
                                 onTapLambda()
                             }
                         )
@@ -137,7 +140,8 @@ fun DisplayVideo(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onLongPress = { onLongPressLambda() },
-                        onTap = {Log.d("isSelectionMode", "Video Selected $isSelectionMode")
+                        onTap = {
+                            Log.d("isSelectionMode", "Video Selected $isSelectionMode")
                             onTapLambda()
                         }
                     )
@@ -161,14 +165,19 @@ fun DisplayVideo(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .size(48.dp),
-                tint = MaterialTheme.colorScheme.onPrimary
+                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
 }
-
 @Composable
-fun DisplayAudio(mediaUri: String?, context: Context, onLongPressLambda: () -> Unit, isSelectionMode: Boolean, onTapLambda: () -> Unit) {
+fun DisplayAudio(
+    mediaUri: String?,
+    context: Context,
+    onLongPressLambda: () -> Unit,
+    isSelectionMode: Boolean,
+    onTapLambda: () -> Unit
+) {
     mediaUri?.let { audioUriString ->
         val audioUri = Uri.parse(audioUriString)
         AudioPlayer(
@@ -182,13 +191,15 @@ fun DisplayAudio(mediaUri: String?, context: Context, onLongPressLambda: () -> U
                             onTapLambda()
                         }
                     )
-                }
+                },
+            isSelectionMode = isSelectionMode
         )
     } ?: Text(
         text = "Audio not available",
         color = MaterialTheme.colorScheme.onPrimary
     )
 }
+
 @Composable
 fun DisplayGistInvite(
     topic: String?,
@@ -230,6 +241,7 @@ fun DisplayGistInvite(
         }
     }
 }
+
 @Composable
 fun ClickableMessageText(
     messageText: String,
@@ -240,7 +252,7 @@ fun ClickableMessageText(
     val context = LocalContext.current
     val annotatedString = createAnnotatedString(messageText)
     val defaultTextStyle = MaterialTheme.typography.bodyLarge.copy(
-        color = MaterialTheme.colorScheme.onBackground,
+        color = MaterialTheme.colorScheme.background,
         textDecoration = TextDecoration.None
     )
 
@@ -270,7 +282,12 @@ fun ClickableMessageText(
                                         "https://${annotation.item}" // Ensure valid HTTPS URL
                                     }
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(Intent.createChooser(intent, "Open link with"))
+                                    context.startActivity(
+                                        Intent.createChooser(
+                                            intent,
+                                            "Open link with"
+                                        )
+                                    )
                                 } ?: run {
                                 onTapLambda()
                             }
@@ -282,6 +299,7 @@ fun ClickableMessageText(
         onTextLayout = { layoutResult = it } // Capture the TextLayoutResult
     )
 }
+
 @Composable
 fun createAnnotatedString(text: String): AnnotatedString {
     val urlRegex = Regex("(https://[a-zA-Z0-9./?=_-]+|[a-zA-Z0-9_-]+\\.com)")

@@ -8,9 +8,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -19,8 +17,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.justself.klique.Bookshelf.Contacts.ui.ContactsScreen
-import com.justself.klique.Bookshelf.ui.BookshelfScreen
+import com.justself.klique.ContactsBlock.Contacts.ui.ContactsScreen
+import com.justself.klique.ContactsBlock.ui.BookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 

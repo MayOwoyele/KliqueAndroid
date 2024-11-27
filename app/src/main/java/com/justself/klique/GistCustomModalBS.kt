@@ -73,14 +73,18 @@ fun CustomBottomSheet(
 
 
 @Composable
-fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavController, customerId: Int) {
+fun CommentSection(
+    viewModel: SharedCliqueViewModel,
+    navController: NavController,
+    customerId: Int
+) {
     var showRepliesForCommentId by remember { mutableStateOf<String?>(null) }
     var showKCDonationDialog by remember { mutableStateOf(false) }
     val comments by viewModel.comments.collectAsState()
     val listState = rememberLazyListState()
     var loading by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    var lastCommentId by remember { mutableStateOf<String?>(null)}
+    var lastCommentId by remember { mutableStateOf<String?>(null) }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
@@ -121,19 +125,18 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                     if (!loading) {
                         loading = true
                         coroutineScope.launch {
-                            viewModel.fetchGistComments(true, lastCommentId)
+                            Log.d("LastComment", "${comments.last().id}, ${comments.last().comment}, first: ${comments.first().comment}")
+                            viewModel.fetchGistComments(true, comments.last().id, customerId)
                             loading = false
                         }
                     }
                 }
         }
         LaunchedEffect(comments.size) {
-            if (comments.isNotEmpty()){
+            if (comments.isNotEmpty()) {
                 lastCommentId = comments.last().id
             }
         }
-
-        // Top row with topic and wallet icon
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -161,10 +164,10 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background) // Optional: background to distinguish the input area
+                .background(MaterialTheme.colorScheme.background)
                 .padding(1.dp)
                 .align(Alignment.BottomCenter)
-                .imePadding(), // Align at the bottom
+                .imePadding(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -190,6 +193,7 @@ fun CommentSection(viewModel: SharedCliqueViewModel, navController: NavControlle
                         showRepliesForCommentId,
                         userId = customerId
                     )
+                    text.value = ""
                 }
             }) {
                 Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send icon")
@@ -223,21 +227,25 @@ fun CommentItem(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Thumbs up icon below the comment
-        Text(text = "👍 ${comment.upVotes}",
+        Text(text = "👍 ${if (comment.upVotes == 0) "" else comment.upVotes} ${if (comment.upVotedByYou) ", up-voted by you" else ""}",
             modifier = Modifier
                 .clickable { viewModel.sendUpVotes(comment.id) }
                 .align(Alignment.Start)
         )
 
-        if (comment.replies.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "${comment.replies.size} replies",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable(onClick = onReplyClick)
-            )
-        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "${
+                when (comment.replies.size) {
+                    0 -> "No"
+                    1 -> "Only one"
+                    else -> "${comment.replies.size}"
+                }
+            } ${if (comment.replies.size == 1) "reply" else "replies"}",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable(onClick = onReplyClick)
+        )
     }
 }
 

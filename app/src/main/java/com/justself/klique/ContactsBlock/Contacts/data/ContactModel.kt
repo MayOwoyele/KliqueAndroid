@@ -1,4 +1,4 @@
-package com.justself.klique.Bookshelf.Contacts.data
+package com.justself.klique.ContactsBlock.Contacts.data
 
 data class Contact(
     val name: String,

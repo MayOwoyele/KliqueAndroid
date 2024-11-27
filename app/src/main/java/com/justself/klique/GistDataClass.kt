@@ -14,7 +14,7 @@ data class GistMessage(
     val messageType: GistMessageType = GistMessageType.K_TEXT,
     val localPath: Uri? = null,
     val externalUrl: String? = null,
-    val timeStamp: ZonedDateTime
+    val timeStamp: String
 )
 
 data class UserStatus(
@@ -53,7 +53,7 @@ enum class GistMediaType {
     fun getFileName(): String {
         val fileName = when (this) {
             KImage -> "KImage_${UUID.randomUUID()}.jpg"
-            KAudio -> "KAudio_${UUID.randomUUID()}.mp3"
+            KAudio -> "KAudio_${UUID.randomUUID()}.m4a"
             KVideo -> "KVideo_${UUID.randomUUID()}.mp4"
         }
         return fileName

@@ -37,6 +37,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.core.app.ActivityCompat
 import com.arthenica.mobileffmpeg.FFmpeg
@@ -100,7 +104,6 @@ object AudioRecorder {
 
             outputStream.close()
         }
-
         recordingThread?.start()
     }
 
@@ -116,18 +119,18 @@ object AudioRecorder {
         recordingThread = null
 
         return audioFile?.let { pcmFile ->
-            val mp3File = File(context.getExternalFilesDir(null), "recording_${System.currentTimeMillis()}.mp3")
-            val conversionSuccess = convertPcmToMp3(pcmFile.absolutePath, mp3File.absolutePath)
+            val m4aFile = File(context.getExternalFilesDir(null), "recording_${System.currentTimeMillis()}.m4a")
+            val conversionSuccess = convertPcmToM4a(pcmFile.absolutePath, m4aFile.absolutePath)
             if (conversionSuccess) {
-                mp3File
+                m4aFile
             } else {
                 null
             }
         }
     }
 
-    private fun convertPcmToMp3(pcmFilePath: String, mp3FilePath: String): Boolean {
-        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -acodec libmp3lame -ar 44100 -b:a 192k $mp3FilePath"
+    private fun convertPcmToM4a(pcmFilePath: String, m4aFilePath: String): Boolean {
+        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -c:a aac -ar 44100 -b:a 160k $m4aFilePath"
         val rc = FFmpeg.execute(command)
         return rc == 0
     }
@@ -135,31 +138,33 @@ object AudioRecorder {
 @Composable
 fun AudioPlayer(
     audioUri: Uri,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSelectionMode: Boolean?
 ) {
     var isPlaying by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val mediaPlayer = remember { MediaPlayer() }
-    var progress by remember { mutableStateOf(0f) }
+    var progress by remember { mutableFloatStateOf(0f) }
     var duration by remember { mutableIntStateOf(0) }
 
     DisposableEffect(Unit) {
         onDispose {
+            if (mediaPlayer.isPlaying) {
+                mediaPlayer.stop()
+            }
             mediaPlayer.release()
         }
     }
     LaunchedEffect(audioUri) {
         try {
             mediaPlayer.setDataSource(context, audioUri)
+            mediaPlayer.setVolume(1.0f, 1.0f)
             mediaPlayer.prepare()
             duration = mediaPlayer.duration
         } catch (e: Exception) {
-            // Handle exceptions, e.g., log the error
             Log.e("AudioPlayer", "Error preparing media player", e)
         }
     }
-
-
     LaunchedEffect(isPlaying) {
         if (isPlaying) {
             mediaPlayer.start()
@@ -186,13 +191,31 @@ fun AudioPlayer(
             .widthIn(max = 50.dp)
             .padding(horizontal = 2.dp, vertical = 2.dp)
     ) {
-        IconButton(onClick = {
-            isPlaying = !isPlaying
-        }) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = if (isPlaying) "Pause" else "Play"
-            )
+        if (isSelectionMode == false || isSelectionMode == null) {
+            IconButton(
+                onClick = {
+                    isPlaying = !isPlaying
+                }
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.surface, CircleShape)
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    modifier = Modifier.align(Alignment.Center),
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
         Slider(
             value = progress,
@@ -201,7 +224,8 @@ fun AudioPlayer(
                 val newPosition = (newProgress * duration).toInt()
                 mediaPlayer.seekTo(newPosition)
             },
-            modifier = Modifier.weight(1f).padding(horizontal = 8.dp)
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+            enabled = isSelectionMode != true
         )
         Text(
             text = "${mediaPlayer.currentPosition / 1000}s / ${duration / 1000}s",

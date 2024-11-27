@@ -38,7 +38,12 @@ fun ChatRoomsCategory(
     val campusesCategories = viewModel.campusesCategories.collectAsState().value
     val interestsCategories = viewModel.interestsCategories.collectAsState().value
     LaunchedEffect(Unit) {
-        viewModel.fetchCategories()
+        if (campuses) {
+            viewModel.fetchCategories(ChatRoomsCategory.CAMPUSES)
+        }
+        if (interests) {
+            viewModel.fetchCategories(ChatRoomsCategory.INTERESTS)
+        }
     }
 
     Column(modifier = Modifier
@@ -83,4 +88,8 @@ fun CategoryItem(category: ChatRoomCategory, navController: NavController, viewM
             color = MaterialTheme.colorScheme.onPrimary
         )
     }
+}
+enum class ChatRoomsCategory {
+    CAMPUSES,
+    INTERESTS
 }

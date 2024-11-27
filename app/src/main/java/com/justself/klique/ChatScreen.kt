@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.net.Uri
+import android.text.format.DateUtils
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -169,7 +170,6 @@ fun ChatListScreen(
                 }
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-
                 items(
                     if (isSearchVisible) searchResults else chats,
                     key = { chat -> chat.enemyId }) { chat ->
@@ -268,7 +268,7 @@ fun ChatListScreen(
                     ) {
                         TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
                         TextOption("Update Status", onClick = {navController.navigate("statusSelectionScreen")})
-                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/1/Personal Shopper")})
+                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/2/Personal Shopper")})
                     }
                 }
                 AddButton(
@@ -400,14 +400,14 @@ fun ChatItem(
             Column(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .weight(1f), // Ensure the column expands
-                verticalArrangement = Arrangement.Center // Center the content vertically
+                    .weight(1f),
+                verticalArrangement = Arrangement.Center
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = chat.contactName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     if (chat.isVerified){
                         Icon(
-                            imageVector = Icons.Default.CheckCircle, // You can use a different icon if needed
+                            imageVector = Icons.Default.CheckCircle,
                             contentDescription = "Verified",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier
@@ -421,7 +421,9 @@ fun ChatItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(text = chat.lastMsgAddTime, fontSize = 12.sp)
+                val lastTime = chat.lastMsgAddTime.toLongOrNull()
+                    ?.let { DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.SECOND_IN_MILLIS)}
+                Text(text = lastTime.toString(), fontSize = 12.sp)
             }
             if (isSelectionMode) {
                 Checkbox(

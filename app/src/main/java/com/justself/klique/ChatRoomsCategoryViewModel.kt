@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONArray
-import org.json.JSONObject
 
 data class ChatRoomCategory(
     val categoryId: Int,
@@ -24,13 +23,18 @@ class ChatRoomsCategoryViewModel : ViewModel() {
     private val _interestsCategories = MutableStateFlow<List<ChatRoomCategory>>(emptyList())
     val interestsCategories: StateFlow<List<ChatRoomCategory>> = _interestsCategories.asStateFlow()
 
-    fun fetchCategories() {
+    fun fetchCategories(chatRoomCategory: ChatRoomsCategory) {
         viewModelScope.launch(Dispatchers.IO) {
+            val theString = when (chatRoomCategory) {
+                ChatRoomsCategory.CAMPUSES -> "campuses"
+                ChatRoomsCategory.INTERESTS -> "interests"
+            }
+            val params = mapOf("category" to theString)
             try {
                 val response = NetworkUtils.makeRequest(
                     "fetchChatRoomCategories",
                     KliqueHttpMethod.GET,
-                    emptyMap()
+                    params
                 )
                 Log.d("ChatRoom", "$response")
                 if (response.first) {
@@ -69,9 +73,5 @@ class ChatRoomsCategoryViewModel : ViewModel() {
                 Log.e("Category Exception", "the exception is $e")
             }
         }
-    }
-
-    fun send(message: String) {
-        WebSocketManager.send(message)
     }
 }

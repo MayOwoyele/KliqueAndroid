@@ -29,7 +29,6 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
-            // Define test URLs for debug build
             resValue("string", "base_url", "http://10.0.2.2:8080/")
             resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
         }
@@ -39,7 +38,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Define real URLs for release build
             resValue("string", "base_url", "https://192.168.0.77:3000/")
             resValue("string", "websocket_url", "ws://192.168.0.77:8080")
         }

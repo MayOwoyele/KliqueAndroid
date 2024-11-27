@@ -4,20 +4,25 @@ package com.justself.klique
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 
 class UserDetailsViewModel : ViewModel() {
-    private val _name = MutableStateFlow("")
+    private val _name = MutableStateFlow("Yam")
     val name = _name.asStateFlow()
 
     fun fetchCustomerDetails(customerId: Int) {
         viewModelScope.launch {
             try {
                 val params = mapOf("userId" to "$customerId")
-                val jsonResponse = NetworkUtils.makeRequest("fetchUserName", KliqueHttpMethod.GET, params).second
+                val jsonResponse =
+                    NetworkUtils.makeRequest("fetchUserName", KliqueHttpMethod.GET, params).second
 
                 val responseObject = JSONObject(jsonResponse)
                 if (responseObject.has("name")) {
@@ -32,13 +37,41 @@ class UserDetailsViewModel : ViewModel() {
             }
         }
     }
-    fun searchUsers(query: String): List<SearchUser> {
-        return listOf(
-            SearchUser(userId = 24, userAlias = "john_doe", profilePictureUrl = "https://example.com/johndoe.jpg"),
-            SearchUser(userId = 25, userAlias = "jane_doe", profilePictureUrl = "https://example.com/janedoe.jpg", isVerified = true)
-        )
+
+    suspend fun searchUsers(query: String): List<SearchUser> {
+        val queryString = mapOf("query" to query)
+        val users = mutableListOf<SearchUser>()
+        val result = NetworkUtils.makeRequest("searchUser", KliqueHttpMethod.GET, queryString)
+        if (result.first) {
+            withContext(Dispatchers.IO) {
+                try {
+                    Log.d("KliqueSearch", "Success: ${result.second}")
+                    val jsonArray = JSONArray(result.second)
+                    for (i in 0 until jsonArray.length()) {
+                        val jsonObject = jsonArray.getJSONObject(i)
+                        val userId = jsonObject.optInt("userId", -1)
+                        val userAlias = jsonObject.optString("userAlias", "Unknown")
+                        val profilePictureUrl = jsonObject.optString("profilePictureUrl", "")
+                        val isVerified = jsonObject.optBoolean("isVerified", false)
+                        val user = SearchUser(
+                            userId = userId,
+                            userAlias = userAlias,
+                            profilePictureUrl = profilePictureUrl,
+                            isVerified = isVerified
+                        )
+                        users.add(user)
+                        Log.d("KliqueSearch", "Success again: $users")
+                    }
+                } catch (e: Exception) {
+                    Log.d("KliqueSearch", "Error: $e")
+                    e.printStackTrace()
+                }
+            }
+        }
+        return users
     }
 }
+
 data class SearchUser(
     val userId: Int,
     val userAlias: String,

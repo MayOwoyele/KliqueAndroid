@@ -2,7 +2,7 @@ package com.justself.klique
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.justself.klique.Bookshelf.Contacts.data.Contact
+import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Insert
@@ -33,8 +33,6 @@ data class ContactEntity(
     val customerId: Int?,
     val thumbnailUrl: String?
 )
-// the = symbol is a shorthand for return type. this is a normal function extension,
-// fun toContact(): Contact{}
 fun ContactEntity.toContact() = Contact(
     name = this.name,
     phoneNumber = this.phoneNumber,

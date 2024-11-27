@@ -1,10 +1,11 @@
-package com.justself.klique.Bookshelf.Contacts.ui
+package com.justself.klique.ContactsBlock.Contacts.ui
 
+import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.justself.klique.Bookshelf.Contacts.data.Contact
-import com.justself.klique.Bookshelf.Contacts.repository.ContactsRepository
+import com.justself.klique.ContactsBlock.Contacts.data.Contact
+import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,11 +25,11 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
             _contacts.value = _contactsRepository.getSortedContactsFromDatabase()
         }
     }
-    fun refreshContacts() {
+    fun refreshContacts(context: Context) {
         viewModelScope.launch (Dispatchers.IO){
             delay(1000)
             Log.d("Klique Delay", "delay is over")
-            val localContacts = _contactsRepository.getContacts()
+            val localContacts = _contactsRepository.getContacts(context)
             val batchSize = 100
             val mergedContacts = mutableListOf<Contact>()
             localContacts.chunked(batchSize).forEach { batch ->

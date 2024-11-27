@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -35,9 +36,9 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 @Composable
 fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
     val bitmap by viewModel.bitmap.observeAsState()
-    val scale = remember { mutableStateOf(1f) }
-    val offsetX = remember { mutableStateOf(0f) }
-    val offsetY = remember { mutableStateOf(0f) }
+    val scale = remember { mutableFloatStateOf(1f) }
+    val offsetX = remember { mutableFloatStateOf(0f) }
+    val offsetY = remember { mutableFloatStateOf(0f) }
     val doubleTapScale = 2f
     val showBackArrow = remember { mutableStateOf(true) }  // State to track back arrow visibility
     BackHandler {
@@ -56,11 +57,8 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                 .pointerInput(Unit) {
                     detectTransformGestures(
                         onGesture = { _, pan, zoom, _ ->
-                            // Update scale
-                            val newScale = (scale.value * zoom).coerceIn(1f, 3f)
-                            scale.value = newScale
-
-                            // Calculate necessary values for panning
+                            val newScale = (scale.floatValue * zoom).coerceIn(1f, 7f)
+                            scale.floatValue = newScale
                             val canvasWidth = size.width
                             val canvasHeight = size.height
 
@@ -72,17 +70,15 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                             val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
                             val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
 
-                            // Calculate maximum offsets to prevent panning out of bounds
                             val maxXOffset =
                                 ((scaledBitmapWidth - canvasWidth) / 2).coerceAtLeast(0f)
                             val maxYOffset =
                                 ((scaledBitmapHeight - canvasHeight) / 2).coerceAtLeast(0f)
 
-                            // Update offsets with bounds checking
-                            offsetX.value =
-                                (offsetX.value + pan.x).coerceIn(-maxXOffset, maxXOffset)
-                            offsetY.value =
-                                (offsetY.value + pan.y).coerceIn(-maxYOffset, maxYOffset)
+                            offsetX.floatValue =
+                                (offsetX.floatValue + pan.x).coerceIn(-maxXOffset, maxXOffset)
+                            offsetY.floatValue =
+                                (offsetY.floatValue + pan.y).coerceIn(-maxYOffset, maxYOffset)
                         }
                     )
                 }
@@ -93,7 +89,7 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                             showBackArrow.value = !showBackArrow.value
                         },
                         onDoubleTap = { tapOffset ->
-                            scale.value = if (scale.value == 1f) doubleTapScale else 1f
+                            scale.floatValue = if (scale.floatValue == 1f) doubleTapScale else 1f
 
                             val canvasWidth = size.width
                             val canvasHeight = size.height
@@ -101,7 +97,7 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                             val widthScaleFactor = canvasWidth / bitmapWidthPx
                             val heightScaleFactor = canvasHeight / bitmapHeightPx
 
-                            val newScale = scale.value
+                            val newScale = scale.floatValue
                             val scaleBitmapToFit =
                                 minOf(widthScaleFactor, heightScaleFactor) * newScale
 
@@ -112,7 +108,7 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                                 ((scaledBitmapWidth - canvasWidth) / 2).coerceAtLeast(0f)
                             val maxYOffset =
                                 ((scaledBitmapHeight - canvasHeight) / 2).coerceAtLeast(0f)
-                            offsetX.value = if (newScale == doubleTapScale) {
+                            offsetX.floatValue = if (newScale == doubleTapScale) {
                                 ((canvasWidth / 2 - tapOffset.x * newScale).coerceIn(
                                     -maxXOffset,
                                     maxXOffset
@@ -120,7 +116,7 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                             } else {
                                 0f
                             }
-                            offsetY.value = if (newScale == doubleTapScale) {
+                            offsetY.floatValue = if (newScale == doubleTapScale) {
                                 ((canvasHeight / 2 - tapOffset.y * newScale)).coerceIn(
                                     -maxYOffset,
                                     maxYOffset
@@ -138,14 +134,14 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                 val heightScaleFactor = canvasHeight / bitmapHeightPx
 
                 // Calculate the scale to fit the bitmap to the canvas, considering the current scale
-                val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.value
+                val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.floatValue
 
                 val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
                 val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
 
                 // Calculate the offsets to center the bitmap within the canvas
-                val offsetXForFit = (canvasWidth - scaledBitmapWidth) / 2 + offsetX.value
-                val offsetYForFit = (canvasHeight - scaledBitmapHeight) / 2 + offsetY.value
+                val offsetXForFit = (canvasWidth - scaledBitmapWidth) / 2 + offsetX.floatValue
+                val offsetYForFit = (canvasHeight - scaledBitmapHeight) / 2 + offsetY.floatValue
 
                 with(drawContext.canvas.nativeCanvas) {
                     save()

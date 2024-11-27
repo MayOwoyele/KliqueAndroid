@@ -58,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -99,11 +100,10 @@ val Pink200 = Color(0xFFFCA4C2)
 val LightBackground = Color(0xFFFFFFFF)
 val CultPink = Color(0xFF6D1E1E)
 val DarkBackground = Color(0xFF000000)
-val DarkSurface = Color(0xFF121212) // Dark grey
-val LightSurface = Color(0xFFFFFFFF) // White
+val DarkSurface = Color(0xFF121212)
+val LightSurface = Color(0xFFFFFFFF)
 val AfacadFamily = FontFamily(
     Font(R.font.afacad_variablefont_wght, weight = FontWeight.Normal)
-    // You can add more weight variations if available
 )
 val AppTypography = Typography(
     bodyLarge = TextStyle(
@@ -136,7 +136,6 @@ val AppTypography = Typography(
         fontWeight = FontWeight.Bold,
         fontSize = 16.sp
     )
-
 )
 
 private val DarkColorScheme = darkColorScheme(
@@ -159,7 +158,7 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MyAppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(), // Automatically uses system theme setting
+    darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val colors = if (darkTheme) DarkColorScheme else LightColorScheme
@@ -194,6 +193,9 @@ fun MainScreen(
     var isSearchMode by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf(listOf<SearchUser>()) }
+    var cannotFindUser by remember {
+        mutableStateOf(false)
+    }
     val notificationViewModel: NotificationViewModel = viewModel()
     val notifications by notificationViewModel.notifications.collectAsState()
     val hasNewNotifications = notifications.any { !it.seen }
@@ -213,13 +215,19 @@ fun MainScreen(
     LaunchedEffect(searchText) {
         if (searchText.length > 2) {
             val results = userDetailsViewModel.searchUsers(searchText)
-            searchResults = results
+            if (results.isNotEmpty()) {
+                Log.d("KliqueSearch", "Results")
+                searchResults = results
+            } else {
+                Log.d("KliqueSearch", "Empty Results")
+                cannotFindUser = true
+            }
         } else {
             searchResults = emptyList()
         }
     }
-    var gistStarterName by remember {mutableStateOf("")}
-    var gistStarterId by remember { mutableStateOf(0)}
+    var gistStarterName by remember { mutableStateOf("") }
+    var gistStarterId by remember { mutableIntStateOf(0) }
     if (isLoggedIn) {
         Scaffold(
             topBar = {
@@ -235,7 +243,8 @@ fun MainScreen(
                         onSearchTextChange = { searchText = it },
                         displayText = gistStarterName,
                         displayId = gistStarterId,
-                        navController = navController
+                        navController = navController,
+                        cannotFindUser = { cannotFindUser = it }
                     )
                 }
             },
@@ -265,9 +274,12 @@ fun MainScreen(
                     selectedEmoji,
                     resetSelectedEmoji = { selectedEmoji = "" },
                     notificationViewModel = notificationViewModel,
-                    onDisplayTextChange = {theText, userId -> gistStarterName = theText; gistStarterId = userId}
+                    onDisplayTextChange = { theText, userId ->
+                        gistStarterName = theText; gistStarterId = userId
+                    }
                 )
-                if (isSearchMode && searchResults.isNotEmpty()) {
+                Log.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
+                if (isSearchMode && (searchResults.isNotEmpty() || cannotFindUser)) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -275,35 +287,55 @@ fun MainScreen(
                             .padding(top = 90.dp)
                             .background(MaterialTheme.colorScheme.background)
                     ) {
-                        searchResults.forEach { user ->
+                        if (!cannotFindUser || searchResults.isNotEmpty()) {
+                            searchResults.forEach { user ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(8.dp)
+                                        .clickable {
+                                            navController.navigate("bioScreen/${user.userId}")
+                                            searchResults = emptyList()
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Log.d("KliqueSearch", "UI 1")
+                                    Image(
+                                        painter = rememberAsyncImagePainter(user.profilePictureUrl),
+                                        contentDescription = "Profile Picture",
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                MaterialTheme.colorScheme.onSurface.copy(
+                                                    alpha = 0.2f
+                                                )
+                                            )
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Row {
+                                        Text(
+                                            text = user.userAlias,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        VerifiedBadge(isVerified = user.isVerified)
+                                    }
+                                }
+                            }
+                        } else {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(8.dp)
-                                    .clickable {
-                                        navController.navigate("bioScreen/${user.userId}")
-                                        searchResults = emptyList()
-                                    },
+                                    .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Image(
-                                    painter = rememberAsyncImagePainter(user.profilePictureUrl),
-                                    contentDescription = "Profile Picture",
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
+                                Text(
+                                    text = "Cannot find user",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Row {
-                                    Text(
-                                        text = user.userAlias,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    VerifiedBadge(isVerified = user.isVerified)
-                                }
                             }
                         }
                     }
@@ -349,12 +381,14 @@ fun MainContent(
     }
 
     LaunchedEffect(key1 = customerId, key2 = fullName) {
-        if (customerId != 0 && fullName.isNotEmpty()) {
+        if (customerId != 0) {
             Log.d(
                 "WebSocket",
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
-            WebSocketManager.connect(webSocketUrl, customerId, fullName, context)
+            if (!WebSocketManager.isConnected) {
+                WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "MainScreen")
+            }
         }
     }
     DisposableEffect(Unit) {
@@ -396,15 +430,29 @@ fun MainContent(
     ) {
         val application = LocalContext.current.applicationContext as Application
         val contactDao = remember { DatabaseProvider.getContactsDatabase(application).contactDao() }
-        val getGistStateDao = remember {DatabaseProvider.getGistRoomCreatedBase(application).gistStateDao()}
+        val getGistStateDao =
+            remember { DatabaseProvider.getGistRoomCreatedBase(application).gistStateDao() }
         val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-            factory = SharedCliqueViewModelFactory(application, customerId, contactDao, getGistStateDao)
+            factory = SharedCliqueViewModelFactory(
+                application,
+                customerId,
+                contactDao,
+                getGistStateDao
+            )
         )
         var emojiPickerHeight by remember { mutableStateOf(0.dp) }
         NavigationHost(
-            navController, isLoggedIn, customerId,
-            fullName, onEmojiPickerVisibilityChange, selectedEmoji,
-            showEmojiPicker, application, sharedCliqueViewModel, resetSelectedEmoji, onDisplayTextChange
+            navController,
+            isLoggedIn,
+            customerId,
+            fullName,
+            onEmojiPickerVisibilityChange,
+            selectedEmoji,
+            showEmojiPicker,
+            application,
+            sharedCliqueViewModel,
+            resetSelectedEmoji,
+            onDisplayTextChange
         ) { height -> emojiPickerHeight = height }
         LeftDrawer(
             leftDrawerState,
@@ -425,7 +473,7 @@ fun MainContent(
                     .fillMaxWidth()
                     .wrapContentHeight()
                     .background(MaterialTheme.colorScheme.surface)
-                    .align(Alignment.BottomCenter) // Align at the bottom center
+                    .align(Alignment.BottomCenter)
             ) {
                 EmojiPickerView(onEmojiSelected = {
                     Log.d("EmojiVisibility", "The emojiVisible: $it")
@@ -449,7 +497,8 @@ fun CustomAppBar(
     onSearchTextChange: (String) -> Unit,
     displayText: String,
     displayId: Int,
-    navController: NavController
+    navController: NavController,
+    cannotFindUser: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -461,7 +510,12 @@ fun CustomAppBar(
         if (isSearchMode) {
             TextField(
                 value = searchText,
-                onValueChange = { onSearchTextChange(it) },
+                onValueChange = {
+                    onSearchTextChange(it)
+                    if (it.length <= 2) {
+                        cannotFindUser(false)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 40.dp, start = 16.dp, end = 16.dp),
@@ -470,6 +524,7 @@ fun CustomAppBar(
                     IconButton(onClick = {
                         onSearchModeChange(false)
                         onSearchTextChange("")
+                        cannotFindUser(false)
                     }) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancel Search")
                     }
@@ -527,7 +582,11 @@ fun CustomAppBar(
                 modifier = Modifier
                     .padding(top = 40.dp)
                     .align(Alignment.CenterVertically)
-                    .clickable { if (displayId != 0){ navController.navigate("bioScreen/$displayId")}},
+                    .clickable {
+                        if (displayId != 0) {
+                            navController.navigate("bioScreen/$displayId")
+                        }
+                    },
                 style = MaterialTheme.typography.bodyMedium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -629,6 +688,7 @@ fun VerifiedBadge(isVerified: Boolean) {
         )
     }
 }
+
 // Function to check if token is already sent and send if not
 private fun checkAndSendToken(context: Context) {
     val sharedPreferences = context.getSharedPreferences("firebase_prefs", Context.MODE_PRIVATE)

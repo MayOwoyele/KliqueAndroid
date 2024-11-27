@@ -195,8 +195,6 @@ fun HomeScreen(
                     )
                 }
             }
-
-            // GistForm overlay Box
             if (showForm) {
                 Box(
                     modifier = Modifier
@@ -212,7 +210,6 @@ fun HomeScreen(
                     GistForm(onSubmit = { topic, type, description ->
                         coroutineScope.launch {
                             viewModel.startGist(topic, type, description)
-                            // Remember to also add 'description' parameter to the function call
                             showForm = false
                         }
                     }, onBack = { showForm = false },
@@ -276,8 +273,6 @@ fun GistForm(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Input field for gist topic
         OutlinedTextField(
             value = topic,
             onValueChange = { newText ->
@@ -311,12 +306,11 @@ fun GistForm(
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
                 focusedTextColor = MaterialTheme.colorScheme.onPrimary
             ),
-            maxLines = 2 // Limit to 2 lines for better UI
+            maxLines = 2
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Binary selection for gist type
         Text(text = "Gist Type")
         Spacer(modifier = Modifier.height(8.dp))
 

@@ -326,7 +326,6 @@ fun ChatRoomMessageItem(
                         text = message.content,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
                     ChatRoomMessageType.CIMAGE -> {
                         ChatRoomImageItem(
                             image = message.localPath,
@@ -433,7 +432,6 @@ fun ChatRoomImageItem(image: Uri?, shape: Shape, mediaViewModel: MediaViewModel,
     LaunchedEffect(image) {
         bitmap = image?.let { convertJpgToBitmap(context, it) }
     }
-
     bitmap?.let { bmp ->
         Image(
             bitmap = bmp.asImageBitmap(),

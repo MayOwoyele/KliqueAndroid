@@ -66,7 +66,6 @@ fun ForwardChatsScreen(
     var searchQuery by remember { mutableStateOf("") }
     val selectedChats = remember { mutableStateListOf<Int>() }
     val context = LocalContext.current
-    val messageToForward by viewModel.messagesToForward.observeAsState()
     DisposableEffect(Unit) {
         onDispose {
             if (viewModel.messagesToForward.value?.isNotEmpty() == true) {
@@ -138,7 +137,7 @@ fun ForwardChatsScreen(
         FloatingActionButton(
             onClick = {
                 viewModel.forwardMessagesToRecipients(selectedChats, myId = customerId, context = context)
-                navController.popBackStack() // Navigate back after forwarding
+                navController.popBackStack()
             },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -189,8 +188,8 @@ fun TheChatItem(
             modifier = Modifier
                 .fillMaxSize()
                 .background(backgroundColor)
-                .padding(16.dp), // Fill the available space
-            verticalAlignment = Alignment.CenterVertically // Ensure vertical alignment
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
                 Image(

@@ -76,8 +76,7 @@ import okio.IOException
 fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel) {
     var isEditing by remember { mutableStateOf(false) }
     val descriptionFromServer by viewModel.gistTopRow.collectAsState()
-    var text by remember { mutableStateOf(descriptionFromServer?.gistDescription) }
-    var editedText by remember { mutableStateOf(text) }
+    var editedText by remember { mutableStateOf(descriptionFromServer?.gistDescription) }
     var isSearchMode by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     val focusRequester = remember { FocusRequester() }
@@ -93,6 +92,11 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
     LaunchedEffect(gistId) {
         if (gistId != null) {
             viewModel.fetchMembersFromServer(gistId)
+        }
+    }
+    LaunchedEffect(key1 = searchQuery) {
+        if (searchQuery.length > 1){
+            viewModel.doTheSearch(searchQuery)
         }
     }
 
@@ -142,7 +146,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                         )
                     }
                 } else {
-                    text?.let {
+                    editedText?.let {
                         Text(
                             text = it,
                             modifier = Modifier
@@ -243,7 +247,6 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                         if ((editedText?.length ?: 0) < minCharacterLimit) {
                             errorMessage = "Description must be at least $minCharacterLimit characters long."
                         } else {
-                            text = editedText
                             isEditing = false
                             editedText?.let { viewModel.sendUpdatedDescription(it, gistId!!) }
                             errorMessage = null
@@ -281,7 +284,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
-                } else  {
+                } else {
                     items(searchResults) {member ->
                         MyMembersList(member = member, viewModel)
                     }

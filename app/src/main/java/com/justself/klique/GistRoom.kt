@@ -262,7 +262,7 @@ fun GistRoom(
                 try {
                     viewModel.loadMessages(gistId)
                 } catch (e: Exception) {
-                    viewModel.close()
+                    e.printStackTrace()
                 }
             }
         }
@@ -372,9 +372,7 @@ fun GistRoom(
     val stopRecording = { file: File? ->
         isRecording.value = false
         file?.let {
-            // Handle the recorded file, e.g., send it or save it
             coroutineScope.launch {
-                // Upload file to a server and handle locally
                 try {
                     val audioByteArray = FileUtils.fileToByteArray(it)
                     Log.d("ChatRoom", "Audio Byte Array: ${audioByteArray.size} bytes")
@@ -402,7 +400,7 @@ fun GistRoom(
                             status = GistMessageStatus.Pending,
                             messageType = GistMessageType.K_AUDIO,
                             localPath = audioUri,
-                            timeStamp = ZonedDateTime.now()
+                            timeStamp = System.currentTimeMillis().toString()
                         )
                     }
                     if (gistMessage != null) {
@@ -416,9 +414,7 @@ fun GistRoom(
     }
     var showBottomSheet by remember { mutableStateOf(false) }
     val userStatus by viewModel.userStatus.observeAsState(initial = UserStatus(false, false))
-    // Main content
     Box(modifier = Modifier.fillMaxSize()) {
-        // Main content
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -467,7 +463,7 @@ fun GistRoom(
                                 content = message.text.trimEnd(),
                                 status = GistMessageStatus.Pending,
                                 messageType = GistMessageType.K_TEXT,
-                                timeStamp = ZonedDateTime.now()
+                                timeStamp = System.currentTimeMillis().toString()
                             )
                         }
                         if (gistMessage != null) {
@@ -509,7 +505,7 @@ fun GistRoom(
                 audioPermissionLauncher = audioPermissionLauncher,
                 onShowBottomSheet = {
                     showBottomSheet = true; if (gistId != null) {
-                    viewModel.fetchGistComments()
+                    viewModel.fetchGistComments(userId = customerId)
                 }
                 },
                 isSpeaker = userStatus.isSpeaker
@@ -688,8 +684,8 @@ fun MessageContent(
                 ) {
                     if (!isCurrentUser) {
                         Text(text = message.senderName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSecondary,
                             modifier = Modifier
                                 .padding(bottom = 4.dp)
                                 .clickable { navController.navigate("bioScreen/${message.senderId}") })
@@ -797,7 +793,8 @@ fun MessageContent(
                             if (audioUri != null) {
                                 AudioPlayer(
                                     audioUri = audioUri!!,
-                                    modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp)
+                                    modifier = Modifier.widthIn(min = 300.dp, max = 1000.dp),
+                                    isSelectionMode = null
                                 )
                             } else if (message.externalUrl != null) {
                                 Text(
@@ -1127,8 +1124,6 @@ private fun launchPicker(
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
     }
-
-    // Check if the necessary permission is granted
     if (ContextCompat.checkSelfPermission(
             context, permissionToCheck
         ) == PermissionChecker.PERMISSION_GRANTED
@@ -1173,7 +1168,7 @@ fun handleImageUri(
                     status = GistMessageStatus.Pending,
                     messageType = GistMessageType.K_IMAGE,
                     localPath = imageUri,
-                    timeStamp = ZonedDateTime.now()
+                    timeStamp = System.currentTimeMillis().toString()
                 )
                 viewModel.addMessage(gistMessage)
             } catch (e: IOException) {

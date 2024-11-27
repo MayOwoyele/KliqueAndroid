@@ -79,8 +79,8 @@ fun LeftDrawer(
     var isChatRoomsExpanded by remember { mutableStateOf(false) }
     AnimatedVisibility(
         visible = drawerState.value,
-        enter = slideInHorizontally { -it } + fadeIn(), // Slide in from off-screen left
-        exit = slideOutHorizontally { -it }, // Slide out to the off-screen left
+        enter = slideInHorizontally { -it } + fadeIn(),
+        exit = slideOutHorizontally { -it },
         modifier = modifier
     ) {
         Box(modifier = Modifier

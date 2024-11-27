@@ -1,13 +1,14 @@
-package com.justself.klique.Bookshelf.Contacts.repository
+package com.justself.klique.ContactsBlock.Contacts.repository
 
 import android.content.ContentResolver
 import android.content.Context
 import android.provider.ContactsContract
+import android.telephony.TelephonyManager
 import android.util.Log
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
-import com.justself.klique.Bookshelf.Contacts.data.Contact
-import com.justself.klique.Bookshelf.Contacts.data.ServerContactResponse
+import com.justself.klique.ContactsBlock.Contacts.data.Contact
+import com.justself.klique.ContactsBlock.Contacts.data.ServerContactResponse
 import com.justself.klique.ContactEntity
 import com.justself.klique.ContactsDatabase
 import com.justself.klique.DatabaseProvider
@@ -17,6 +18,7 @@ import okio.IOException
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.util.Locale
 import kotlin.random.Random
 
 
@@ -24,7 +26,8 @@ import kotlin.random.Random
 class ContactsRepository(private val contentResolver: ContentResolver, context: Context) {
     private val database: ContactsDatabase = DatabaseProvider.getContactsDatabase(context)
     private val phoneUtil = PhoneNumberUtil.getInstance()
-    private fun normalizePhoneNumber(phoneNumber: String, region: String = "NG"): String? {
+    private fun normalizePhoneNumber(phoneNumber: String, context: Context): String? {
+        val region = getUserCountryCode(context)
         return try {
             val number: Phonenumber.PhoneNumber = phoneUtil.parse(phoneNumber, region)
             phoneUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.E164)
@@ -33,36 +36,27 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         }
     }
     suspend fun getContactByCustomerId(customerId: Int): ContactEntity? {
-        // Assuming you have a method in ContactDao to get a contact by senderId
         return database.contactDao().getContactByCustomerId(customerId)
     }
 
-    fun getContacts(): List<Contact> {
+    fun getContacts(context: Context): List<Contact> {
         val contactList: MutableList<Contact> = mutableListOf()
         Log.d("Check 2", "Check")
 
-
-        // Perform the query on the Contacts content provider
-        // Cursor provides read-only access to the results
         val cursor = contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI, // URI of the content provider
-            null, // Projection (null means all columns)
-            null, // Selection (null means no selection criteria)
-            null, // Selection arguments (null means no arguments)
-            null  // Sort order (null means default sort order)
+            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+            null,
+            null,
+            null,
+            null
         )
-
-        // Using cursor to iterate over the contacts results
         cursor?.use {
-            // gets the index of the columns that we are interested in (name and Phone number for now)
             val nameColumn = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
             val phoneNumberColumn = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-
-            // Iterate over the rows for each contact in the cursor
             while (it.moveToNext()) {
                 val name = it.getString(nameColumn)
                 val phoneNumber = it.getString(phoneNumberColumn)
-                val normalizedPhoneNumber = normalizePhoneNumber(phoneNumber)
+                val normalizedPhoneNumber = normalizePhoneNumber(phoneNumber, context)
                 if (normalizedPhoneNumber != null) {
                     contactList.add(Contact(name, normalizedPhoneNumber))
                 }
@@ -70,6 +64,14 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         }
 
         return contactList
+    }
+    fun getUserCountryCode(context: Context): String {
+        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
+        val simCountry = telephonyManager.simCountryIso?.uppercase()
+
+        val localeCountry = Locale.getDefault().country
+        return networkCountry ?: simCountry ?: localeCountry
     }
 
     fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
