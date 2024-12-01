@@ -78,6 +78,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
     override fun onMessageReceived(type: ChatRoomReceivingType, jsonObject: JSONObject) {
         when (type) {
             ChatRoomReceivingType.CHAT_ROOM_MESSAGES -> {
+                _chatRoomMessages.value = emptyList()
                     val messages = jsonObject.getJSONArray("messages")
                     (0 until messages.length()).map {
                         val messageObject = messages.getJSONObject(it)
@@ -92,7 +93,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                             else -> ChatRoomMessageType.CTEXT
                         }
                         val timeStamp = messageObject.getLong("timeStamp")
-                        val externalUrl = messageObject.optString("externalUrl").replace("127.0.0.1", "10.0.2.2")
+                        val externalUrl = messageObject.optString("externalUrl")
                         Log.d("ChatRoom", "external url is $externalUrl")
                         val status = ChatRoomStatus.SENT
                     val theMessage = ChatRoomMessage(
@@ -129,7 +130,11 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                     timeStamp = timeStamp,
                     status = status
                 )
-                _chatRoomMessages.value = listOf(newMessage) + _chatRoomMessages.value
+                val messageExists = _chatRoomMessages.value.any{it.messageId == messageId}
+                if (!messageExists) {
+                    _chatRoomMessages.value = listOf(newMessage) + _chatRoomMessages.value
+                    Log.d("RawWebsocket", "${_chatRoomMessages.value}")
+                }
             }
 
             ChatRoomReceivingType.C_IMAGE -> {
@@ -137,12 +142,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                 val senderId = jsonObject.getInt("senderId")
                 val content = jsonObject.getString("content")
                 val senderName = jsonObject.getString("senderName")
-                val messageTypeExtract = jsonObject.getString("messageType")
-                val messageType = when (messageTypeExtract) {
-                    ChatRoomMessageType.CIMAGE.typeString -> ChatRoomMessageType.CIMAGE
-                    ChatRoomMessageType.CTEXT.typeString -> ChatRoomMessageType.CTEXT
-                    else -> ChatRoomMessageType.CTEXT
-                }
+                val messageType = ChatRoomMessageType.CIMAGE
                 val timeStamp = jsonObject.getLong("timeStamp")
                 val externalUrl = jsonObject.optString("externalUrl")
                 val status = ChatRoomStatus.SENT
@@ -156,7 +156,14 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                     externalUrl = externalUrl.ifBlank { null },
                     status = status
                 )
-                _chatRoomMessages.value = listOf(theMessage) + _chatRoomMessages.value
+                val messageExists = _chatRoomMessages.value.any{it.messageId == messageId}
+                if (!messageExists) {
+                    Log.d("RawWebsocket", "C image enter, $messageId")
+                    _chatRoomMessages.value = listOf(theMessage) + _chatRoomMessages.value
+                    Log.d("RawWebsocket", "${_chatRoomMessages.value}")
+                } else {
+                    Log.d("RawWebsocket", "C image not")
+                }
                 if (externalUrl.isNotEmpty()) {
                     handleMediaDownload(theMessage)
                 }
@@ -318,12 +325,11 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
             }
         """.trimIndent()
         send(chatRoomJson)
-
     }
     fun exitChatRoom(chatRoomId: Int, myId: Int){
         val jsonBody = """
             {
-            "type": "exitChatRoom"
+            "type": "exitChatRoom",
             "chatRoomId": $chatRoomId,
             "userId": $myId
             }

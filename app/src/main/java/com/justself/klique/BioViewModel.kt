@@ -33,11 +33,12 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     NetworkUtils.makeRequest("fetchProfile", KliqueHttpMethod.GET, params)
                 if (response.first) {
                     val jsonResponse = response.second
+                    Log.d("CommentStatus", response.second.toString())
                     val jsonObject = JSONObject(jsonResponse)
 
                     val profileAssigned = Profile(
                         customerId = jsonObject.getInt("userId"),
-                        bioImage = jsonObject.getString("bioImage"),
+                        bioImage = jsonObject.getString("bioImage").replace("127.0.0.1", "10.0.2.2"),
                         backgroundColor = colorFromHex(jsonObject.getString("backgroundColor")),
                         fullName = jsonObject.getString("fullName"),
                         bioText = jsonObject.getString("bioText"),
@@ -47,11 +48,11 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         seatedCount = jsonObject.getInt("seatedCount"),
                         isVerified = jsonObject.getBoolean("isVerified")
                     )
-                    Log.d("ProfileJson", profileAssigned.toString())
+                    Log.d("ProfileJson", profileAssigned.backgroundColor.toString())
                     _profile.value = profileAssigned
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.d("CommentStatus", e.toString())
             }
         }
     }
@@ -63,9 +64,9 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             val post = Post(
                 id = postJson.getString("id"),
                 type = postJson.getString("type"),
-                content = postJson.getString("content"),
+                content = postJson.getString("content").replace("127.0.0.1", "10.0.2.2"),
                 thumbnail = postJson.optString("thumbnail", ""),
-                topComments = parseComments(postJson.getJSONArray("topComments")),  // Parse top comments
+                topComments = parseComments(postJson.getJSONArray("topComments")),
                 totalComments = postJson.getInt("totalComments"),
                 kcLikesCount = postJson.getInt("kcLikesCount")
             )
@@ -80,7 +81,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             val commentJson = commentsArray.getJSONObject(i)
             val comment = StatusComments(
                 name = commentJson.getString("name"),
-                customerId = commentJson.getInt("customerId"),
+                customerId = commentJson.getInt("customer_id"),
                 text = commentJson.getString("text")
             )
             comments.add(comment)
@@ -109,7 +110,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     jsonBody = json
                 )
                 if (response.first){
-                    _profile.value = _profile.value?.copy(isSpectator = false)
+                    _profile.value = _profile.value?.copy(isSpectator = false, seatedCount = (_profile.value?.seatedCount ?: 1) - 1)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -134,7 +135,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                 )
                 if (response.first){
                     Log.d("Response", "response successful")
-                    _profile.value = _profile.value?.copy(isSpectator = true)
+                    _profile.value = _profile.value?.copy(isSpectator = true, seatedCount = (_profile.value?.seatedCount ?: 1) + 1)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -149,13 +150,15 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
     fun formatSpectatorCount(count: Int): String {
         return when {
+            count == 0 -> "No"
             count >= 1_000_000 -> String.format(Locale.US, "%.1fM", count / 1_000_000.0)
             count >= 1_000 -> String.format(Locale.US, "%dK", count / 1_000)
             else -> count.toString()
         }
     }
 
-    fun sendComment(comment: String, customerId: Int) {
+    fun sendComment(comment: String, customerId: Int, commentText: String, replyingTo: String?, replyingToId: Int?) {
+        Log.d("CommentStatus", "called")
         viewModelScope.launch {
             try {
                 val response = NetworkUtils.makeRequest(
@@ -168,14 +171,19 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     val newComment = StatusComments(
                         name = "You",
                         customerId = customerId,
-                        text = comment
+                        text = commentText,
+                        replyingToId = replyingToId,
+                        replyingTo = replyingTo
                     )
                     val updatedComments = _postComments.value.toMutableList()
                     updatedComments.add(newComment)
                     _postComments.value = updatedComments
+                    Log.d("CommentStatus", response.second)
+                } else {
+                    Log.d("CommentStatus", response.second)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.d("CommentStatus", e.toString())
             }
         }
     }
@@ -197,12 +205,14 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         val statusComment = StatusComments(
                             name = commentJson.getString("name"),
                             customerId = commentJson.getInt("customer_id"),
-                            text = commentJson.getString("text")
+                            text = commentJson.getString("text"),
+                            replyingToId = commentJson.optInt("replying_to_id").takeIf { it != 0 },
+                            replyingTo = commentJson.optString("replying_to").takeIf { it != "null" }
                         )
                         commentsList.add(statusComment)
                     }
                     _postComments.value = commentsList
-
+                    Log.d("PostComments", "$commentsList")
                 }
             }
         } catch (e: Exception){

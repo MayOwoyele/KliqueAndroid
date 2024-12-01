@@ -76,6 +76,12 @@ fun LeftDrawer(
     customerId: Int,
     viewModel: LeftDrawerViewModel = viewModel(),
 ) {
+    LaunchedEffect(key1 = drawerState.value) {
+        if (drawerState.value){
+            viewModel.fetchProfile()
+        }
+    }
+    val profileDetails by viewModel.tinyProfileDetails.collectAsState()
     var isChatRoomsExpanded by remember { mutableStateOf(false) }
     AnimatedVisibility(
         visible = drawerState.value,
@@ -85,13 +91,13 @@ fun LeftDrawer(
     ) {
         Box(modifier = Modifier
             .fillMaxSize()
-            .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
+            .background(color = MaterialTheme.colorScheme.background.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
             .clickable(
                 indication = null,
                 interactionSource = remember { MutableInteractionSource() }) {
                 drawerState.value = false
             }
-            .pointerInput(Unit){
+            .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     if (dragAmount.x < -50f) {
                         drawerState.value = false
@@ -111,7 +117,7 @@ fun LeftDrawer(
                         indication = null
                     )
                     { /* Consume the click */ }
-                    .pointerInput(Unit){
+                    .pointerInput(Unit) {
                         detectDragGestures { change, dragAmount ->
                             if (dragAmount.x < -50f) {
                                 drawerState.value = false
@@ -120,15 +126,6 @@ fun LeftDrawer(
                         }
                     }
             ) {
-                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    IconButton(onClick = { /*TODO*/
-                    }) {
-                        Icon(
-                            imageVector = if (isSystemInDarkTheme()) Icons.Rounded.LightMode else Icons.Rounded.DarkMode,
-                            contentDescription = "Toggle Dark Mode "
-                        )
-                    }
-                }
                 LeftDrawerItem(
                     modifier = Modifier.padding(bottom = 16.dp),
                     leading = {
@@ -138,18 +135,18 @@ fun LeftDrawer(
                                 .clip(CircleShape.copy(CornerSize(150.dp)))
                         ) {
                             Image(
-                                painter = rememberAsyncImagePainter(model = "https://unsplash.com/photos/MP0IUfwrn0A/download?force=true&w=640"),
+                                painter = rememberAsyncImagePainter(model = profileDetails.profileUrl),
                                 contentScale = ContentScale.Crop,
                                 contentDescription = "Logo"
                             )
                         }
                     },
-                    text = "Tatiana Manois",
-                    secondaryText = "+2341234567890",
+                    text = profileDetails.name,
+                    secondaryText = profileDetails.phoneNumber,
                     trailing = {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             Icon(Icons.Rounded.Wallet, contentDescription = "Profile")
-                            Text(text = "500KC")
+                            Text(text = "${profileDetails.kcBalance}KC")
                         }
 
                     },
@@ -157,8 +154,8 @@ fun LeftDrawer(
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = { Icon(Icons.Rounded.Person, contentDescription = "Profile") },
-                    text = "My Profile",
+                    leading = { Icon(Icons.Rounded.Person, contentDescription = "Me") },
+                    text = "Me",
                     onClick = {navController.navigate("BioScreen/$customerId"); drawerState.value = false}
                 )
                 LeftDrawerItem(
@@ -166,10 +163,10 @@ fun LeftDrawer(
                     leading = {
                         Icon(
                             Icons.Rounded.MarkChatUnread,
-                            contentDescription = "Profile"
+                            contentDescription = "Klique"
                         )
                     },
-                    text = "Chatrooms",
+                    text = "Klique",
                     onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
                 )
                 if (isChatRoomsExpanded) {
@@ -182,10 +179,10 @@ fun LeftDrawer(
                     leading = {
                         Icon(
                             Icons.AutoMirrored.Rounded.Message,
-                            contentDescription = "Direct Messages"
+                            contentDescription = "Shots"
                         )
                     },
-                    text = "Direct Messages",
+                    text = "Shots",
                     onClick = {
                         navController.navigate("dmList")
                         drawerState.value = false
@@ -287,7 +284,7 @@ fun RightDrawer(
                     interactionSource = remember { MutableInteractionSource() }) {
                     drawerState.value = false
                 }
-                .pointerInput(Unit){
+                .pointerInput(Unit) {
                     detectDragGestures { change, dragAmount ->
                         if (dragAmount.x > 50f) {
                             drawerState.value = false
@@ -340,7 +337,7 @@ fun NotificationItem(
                 navController.navigate("bioScreen/${notification.userId}")
                 drawerState.value = false
             }
-            .pointerInput(Unit){
+            .pointerInput(Unit) {
                 detectDragGestures { change, dragAmount ->
                     if (dragAmount.x > 20f) {
                         drawerState.value = false

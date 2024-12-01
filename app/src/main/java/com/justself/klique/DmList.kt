@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -51,8 +52,9 @@ fun DmListItem(dmItem: DmItem, navController: NavController) {
             .clickable { navController.navigate("dmChatScreen/${dmItem.enemyId}/${dmItem.fullName}") },
         verticalAlignment = Alignment.CenterVertically
     ) {
+        Log.d("ImageItem", dmItem.imageLink)
         Image(
-            painter = rememberAsyncImagePainter(dmItem.imageLink),
+            painter = rememberAsyncImagePainter(model = dmItem.imageLink),
             contentDescription = null,
             modifier = Modifier
                 .size(40.dp)

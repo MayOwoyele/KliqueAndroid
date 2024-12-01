@@ -27,5 +27,7 @@ data class Profile(
 data class StatusComments(
     val name: String,
     val customerId: Int,
-    val text: String
+    val text: String,
+    val replyingToId: Int? = null,
+    val replyingTo: String? = null
 )

@@ -4,15 +4,14 @@ package com.justself.klique
 import android.content.Context
 import android.util.Base64
 import android.util.Log
-import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
 import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
@@ -42,7 +41,8 @@ object WebSocketManager {
     }
 
     private val listeners = mutableMapOf<String, WebSocketListener<*>>()
-    var isConnected = false
+    private val _isConnected = MutableStateFlow(false)
+    val isConnected = _isConnected.asStateFlow()
     private var reconnectionAttempts = 0
     private const val MAX_RECONNECT_ATTEMPTS = 10
     private const val RECONNECT_DELAY = 3000L
@@ -56,7 +56,6 @@ object WebSocketManager {
     private var chatScreenViewModel: ChatScreenViewModel? = null
     private var sharedCliqueViewModel: SharedCliqueViewModel? = null
     private var chatRoomViewModel: ChatRoomViewModel? = null
-    private var appContext: Context? = null
     var aReconnection = false
     @Volatile
     private var isReconnecting = false
@@ -68,16 +67,11 @@ object WebSocketManager {
     fun <T> unregisterListener(listener: WebSocketListener<T>) {
         listeners.remove(listener.listenerId)
     }
-
-    fun initialize(context: Context) {
-        appContext = context.applicationContext
-    }
-
     private fun createWebSocketClient(url: URI, context: Context): WebSocketClient {
         return object : WebSocketClient(url) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 println("WebSocket connected!")
-                isConnected = true
+                _isConnected.value = true
                 lastPongTime = System.currentTimeMillis()
                 reconnectionAttempts = 0
                 startPingPong()
@@ -159,7 +153,7 @@ object WebSocketManager {
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
                 println("WebSocket closed: Reason - $reason")
-                isConnected = false
+                _isConnected.value = false
                 if (shouldReconnect) {
                     CoroutineScope(Dispatchers.IO).launch{
                         scheduleReconnect("on Close function")
@@ -222,25 +216,21 @@ object WebSocketManager {
                 reconnectionAttempts++
                 println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
                 delay(RECONNECT_DELAY * reconnectionAttempts) // Wait before attempting to reconnect
-                if (!isConnected) {
-                    appContext?.let {
-                        connect(
-                            webSocketClient!!.uri.toString(), customerId, fullName,
-                            it, "scheduleReconnectIf!isConnected"
-                        )
-                    }
+                if (!_isConnected.value) {
+                    connect(
+                        webSocketClient!!.uri.toString(), customerId, fullName,
+                        appContext, "scheduleReconnectIf!_isConnected"
+                    )
                 }
             } else {
                 println("Max reconnection attempts reached. Maintaining steady reconnect interval.")
-                while (!isConnected && shouldReconnect) {
+                while (!_isConnected.value && shouldReconnect) {
                     delay(RECONNECT_DELAY * reconnectionAttempts) // Steady delay interval
                     println("Attempting to reconnect at a steady interval...")
-                    appContext?.let {
-                        connect(
-                            webSocketClient!!.uri.toString(), customerId, fullName,
-                            it, "scheduleReconnectIfisConnected"
-                        )
-                    }
+                    connect(
+                        webSocketClient!!.uri.toString(), customerId, fullName,
+                        appContext, "scheduleReconnectIfisConnected"
+                    )
                 }
             }
         } finally {
@@ -251,7 +241,7 @@ object WebSocketManager {
 
     private fun startPingPong() {
         CoroutineScope(Dispatchers.IO).launch {
-            while (isConnected) {
+            while (_isConnected.value) {
                 try {
                     Log.d("Websocket", "Sending Ping")
                     webSocketClient?.sendPing()
@@ -259,13 +249,13 @@ object WebSocketManager {
 
                     if (System.currentTimeMillis() - lastPongTime > PONG_TIMEOUT) {
                         println("Pong timeout. Reconnecting...")
-                        isConnected = false
+                        _isConnected.value = false
                         webSocketClient?.close()
                         scheduleReconnect("StartPing Timeout")
                     }
                 } catch (e: Exception) {
                     println("Error during ping-pong: ${e.message}")
-                    isConnected = false
+                    _isConnected.value = false
                     scheduleReconnect("StartPing Exception")
                 }
             }

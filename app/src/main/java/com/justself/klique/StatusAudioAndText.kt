@@ -75,7 +75,6 @@ fun StatusAudio(viewModel: MediaViewModel, navController: NavController) {
     var audioUri by remember { mutableStateOf<Uri?>(null) }
     var recordingDuration by remember { mutableIntStateOf(0) }
     val audioStatus by viewModel.audioStatusSubmissionResult.collectAsState()
-
     LaunchedEffect(audioStatus) {
         audioStatus?.let {statusSent ->
             if (statusSent) {
@@ -281,6 +280,7 @@ fun CustomAudioPlayer(audioUri: Uri) {
             mediaPlayer.setOnCompletionListener {
                 isPlaying = false
                 progress = 0f
+                mediaPlayer.seekTo(0)
             }
             while (mediaPlayer.isPlaying) {
                 progress = mediaPlayer.currentPosition / duration.toFloat()

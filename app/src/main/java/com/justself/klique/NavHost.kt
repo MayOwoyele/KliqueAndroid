@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.justself.klique.Authentication.ui.screens.RegistrationScreen
 import com.justself.klique.ContactsBlock.Contacts.ui.ContactsScreen
 import com.justself.klique.ContactsBlock.ui.BookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
@@ -57,11 +58,14 @@ fun NavigationHost(
 //        )
         ProfileRepository.clearProfileData()
     }
+    val profileViewModel: ProfileViewModel = viewModel(
+        factory = ProfileViewModelFactory(chatScreenViewModel)
+    )
     WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
     WebSocketManager.setSharedCliqueViewModel(sharedCliqueViewModel)
     NavHost(
         navController = navController,
-        startDestination = if (isLoggedIn) "home" else "login"
+        startDestination = if (isLoggedIn) "home" else "registration"
     ) {
         composable("home") {
             HomeScreen(
@@ -90,13 +94,6 @@ fun NavigationHost(
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
         composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
-        composable("dmScreen/{ownerId}/{shopName}") { backStackEntry ->
-            val ownerId = backStackEntry.arguments?.getString("ownerId")?.toIntOrNull()
-                ?: throw IllegalStateException("Owner ID must be provided")
-            val shopName = backStackEntry.arguments?.getString("shopName")?.let { Uri.decode(it) }
-                ?: throw IllegalStateException("Shop Name must be provided")
-            DMChatScreen(navController, customerId, shopName, ownerId)
-        }
         composable(
             "messageScreen/{enemyId}/{contactName}?isVerified={isVerified}",
             arguments = listOf(
@@ -268,8 +265,8 @@ fun NavigationHost(
             UpdateProfileScreen(
                 navController = navController,
                 mediaViewModel = mediaViewModel,
-                chatScreenViewModel = chatScreenViewModel,
-                customerId = customerId
+                customerId = customerId,
+                viewModel = profileViewModel
             )
         }
         composable("contactsScreen") {
@@ -281,6 +278,8 @@ fun NavigationHost(
         }
         composable("statusSelectionScreen") {
             StatusSelectionScreen(navController = navController, mediaViewModel = mediaViewModel)
+        }
+        composable("registration") {
         }
     }
 }

@@ -31,6 +31,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,24 +54,22 @@ import androidx.navigation.NavController
 import kotlin.math.abs
 
 @Composable
-fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourceScreen: SourceScreen = SourceScreen.STATUS, customerId: Int) {
+fun ImageCropTool(
+    viewModel: MediaViewModel,
+    navController: NavController,
+    sourceScreen: SourceScreen = SourceScreen.STATUS,
+    customerId: Int
+) {
     val bitmap by viewModel.bitmap.observeAsState()
-    val scale = remember { mutableStateOf(1f) }
-    val offsetX = remember { mutableStateOf(0f) }
-    val offsetY = remember { mutableStateOf(0f) }
+    val scale = remember { mutableFloatStateOf(1f) }
+    val offsetX = remember { mutableFloatStateOf(0f) }
+    val offsetY = remember { mutableFloatStateOf(0f) }
     val doubleTapScale = 2f
-    val showBackArrow = remember { mutableStateOf(true) }  // State to track back arrow visibility
+    val showBackArrow = remember { mutableStateOf(true) }
     var aspectRatio by remember { mutableFloatStateOf(1f) }
     val cropRect = remember { mutableStateOf(RectF()) }
     val context = LocalContext.current
-    val imageSubmissionResult by viewModel.imageSubmissionResult.collectAsState()
-    LaunchedEffect(key1 = imageSubmissionResult) {
-        if (imageSubmissionResult == true) {
-            Toast.makeText(context, "Image uploaded successfully", Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(context, "Image failed to upload", Toast.LENGTH_LONG).show()
-        }
-    }
+    val isUploading by viewModel.isUploading.collectAsState()
     bitmap?.let {
         if (cropRect.value.isEmpty) {
             val bitmapWidthPx = it.width.toFloat()
@@ -83,11 +82,9 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
             val initialHeight: Float
 
             if (imageAspectRatio >= cropAspectRatio) {
-                // Image is wider than the crop aspect ratio
-                initialHeight = bitmapHeightPx / 2 // Example: Use half of the image height
+                initialHeight = bitmapHeightPx / 2
                 initialWidth = initialHeight * cropAspectRatio
             } else {
-                // Image is taller than the crop aspect ratio
                 initialWidth = bitmapWidthPx / 2 // Example: Use half of the image width
                 initialHeight = initialWidth / cropAspectRatio
             }
@@ -103,9 +100,15 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
             aspectRatio = initialWidth / initialHeight
         }
     }
-    BackHandler {
-        viewModel.clearBitmap()
-        navController.popBackStack()
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearBitmap()
+            viewModel.clearCroppedBitmap()
+            viewModel.setIsUploading(false)
+        }
+    }
+    LaunchedEffect(key1 = bitmap) {
+        Log.d("kliqueBitmap", "${bitmap == null}")
     }
 
     bitmap?.let {
@@ -259,8 +262,6 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
 
                     val widthScaleFactor = canvasWidth / bitmapWidthPx
                     val heightScaleFactor = canvasHeight / bitmapHeightPx
-
-                    // Calculate the scale to fit the bitmap to the canvas, considering the current scale
                     val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.value
 
                     val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
@@ -298,15 +299,17 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
                     )
                 }
             } else {
-                croppedBitmap.value?.let { bmp ->
-                    Image(
-                        bitmap = bmp.asImageBitmap(),
-                        contentDescription = "Cropped Image",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .align(Alignment.Center)
-                            .size(200.dp)
-                    )
+                if (!isUploading) {
+                    croppedBitmap.value?.let { bmp ->
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = "Cropped Image",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .align(Alignment.Center)
+                                .size(200.dp)
+                        )
+                    }
                 }
             }
             // Conditionally display the back arrow button
@@ -321,7 +324,6 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
                     IconButton(
                         onClick = {
                             navController.popBackStack()
-                            viewModel.clearBitmap()
                         },
                     ) {
                         Icon(
@@ -371,7 +373,13 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
                                 croppedBitmap.value?.let { bitmap ->
                                     when (sourceScreen) {
                                         SourceScreen.STATUS -> {
-                                            viewModel.uploadCroppedImage(context, bitmap, customerId)
+                                            isCropping.value = false
+                                            viewModel.setIsUploading(true)
+                                            viewModel.uploadCroppedImage(
+                                                context,
+                                                bitmap,
+                                                customerId
+                                            )
                                             navController.popBackStack()
                                         }
 
@@ -412,7 +420,6 @@ fun ImageCropTool(viewModel: MediaViewModel, navController: NavController, sourc
 }
 
 fun cropBitmap(original: Bitmap, cropRect: RectF): Bitmap {
-    // Convert RectF to Rect by rounding to integer values
     val left = cropRect.left.toInt()
     val top = cropRect.top.toInt()
     val width = cropRect.width().toInt()
@@ -420,6 +427,7 @@ fun cropBitmap(original: Bitmap, cropRect: RectF): Bitmap {
 
     return Bitmap.createBitmap(original, left, top, width, height)
 }
+
 enum class SourceScreen {
     STATUS, PROFILE
 }

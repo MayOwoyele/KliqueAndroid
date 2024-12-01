@@ -40,6 +40,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -87,6 +89,7 @@ import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.screens.RegistrationScreen
+import com.justself.klique.Authentication.ui.viewModels.AppState
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 import kotlinx.coroutines.CoroutineScope
@@ -180,7 +183,7 @@ fun MainScreen(
     val navController = rememberNavController()
     val leftDrawerState = remember { mutableStateOf(false) }
     val rightDrawerState = remember { mutableStateOf(false) }
-    val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
+    val appState by authViewModel.appState.collectAsState()
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     var showEmojiPicker by remember { mutableStateOf(false) }
     var selectedEmoji by remember { mutableStateOf("") }
@@ -190,6 +193,7 @@ fun MainScreen(
     val bioScreenGuy = currentRoute?.startsWith("bioScreen/") == true
     val imageViewer = currentRoute?.startsWith("fullScreenImage") == true
     val videoViewer = currentRoute?.startsWith("fullScreenVideo") == true
+    val chatRoomGuy = currentRoute?.startsWith("chatRoom") == true
     var isSearchMode by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var searchResults by remember { mutableStateOf(listOf<SearchUser>()) }
@@ -198,7 +202,6 @@ fun MainScreen(
     }
     val notificationViewModel: NotificationViewModel = viewModel()
     val notifications by notificationViewModel.notifications.collectAsState()
-    val hasNewNotifications = notifications.any { !it.seen }
     val context = LocalContext.current
     LaunchedEffect(intent) {
         val route = intent.getStringExtra("route")
@@ -228,14 +231,21 @@ fun MainScreen(
     }
     var gistStarterName by remember { mutableStateOf("") }
     var gistStarterId by remember { mutableIntStateOf(0) }
-    if (isLoggedIn) {
-        Scaffold(
+    when (appState) {
+        AppState.Loading -> {
+            Box(
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            }
+        }
+        AppState.LoggedIn -> Scaffold(
             topBar = {
-                if (!(messageScreenGuy || bioScreenGuy || imageViewer || videoViewer)) {
+                if (!(messageScreenGuy || bioScreenGuy || imageViewer || videoViewer || chatRoomGuy)) {
                     CustomAppBar(
                         leftDrawerState,
                         rightDrawerState,
-                        hasNewNotifications,
                         onRightDrawer = { notificationViewModel.markNotificationsAsSeen() },
                         isSearchMode = isSearchMode,
                         onSearchModeChange = { isSearchMode = it },
@@ -250,7 +260,7 @@ fun MainScreen(
             },
             bottomBar = {
                 // Conditionally render the bottom navigation bar
-                if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer || videoViewer)) {
+                if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer || videoViewer || chatRoomGuy)) {
                     BottomNavigationBar(navController)
                 }
             }
@@ -264,7 +274,7 @@ fun MainScreen(
                     authViewModel,
                     userDetailsViewModel,
                     imeVisible,
-                    isLoggedIn,
+                    true,
                     showEmojiPicker,
                     onEmojiPickerVisibilityChange = {
                         Log.d("EmojiVisibility", "To test visibility of: $it")
@@ -342,9 +352,12 @@ fun MainScreen(
                 }
             }
         }
-
-    } else {
-        RegistrationScreen(navController = navController)
+        AppState.LoggedOut -> {
+            RegistrationScreen(navController = navController)
+        }
+        AppState.UpdateRequired -> {
+            UpdateRequiredScreen (navController)
+        }
     }
 }
 
@@ -367,7 +380,7 @@ fun MainContent(
     notificationViewModel: NotificationViewModel,
     onDisplayTextChange: (String, Int) -> Unit
 ) {
-    val customerId = authViewModel.customerId.collectAsState().value
+    val customerId by SessionManager.customerId.collectAsState()
     val fullName = userDetailsViewModel.name.collectAsState().value
     Log.d("Names", "Full Name: $fullName")
 
@@ -386,7 +399,7 @@ fun MainContent(
                 "WebSocket",
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
-            if (!WebSocketManager.isConnected) {
+            if (!WebSocketManager.isConnected.value) {
                 WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "MainScreen")
             }
         }
@@ -489,7 +502,6 @@ fun MainContent(
 fun CustomAppBar(
     leftDrawerState: MutableState<Boolean>,
     rightDrawerState: MutableState<Boolean>,
-    hasNewNotifications: Boolean,
     onRightDrawer: () -> Unit,
     isSearchMode: Boolean,
     onSearchModeChange: (Boolean) -> Unit,
@@ -537,12 +549,13 @@ fun CustomAppBar(
                 keyboardOptions = KeyboardOptions(KeyboardCapitalization.Sentences)
             )
         } else {
+            val topPadding = Modifier.padding(top = 40.dp)
             IconButton(
                 onClick = {
                     leftDrawerState.value = !leftDrawerState.value
-                    rightDrawerState.value = false  // Ensure only one drawer is open at a time
+                    rightDrawerState.value = false
                 },
-                modifier = Modifier.padding(top = 40.dp)
+                modifier = topPadding
             ) {
                 Icon(
                     Icons.Filled.Menu,
@@ -551,36 +564,18 @@ fun CustomAppBar(
                 )
             }
             Box {
-                IconButton(
-                    onClick = {
-                        rightDrawerState.value = !rightDrawerState.value
-                        leftDrawerState.value = false
-                        if (rightDrawerState.value) {
-                            onRightDrawer()
-                        }
-                    },
-                    modifier = Modifier.padding(top = 40.dp)
-                ) {
-                    Icon(
-                        Icons.Filled.Notifications,
-                        contentDescription = "Notifications",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                if (hasNewNotifications) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .align(Alignment.BottomEnd)
-                            .offset(4.dp, 4.dp)
-                            .background(Color.Red, CircleShape)
-                    )
-                }
+                val isConnected by WebSocketManager.isConnected.collectAsState()
+                Icon(
+                    Icons.Filled.Wifi,
+                    contentDescription = "Network Status Icon",
+                    tint = if (isConnected) MaterialTheme.colorScheme.primary else Color.Gray,
+                    modifier = topPadding
+                )
             }
             Text(
                 text = displayText,
                 modifier = Modifier
-                    .padding(top = 40.dp)
+                    .padding(top = 40.dp, start = 10.dp)
                     .align(Alignment.CenterVertically)
                     .clickable {
                         if (displayId != 0) {
@@ -598,7 +593,7 @@ fun CustomAppBar(
                     leftDrawerState.value = false
                     rightDrawerState.value = false
                 },
-                modifier = Modifier.padding(top = 40.dp)
+                modifier = topPadding
             ) {
                 Icon(
                     Icons.Filled.Search,

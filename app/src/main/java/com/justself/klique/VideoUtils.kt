@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.max
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -47,14 +48,14 @@ object VideoUtils {
     private const val TAG = "VideoUtils"
 
     fun getVideoResolution(context: Context, uri: Uri): Pair<Int, Int>? {
-        val retriever = android.media.MediaMetadataRetriever()
+        val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
             val width =
-                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
                     ?.toInt()
             val height =
-                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
                     ?.toInt()
             return if (width != null && height != null) {
                 Log.i(TAG, "Video resolution retrieved: Width=$width, Height=$height")
@@ -170,14 +171,6 @@ fun VideoTrimmingScreen(
     val minTrimDuration = 1000L // 1 second
     var isPlaying by remember { mutableStateOf(false)}
     val handler = Handler(Looper.getMainLooper())
-    val videoStatusUpload by mediaViewModel.videoStatusSubmissionResult.collectAsState()
-    LaunchedEffect(key1 = videoStatusUpload) {
-        if (videoStatusUpload == true) {
-            Toast.makeText(appContext, "Video has successfully been uploaded", Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(appContext, "Error successfully uploading the video", Toast.LENGTH_LONG).show()
-        }
-    }
     val videoView = remember {
         VideoView(appContext).apply {
             setVideoURI(uri)
@@ -236,7 +229,6 @@ fun VideoTrimmingScreen(
         isPlaying = false
     }
 
-    // Use AndroidView to get the video duration
     val primaryColor = MaterialTheme.colorScheme.primary
     val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
     val backgroundColor = MaterialTheme.colorScheme.background

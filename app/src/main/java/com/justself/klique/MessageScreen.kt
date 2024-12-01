@@ -55,6 +55,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Forward
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -69,6 +70,7 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -141,8 +143,10 @@ fun MessageScreen(
     emojiPickerHeight: (Dp) -> Unit,
     isVerified: Boolean
 ) {
-    DisposableEffect(Unit) {
+    LaunchedEffect(key1 = Unit) {
         viewModel.enterChat(enemyId)
+    }
+    DisposableEffect(Unit) {
         onDispose {
             viewModel.leaveChat(); viewModel.clearSelection(); onEmojiPickerVisibilityChange(
             false
@@ -440,7 +444,18 @@ fun MessageScreenContent(
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
     var initialLoad by remember { mutableStateOf(true) }
     val density = LocalDensity.current
-
+    var lastSeenMessageCount by remember { mutableIntStateOf(personalChat.size) }
+    val isAtBottom by remember {
+        derivedStateOf {
+            scrollState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0
+        }
+    }
+    val coroutineScope = rememberCoroutineScope()
+    LaunchedEffect(personalChat.size) {
+        if (isAtBottom) {
+            lastSeenMessageCount = personalChat.size
+        }
+    }
     fun toggleMessageSelection(messageId: String) {
         viewModel.toggleMessageSelection(messageId)
     }
@@ -449,22 +464,16 @@ fun MessageScreenContent(
         initialLoad = true
     }
     LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.layoutInfo.visibleItemsInfo }
-            .map { visibleItems ->
+        snapshotFlow { scrollState.layoutInfo.visibleItemsInfo }.map { visibleItems ->
                 val totalItems = scrollState.layoutInfo.totalItemsCount
                 val lastVisibleItemIndex = visibleItems.lastOrNull()?.index ?: 0
                 Pair(lastVisibleItemIndex, totalItems)
-            }
-            .distinctUntilChanged()
-            .collect { (lastVisibleItemIndex, totalItems) ->
+            }.distinctUntilChanged().collect { (lastVisibleItemIndex, totalItems) ->
                 val threshold = 1
                 if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!! && personalChat.size >= viewModel.pageSize) {
                     Log.d("PersonalChats", "Load More loading")
                     viewModel.loadPersonalChats(
-                        myId,
-                        enemyId,
-                        loadMore = true,
-                        personalChat.last().messageId
+                        myId, enemyId, loadMore = true, personalChat.last().messageId
                     )
                 }
             }
@@ -496,8 +505,7 @@ fun MessageScreenContent(
         derivedStateOf {
             if (contentHeight.intValue > 0) {
                 (scrollState.firstVisibleItemIndex.toFloat() / (personalChat.size - 1).toFloat() * (viewportHeight.value - scrollBarHeight.value)).coerceIn(
-                    0f,
-                    viewportHeight.intValue - scrollBarHeight.value
+                    0f, viewportHeight.intValue - scrollBarHeight.value
                 )
             } else {
                 0f
@@ -513,7 +521,7 @@ fun MessageScreenContent(
                 .padding(horizontal = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            items(personalChat, key = {it.messageId}) { message ->
+            items(personalChat, key = { it.messageId }) { message ->
                 Log.d(
                     "MessageLoading",
                     "Displaying messageId: ${message.messageId}, type: ${message.messageType}, timeStamp: ${message.timeStamp}, content ${message.content}"
@@ -695,6 +703,27 @@ fun MessageScreenContent(
                     )
                     .clip(RoundedCornerShape(50)),
             )
+        }
+        if (personalChat.size > lastSeenMessageCount) {
+            FloatingActionButton(
+                onClick = {
+                    coroutineScope.launch {
+                        scrollState.animateScrollToItem(0)
+                        lastSeenMessageCount = personalChat.size
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(bottom = 60.dp, end = 16.dp)
+                    .imePadding(),
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(
+                    Icons.Default.ArrowDownward,
+                    contentDescription = "Scroll to bottom",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
+            }
         }
     }
 }

@@ -6,17 +6,67 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
+data class TinyProfileDetails(val name: String, val bioText: String, val profileUrl: String, val kcBalance: Int, val phoneNumber: String)
 class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : ViewModel() {
     var profilePictureUrl: String =
         "https://fastly.picsum.photos/id/433/450/300.jpg?hmac=FIWPaQ-to3njMOAmnwI8dg-5TyOzFGi1nVVfEoEERf4"
         private set
-    var bio: String = "This is the user's bio."
-        private set
+    private val _loaded = MutableStateFlow(false)
+    val loaded = _loaded.asStateFlow()
+
+    private val _tinyProfileDetails = MutableStateFlow(TinyProfileDetails("","","", 0, ""))
+    val tinyProfileDetails: StateFlow<TinyProfileDetails> = _tinyProfileDetails
+
+    private val _bio = MutableStateFlow("")
+    val bio: StateFlow<String> = _bio
+
+        init {
+        viewModelScope.launch {
+            tinyProfileDetails.collect {
+                _bio.value = _tinyProfileDetails.value.bioText
+            }
+        }
+    }
+    override fun onCleared() {
+        Log.d("UpdateProfile", "on cleared called")
+    }
+    fun fetchProfile(){
+        Log.d("UpdateProfile", "Called")
+        _loaded.value = true
+        val params = mapOf("userId" to "${SessionManager.customerId.value}")
+        viewModelScope.launch {
+            try {
+                val response =
+                    NetworkUtils.makeRequest("fetchUserDetails", KliqueHttpMethod.GET, params)
+                if (response.first) {
+                    val jsonObject = JSONObject(response.second)
+                    val bioText = jsonObject.getString("bio")
+                    val profilePicture = jsonObject.getString("profileUrl").replace("127.0.0.1", "10.0.2.2")
+                    val tinyDetails = TinyProfileDetails(
+                        "", bioText, profilePicture, 0, ""
+                    )
+
+                    withContext(Dispatchers.Main) {
+                        _tinyProfileDetails.value = tinyDetails
+                    }
+                    Log.d("Profile", _tinyProfileDetails.value.toString())
+
+                }
+            } catch (e: Exception) {
+                Log.d("Profile", e.toString())
+            }
+        }
+    }
 
     fun updateProfile(
         newProfilePictureUri: Uri?,
@@ -37,7 +87,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                 }
             }
         }
-        if (newBio != bio) {
+        if (newBio != _tinyProfileDetails.value.bioText) {
             Log.d("Update Profile", "Bio is called?")
             updateBio(newBio, customerId)
         }
@@ -87,6 +137,13 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
         } catch (e:Exception){
             e.printStackTrace()
         }
+    }
+    fun updateBio(newBio: String) {
+        _bio.value = newBio // Allow independent updates to bio
+    }
+
+    fun setTinyProfileDetails(details: TinyProfileDetails) {
+        _tinyProfileDetails.value = details
     }
 }
 

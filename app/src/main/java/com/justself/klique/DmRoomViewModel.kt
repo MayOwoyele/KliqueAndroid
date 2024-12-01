@@ -21,6 +21,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -84,7 +85,6 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
         context: Context
     ) {
         val timeStamp = System.currentTimeMillis()
-
         val metadata = "${messageType.inString}:$messageId:$enemyId"
         val metadataBytes = metadata.toByteArray(Charsets.UTF_8)
 
@@ -115,19 +115,24 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
         Log.d("Parsing", "type is ${type.name}")
         when (type) {
             DmReceivingType.D_TEXT -> {
-                val messageId = jsonObject.getString("messageId")
-                val senderId = jsonObject.getInt("senderId")
-                val message = jsonObject.getString("content")
-                val timeStamp = jsonObject.getLong("timeStamp")
-                val newMessage = DmMessage(
-                    messageId = messageId,
-                    senderId = senderId,
-                    content = message,
-                    messageType = DmMessageType.DText,
-                    status = DmMessageStatus.SENT,
-                    timeStamp = timeStamp
-                )
-                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                Log.d("DText", "Plaim Error")
+                try {
+                    val messageId = jsonObject.getString("messageId")
+                    val senderId = jsonObject.getInt("senderId")
+                    val message = jsonObject.getString("content")
+                    val timeStamp = jsonObject.getLong("timeStamp")
+                    val newMessage = DmMessage(
+                        messageId = messageId,
+                        senderId = senderId,
+                        content = message,
+                        messageType = DmMessageType.DText,
+                        status = DmMessageStatus.SENT,
+                        timeStamp = timeStamp
+                    )
+                    _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                } catch (e: Exception) {
+                    Log.d("DText", "Error: $e")
+                }
             }
             DmReceivingType.D_IMAGE -> {
                 val messageId = jsonObject.getString("messageId")
@@ -146,6 +151,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                 )
                 _dmMessages.value = listOf(newMessage) + _dmMessages.value
                 if (externalUrl.isNotEmpty()) {
+                    Log.d("External url", externalUrl)
                     handleMediaDownload(newMessage)
                 }
             }
@@ -184,9 +190,8 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                         val senderId = message.getInt("senderId")
                         val timeStamp = message.getLong("timestamp")
 
-                        // Handle externalUrl renaming if present
                         val externalUrl = if (!message.isNull("externalUrl")) {
-                            message.getString("externalUrl").replace("127.0.0.1", "10.0.2.2")
+                            message.getString("externalUrl")
                         } else {
                             null
                         }
@@ -205,6 +210,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                         if (!externalUrl.isNullOrBlank()) {
                             viewModelScope.launch {
                                 delay(10)
+                                Log.d("External url", externalUrl)
                                 handleMediaDownload(messageInstance)
                             }
                         }
@@ -245,7 +251,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                     }
                     messageInstance
                 }
-                updateDmMessages(extraPaginatedMessages + _dmMessages.value)
+                updateDmMessages(_dmMessages.value + extraPaginatedMessages)
             }
             DmReceivingType.DM_DELIVERY -> {
                 val messageId = jsonObject.getString("messageId")
@@ -258,6 +264,11 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                 }
             }
         }
+    }
+    private fun extractNumberLong(jsonObject: JSONObject): Long {
+        return jsonObject.optJSONObject("timeStamp")
+            ?.optJSONObject("\$date")
+            ?.optLong("\$numberLong") ?: Instant.now().toEpochMilli()
     }
 
     fun sendTextMessage(message: String, dmRoomId: Int, myId: Int) {
@@ -374,26 +385,6 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
         downloadedMediaUrls.forEach { (url, state) ->
             Log.d("DownloadHashMap", "URL: $url, State: $state")
         }
-
-//        val fakeMessages = listOf(
-//            DmMessage(
-//                messageId = generateMessageId(),
-//                senderId = 1,
-//                content = "Hey!",
-//                messageType = DmMessageType.DText,
-//                timeStamp = System.currentTimeMillis(),
-//                status = DmMessageStatus.SENT
-//            ),
-//            DmMessage(
-//                messageId = generateMessageId(),
-//                senderId = 2,
-//                content = "Did you see the news?",
-//                messageType = DmMessageType.DText,
-//                timeStamp = System.currentTimeMillis(),
-//                status = DmMessageStatus.SENT
-//            )
-//        )
-//        _dmMessages.value = fakeMessages
         Log.d("Parsing", "loaded again?")
     }
 }

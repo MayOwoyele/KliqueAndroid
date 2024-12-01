@@ -54,9 +54,6 @@ class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FirebaseApp.initializeApp(this)
-        NetworkUtils.initialize(this)
-        WebSocketManager.initialize(this)
         enableEdgeToEdge()
         val config: Config = BundledEmojiCompatConfig(this)
         EmojiCompat.init(config)

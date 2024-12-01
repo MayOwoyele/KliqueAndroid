@@ -232,8 +232,8 @@ fun ChatRoomContent(
         viewModel.loadChatMessages(chatRoomId)
         lastSeenMessageCount = chatRoomMessages.size
     }
-    LaunchedEffect(isAtBottom) {
-        lastSeenMessageCount = chatRoomMessages.size
+    LaunchedEffect(chatRoomMessages.size) {
+        if (isAtBottom){ lastSeenMessageCount = chatRoomMessages.size }
     }
     LaunchedEffect(toastWarning) {
         if (toastWarning != null) {
@@ -261,7 +261,7 @@ fun ChatRoomContent(
                 )
             }
         }
-        if (newMessagesExist && !isAtBottom) {
+        if (newMessagesExist) {
             FloatingActionButton(
                 onClick = {
                     coroutineScope.launch {

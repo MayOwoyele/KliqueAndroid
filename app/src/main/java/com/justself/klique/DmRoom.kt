@@ -114,7 +114,6 @@ fun DmRoom(
             ) {
                 imagePickerLauncher.launch("image/*")
             } else {
-                // Handle the case where the permission is not granted
                 Toast.makeText(context, "Permission denied to access photos", Toast.LENGTH_SHORT)
                     .show()
             }
@@ -218,7 +217,7 @@ fun DmRoomContent(
     var lastSeenMessageCount by remember { mutableIntStateOf(dmMessages.size) }
     val coroutineScope = rememberCoroutineScope()
     val isAtTop by remember { derivedStateOf { lazyListState.firstVisibleItemIndex == dmMessages.lastIndex } }
-    val isAtBottom by remember { derivedStateOf { lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index == lazyListState.layoutInfo.totalItemsCount - 1 } }
+    val isAtBottom by remember { derivedStateOf { lazyListState.layoutInfo.visibleItemsInfo.firstOrNull()?.index == 0 } }
     val isScrollable by remember {
         derivedStateOf {
             lazyListState.layoutInfo.totalItemsCount > 0 &&
@@ -255,11 +254,12 @@ fun DmRoomContent(
                 )
             }
         }
-        if (dmMessages.size > lastSeenMessageCount && !isAtBottom) {
+        if (dmMessages.size > lastSeenMessageCount) {
             FloatingActionButton(
                 onClick = {
                     coroutineScope.launch {
-                        lazyListState.animateScrollToItem(dmMessages.size - 1)
+                        lazyListState.animateScrollToItem(0)
+                        lastSeenMessageCount = dmMessages.size
                     }
                 },
                 modifier = Modifier

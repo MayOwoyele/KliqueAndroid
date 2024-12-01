@@ -18,7 +18,7 @@ data class DmItem(
 
 sealed class LastMessage {
     data class Text(val content: String) : LastMessage()
-    object Photo : LastMessage()
+    data object Photo : LastMessage()
 }
 
 class DmListViewModel : ViewModel() {
@@ -36,7 +36,7 @@ class DmListViewModel : ViewModel() {
                     val dmItems = (0 until jsonArray.length()).map { i ->
                         val jsonObject = jsonArray.getJSONObject(i)
 
-                        val imageLink = jsonObject.getString("imageLink")
+                        val imageLink = jsonObject.getString("imageLink").replace("127.0.0.1", "10.0.2.2")
                         val fullName = jsonObject.getString("fullName")
                         val enemyId = jsonObject.getInt("enemyId")
 
@@ -46,6 +46,7 @@ class DmListViewModel : ViewModel() {
                             "DImage" -> LastMessage.Photo
                             else -> LastMessage.Text("")
                         }
+                        Log.e("fetchDmList", "image link: $imageLink")
 
                         DmItem(
                             imageLink = imageLink,
@@ -63,12 +64,5 @@ class DmListViewModel : ViewModel() {
                 Log.e("fetchDmList", "Request failed: ${response.second}")
             }
         }
-//        val list = listOf(DmItem(
-//            imageLink = "www.google.com",
-//            fullName = "May",
-//            enemyId = 2,
-//            lastMessage = LastMessage.Text("coolies")
-//        ))
-//        _dmList.value = list
     }
 }

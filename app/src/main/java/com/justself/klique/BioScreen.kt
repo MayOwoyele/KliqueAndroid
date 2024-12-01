@@ -11,6 +11,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -52,10 +53,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -67,8 +70,10 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -95,6 +100,7 @@ fun BioScreen(
     val animatedPadding = remember { Animatable(initialValue = 370f) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val isMyProfile = enemyId == customerId
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .collect { (index, scrollOffset) ->
@@ -110,18 +116,16 @@ fun BioScreen(
     LaunchedEffect(key1 = Unit) {
         bioViewModel.fetchProfile(enemyId, customerId)
     }
-
-    profile?.let { profileData ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            // Profile Section
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        if (profile != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(profileData.backgroundColor)
+                    .background(profile!!.backgroundColor)
             ) {
                 Box(
                     modifier = Modifier
@@ -144,25 +148,25 @@ fun BioScreen(
                                     .size(180.dp)
                             ) {
                                 Image(
-                                    painter = rememberAsyncImagePainter(profileData.bioImage),
+                                    painter = rememberAsyncImagePainter(profile!!.bioImage),
                                     contentDescription = null,
                                     modifier = Modifier
                                         .fillMaxSize()
                                         .clip(RectangleShape)
                                         .padding(top = 16.dp)
-                                        .background(profileData.backgroundColor)
+                                        .background(profile!!.backgroundColor)
                                         .border(1.dp, color = MaterialTheme.colorScheme.primary),
                                     contentScale = ContentScale.Crop
                                 )
-                                if (profileData.isVerified) {
+                                if (profile!!.isVerified) {
                                     Icon(
-                                        imageVector = Icons.Default.CheckCircle, // You can use a different icon if needed
+                                        imageVector = Icons.Default.CheckCircle,
                                         contentDescription = "Verified",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
                                             .padding(bottom = 8.dp, end = 8.dp)
                                             .size(16.dp)
-                                            .align(Alignment.BottomEnd) // Position the checkmark at the top-end corner
+                                            .align(Alignment.BottomEnd)
                                     )
                                 }
                             }
@@ -180,7 +184,7 @@ fun BioScreen(
                                 ) {
                                     // Centered Name Text with Padding for Icon
                                     Text(
-                                        text = profileData.fullName,
+                                        text = profile!!.fullName,
                                         style = MaterialTheme.typography.displayLarge,
                                         modifier = Modifier
                                             .padding(start = iconWidthDp),
@@ -202,20 +206,22 @@ fun BioScreen(
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                 } else {
-                                    Text(
-                                        text = "Not your contact",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                    if (!isMyProfile) {
+                                        Text(
+                                            text = "Not your contact",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
                                 }
                             }
                             var isBioExpanded by remember { mutableStateOf(false) }
                             Row(modifier = Modifier.fillMaxWidth()) {
                                 Text(
-                                    text = if (profileData.bioText.length > 35 && !isBioExpanded) {
-                                        "Bio: ${profileData.bioText.take(35)}..."
+                                    text = if (profile!!.bioText.length > 35 && !isBioExpanded) {
+                                        "Bio: ${profile!!.bioText.take(35)}..."
                                     } else {
-                                        "Bio: ${profileData.bioText.take(35)}..."
+                                        "Bio: ${profile!!.bioText.take(35)}..."
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier
@@ -224,20 +230,20 @@ fun BioScreen(
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                                 Spacer(modifier = Modifier.weight(1f))
-                                if (enemyId != customerId) {
+                                if (!isMyProfile) {
                                     Icon(
                                         imageVector = Icons.Default.Email,
                                         contentDescription = "Direct Message",
                                         modifier = Modifier
                                             .size(24.dp)
                                             .align(Alignment.CenterVertically)
-                                            .clickable { navController.navigate("dmChatScreen/${profileData.customerId}/${profileData.fullName}") },
+                                            .clickable { navController.navigate("dmChatScreen/${profile!!.customerId}/${profile!!.fullName}") },
                                         tint = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(40.dp))
 
-                                if (isBioExpanded && profileData.bioText.length > 35) {
+                                if (isBioExpanded && profile!!.bioText.length > 35) {
                                     Popup(
                                         alignment = Alignment.Center,
                                         onDismissRequest = { isBioExpanded = false },
@@ -257,7 +263,7 @@ fun BioScreen(
                                                         .padding(16.dp)
                                                 ) {
                                                     Text(
-                                                        text = profileData.bioText,
+                                                        text = profile!!.bioText,
                                                         style = MaterialTheme.typography.bodySmall,
                                                         color = MaterialTheme.colorScheme.onPrimary
                                                     )
@@ -275,14 +281,14 @@ fun BioScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "${bioViewModel.formatSpectatorCount(profileData.seatedCount)} spectators",
+                                    text = "${bioViewModel.formatSpectatorCount(profile!!.seatedCount)} ${if (profile!!.seatedCount == 1) "spectator" else "spectators"}",
                                     style = MaterialTheme.typography.displayLarge,
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
-                                if (enemyId != customerId){
+                                if (!isMyProfile) {
                                     Button(
                                         onClick = {
-                                            if (profileData.isSpectator) {
+                                            if (profile!!.isSpectator) {
                                                 bioViewModel.leaveSeat(enemyId, customerId)
                                             } else {
                                                 bioViewModel.takeSeat(enemyId, customerId)
@@ -295,7 +301,7 @@ fun BioScreen(
                                         shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Text(
-                                            text = if (profileData.isSpectator) "LEAVE" else "TAKE A SEAT",
+                                            text = if (profile!!.isSpectator) "LEAVE" else "TAKE A SEAT",
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.onPrimary
                                         )
@@ -318,7 +324,7 @@ fun BioScreen(
                     },
                     text = {
                         Text(
-                            text = profileData.classSection,
+                            text = profile!!.classSection,
                             style = MaterialTheme.typography.displayLarge,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
@@ -352,14 +358,14 @@ fun BioScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                text = profileData.fullName,
+                                text = profile!!.fullName,
                                 style = MaterialTheme.typography.displayLarge,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
                     }
 
-                    items(profileData.posts) { post ->
+                    items(profile!!.posts) { post ->
                         PostItem(
                             post = post,
                             navController = navController,
@@ -368,20 +374,6 @@ fun BioScreen(
                             }
                         )
                     }
-                }
-                IconButton(
-                    onClick = {
-                        navController.popBackStack()
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(10.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onPrimary
-                    )
                 }
             }
             expandedPostId?.let { postId ->
@@ -416,18 +408,44 @@ fun BioScreen(
                                 .fillMaxWidth()
                         ) {
                             items(postComments) { comment ->
+                                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
                                 Text(
                                     text = buildAnnotatedString {
-                                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.background)) {
+                                        pushStringAnnotation(tag = "COMMENTER", annotation = comment.customerId.toString())
+                                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
                                             append("${comment.name}: ")
+                                        }
+                                        pop()
+                                        comment.replyingTo?.let { replyingTo ->
+                                            pushStringAnnotation(tag = "REPLYING_TO", annotation = comment.replyingToId.toString())
+                                            withStyle(style = SpanStyle(color = Color.Red)) {
+                                                append("@$replyingTo ")
+                                            }
+                                            pop()
                                         }
                                         append(comment.text)
                                     },
                                     style = MaterialTheme.typography.bodyLarge,
                                     modifier = Modifier
                                         .padding(bottom = 4.dp)
-                                        .clickable { navController.navigate("bioScreen/${comment.customerId}") },
-                                    color = MaterialTheme.colorScheme.onPrimary
+                                        .pointerInput(Unit) {
+                                            detectTapGestures { tapOffset ->
+                                                textLayoutResult?.let { layoutResult ->
+                                                    val position = layoutResult.getOffsetForPosition(tapOffset)
+                                                    val annotations = layoutResult.layoutInput.text.getStringAnnotations(position, position)
+                                                    annotations.firstOrNull()?.let { annotation ->
+                                                        when (annotation.tag) {
+                                                            "COMMENTER" -> navController.navigate("bioScreen/${annotation.item}")
+                                                            "REPLYING_TO" -> navController.navigate("bioScreen/${annotation.item}")
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    onTextLayout = { layoutResult ->
+                                        textLayoutResult = layoutResult
+                                    },
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                 )
                                 Text(
                                     text = "Reply ${comment.name}",
@@ -464,21 +482,17 @@ fun BioScreen(
                                     value = (replyingTo?.let { "$it " } ?: "") + commentText,
                                     onValueChange = { newText ->
                                         val sanitizedText = newText.replace("\n", "")
-                                        val prefix = replyingTo ?: ""
-                                        Log.d(
-                                            "Comment",
-                                            "value of replying to : $replyingTo, and prefix: $prefix"
-                                        )
-                                        if (replyingTo != null && !sanitizedText.startsWith(prefix)) {
-                                            Log.d("Comment", "Prefix altered or deleted")
-                                            replyingTo = null
-                                            replyingToId = null
-                                        }
-
-                                        commentText = if (replyingTo != null) {
-                                            sanitizedText.removePrefix(prefix)
+                                        if (replyingTo != null) {
+                                            val prefix = "$replyingTo "
+                                            if (!sanitizedText.startsWith(prefix)) {
+                                                replyingTo = null
+                                                replyingToId = null
+                                                commentText = sanitizedText.trimStart()
+                                            } else {
+                                                commentText = sanitizedText.removePrefix(prefix)
+                                            }
                                         } else {
-                                            sanitizedText
+                                            commentText = sanitizedText
                                         }
                                     },
                                     placeholder = { Text("Add a comment...") },
@@ -496,16 +510,16 @@ fun BioScreen(
                                 )
                             }
                             IconButton(onClick = {
-                                val comment = """
-                                    {
-                                    "replyingToId": ${replyingToId ?: "null"},
-                                    "replyingTo": ${replyingTo?.let { "\"$it\"" } ?: "null"},
-                                    "postId": $postId,
-                                    "userId": $customerId,
-                                    "commentText": "$commentText"
-                                    }
-                                """.trimIndent()
-                                bioViewModel.sendComment(comment, customerId)
+                                if (commentText.isNotEmpty()){
+                                    val comment = JSONObject().apply {
+                                        put("replyingToId", replyingToId)
+                                        put("replyingTo", replyingTo)
+                                        put("postId", postId)
+                                        put("userId", customerId)
+                                        put("commentText", commentText)
+                                    }.toString()
+                                    bioViewModel.sendComment(comment, customerId, commentText, replyingTo, replyingToId)
+                                }
                                 commentText = ""
                                 replyingTo = null
                                 replyingToId = null
@@ -519,6 +533,41 @@ fun BioScreen(
                         }
                     }
                 }
+            }
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
+                contentAlignment = Alignment.Center
+            ) {
+                var message by remember { mutableStateOf("Loading Profile") }
+                LaunchedEffect(key1 = Unit) {
+                    delay(5000)
+                    message =
+                        "This is taking a bit too long, perhaps you should check on your network?"
+                }
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+        }
+        if (expandedPostId == null) {
+            IconButton(
+                onClick = {
+                    navController.popBackStack()
+                },
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(10.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
@@ -649,6 +698,8 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                                 if (!view.isPlaying) {
                                     view.start()
                                     isPlaying = true
+                                    mediaPlayerInstance?.setVolume(0f, 0f)
+                                    isMuted = true
                                 }
                             }
                         )
@@ -675,7 +726,6 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                             )
                         }
                     } else {
-                        // Show thumbnail if video is not cached
                         Image(
                             painter = rememberAsyncImagePainter(post.thumbnail),
                             contentDescription = "Video thumbnail",
@@ -688,7 +738,6 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                             )
                         }
 
-                        // Play icon overlay when the video is not playing
                         if (!isPlaying) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
@@ -733,10 +782,9 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
                     )
                 }
             }
-            // Handle other types (audio, video) if needed
         }
         Text(
-            text = "View all ${post.totalComments} comments",
+            text = if (post.totalComments == 0) "No comments" else "View all ${post.totalComments} comments",
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier
                 .padding(vertical = 8.dp)

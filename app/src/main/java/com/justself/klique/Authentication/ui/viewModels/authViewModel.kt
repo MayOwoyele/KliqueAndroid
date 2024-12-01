@@ -8,39 +8,61 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.room.util.appendPlaceholders
+import com.justself.klique.AppUpdateManager
+import com.justself.klique.AppUpdateManager.getRequiredVersion
+import com.justself.klique.AppUpdateManager.isUpdateRequired
+import com.justself.klique.AppUpdateManager.updateDismissedFlow
 import com.justself.klique.Authentication.ui.screens.Gender
+import com.justself.klique.JWTNetworkCaller
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.KliqueHttpMethod
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.IOException
 import com.justself.klique.NetworkUtils
+import com.justself.klique.SessionManager
+import com.justself.klique.SessionManager.customerId
+import com.justself.klique.SessionManager.saveCustomerIdToSharedPreferences
+import com.justself.klique.SessionManager.saveNameToSharedPreferences
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import org.json.JSONException
 import java.util.Calendar
+import com.justself.klique.BuildConfig
+
 
 enum class RegistrationStep {
     PHONE_NUMBER, CONFIRMATION_CODE, NAME, GENDER, YEAR_OF_BIRTH, COMPLETE
 }
+enum class AppState {
+    LoggedIn,
+    LoggedOut,
+    UpdateRequired,
+    Loading
+}
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val context = getApplication<Application>()
-    private val sharedPreferences = context.getSharedPreferences("KliqueApp", Context.MODE_PRIVATE)
-    private val savedCustomerId = sharedPreferences.getInt("customerId", -1)
-
-    private val _customerId = MutableStateFlow(1)
-    val customerId = _customerId.asStateFlow()
-
-    val isLoggedIn: StateFlow<Boolean> = _customerId.map { it > 0 }.stateIn(
+    val appState: StateFlow<AppState> = combine(customerId, updateDismissedFlow) { customerId, updateDismissedFlow ->
+        val updateRequired = isUpdateRequired(appContext) && !updateDismissedFlow
+        when {
+            updateRequired -> AppState.UpdateRequired
+            customerId > 0 -> AppState.LoggedIn
+            customerId <= 0 -> AppState.LoggedOut
+            else -> AppState.Loading
+        }
+    }.stateIn(
         viewModelScope,
         SharingStarted.Lazily,
-        _customerId.value > 0
+        AppState.Loading
     )
 
     private val _registrationStep = MutableStateFlow(RegistrationStep.PHONE_NUMBER)
@@ -56,7 +78,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val maxRetries = 5
 
     private val _tempCustomerId = MutableStateFlow<Int?>(null)
-    val tempCustomerId: StateFlow<Int?> = _tempCustomerId.asStateFlow()
 
     private var _phoneNumber = MutableStateFlow<String?>(null)
     private val phoneNumber: StateFlow<String?> = _phoneNumber.asStateFlow()
@@ -72,7 +93,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private var _birthday = MutableStateFlow<Triple<Int, Int, Int>?>(null)
     private val birthday: StateFlow<Triple<Int, Int, Int>?> = _birthday.asStateFlow()
-    private val countdownSeconds = 30
+    private val countdownSeconds = 60
 
     private val _countdown = MutableStateFlow(countdownSeconds)
     val countdown: StateFlow<Int> = _countdown.asStateFlow()
@@ -170,16 +191,29 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun parseResponse(responseString: String): ServerResponse {
+    private fun parseResponse(responseString: String): SignUpServerResponse {
         return try {
             val jsonObject = JSONObject(responseString)
-            val isSuccess = jsonObject.optBoolean("success", false)
+            val isSuccess = jsonObject.getBoolean("success")
             val errorMessage = jsonObject.optString("message", "")
             val customerId =
                 if (isSuccess) jsonObject.optInt("userId", -1).takeIf { it != -1 } else null
-            ServerResponse(isSuccess, errorMessage, customerId)
+            val accessToken = jsonObject.optString("accessToken")
+            val refreshToken = jsonObject.optString("refreshToken")
+            val name = jsonObject.optString("name")
+            SignUpServerResponse(
+                isSuccess,
+                errorMessage,
+                customerId,
+                refreshToken,
+                accessToken,
+                name
+            )
         } catch (e: JSONException) {
-            ServerResponse(isSuccess = false, errorMessage = "Failed to parse server response.")
+            SignUpServerResponse(
+                isSuccess = false,
+                errorMessage = "Failed to parse server response"
+            )
         }
     }
 
@@ -209,18 +243,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun verifyBirthday(day: Int, month: Int, year: Int) {
         _errorMessage.value = ""
         viewModelScope.launch {
-            val response = screenBirthdayAgeSubmission(day, month, year)
+            val response = screenBirthdayAgeSubmission( year)
             if (response.isSuccess) {
                 _birthday.value = Triple(day, month, year)
-                finalizeRegistration()
-                moveToNextStep()
+                if (finalizeRegistration()){
+                    moveToNextStep()
+                }
             } else {
                 _errorMessage.value = response.errorMessage
             }
         }
     }
 
-    private fun screenBirthdayAgeSubmission(day: Int, month: Int, year: Int): ServerResponse {
+    private fun screenBirthdayAgeSubmission( year: Int): ServerResponse {
         return if (year <= Calendar.getInstance().get(Calendar.YEAR) - 13) {
             ServerResponse(isSuccess = true, errorMessage = "")
         } else {
@@ -242,39 +277,48 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun finalizeRegistration() {
-        viewModelScope.launch {
-            val completeRegistrationData = JSONObject()
-            phoneNumber.value?.let { completeRegistrationData.put("phoneNumber", it) }
-            confirmationCode.value?.let { completeRegistrationData.put("confirmationCode", it) }
-            name.value?.let { completeRegistrationData.put("name", it) }
-            gender.value?.let { completeRegistrationData.put("gender", it) }
-            birthday.value?.let {
-                val formattedBirthday = "${it.first}-${it.second}-${it.third}"
-                completeRegistrationData.put("birthday", formattedBirthday)
-            }
-            val jsonString = completeRegistrationData.toString()
-            try {
-                val responseString = NetworkUtils.makeRequest(
-                    "finalizeRegistration",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody = jsonString
-                )
-                val response = parseResponse(responseString.second)
-                if (response.isSuccess) {
-                    response.customerId?.let {
-                        _tempCustomerId.value = it
-                        saveCustomerIdToSharedPreferences(it)
-                    }
-                } else {
-                    _errorMessage.value = response.errorMessage
-                }
-            } catch (e: IOException) {
-                _errorMessage.value = "An error occurred: ${e.message}"
-                Log.d("Final", "$completeRegistrationData")
-            }
+    private suspend fun finalizeRegistration(): Boolean {
+        val completeRegistrationData = JSONObject()
+        phoneNumber.value?.let { completeRegistrationData.put("phoneNumber", it) }
+        confirmationCode.value?.let { completeRegistrationData.put("confirmationCode", it) }
+        name.value?.let { completeRegistrationData.put("name", it) }
+        gender.value?.let { completeRegistrationData.put("gender", it) }
+        birthday.value?.let {
+            val formattedBirthday = "${it.first}-${it.second}-${it.third}"
+            completeRegistrationData.put("birthday", formattedBirthday)
         }
+        completeRegistrationData.put("platform", "android")
+        val jsonString = completeRegistrationData.toString()
+        try {
+            val responseString = NetworkUtils.makeRequest(
+                "finalizeRegistration",
+                KliqueHttpMethod.POST,
+                emptyMap(),
+                jsonBody = jsonString
+            )
+            val response = parseResponse(responseString.second)
+            if (response.isSuccess) {
+                response.customerId?.let {
+                    _tempCustomerId.value = it
+                    saveCustomerIdToSharedPreferences(it)
+                    saveNameToSharedPreferences(response.name!!)
+                    JWTNetworkCaller.saveTokens(
+                        context,
+                        response.accessToken!!,
+                        response.refreshToken!!
+                    )
+                }
+                return true
+            } else {
+                response.errorMessage?.let {
+                    _errorMessage.value = it
+                }
+            }
+        } catch (e: IOException) {
+            _errorMessage.value = "An error occurred: ${e.message}"
+            Log.d("Final", "$completeRegistrationData")
+        }
+        return false
     }
 
     fun startCountdown() {
@@ -300,21 +344,33 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun saveCustomerIdToSharedPreferences(customerId: Int) {
-        val sharedPreferences = context.getSharedPreferences("KliqueApp", Context.MODE_PRIVATE)
-        val editor = sharedPreferences.edit()
-        editor.putInt("customerId", customerId)
-        editor.apply()
-    }
-
     fun completeRegistration() {
         viewModelScope.launch {
-            _tempCustomerId.value?.let { customerId ->
-                _customerId.value = customerId
+            _tempCustomerId.value?.let {
+                SessionManager.fetchCustomerDataFromSharedPreferences()
             } ?: run {
                 _errorMessage.value =
                     "Registration data is missing or incomplete. Please try again."
             }
+        }
+    }
+
+    fun testLambda() {
+        viewModelScope.launch {
+            val params = mapOf("this" to "that")
+            val response: suspend () -> Triple<Boolean, String, Int> =
+                { NetworkUtils.makeRequest("yahoo", KliqueHttpMethod.GET, params) }
+            val action: suspend (Triple<Boolean, String, Int>) -> Unit =
+                { responseTriple: Triple<Boolean, String, Int> ->
+                    _aiMessage.value = responseTriple.second
+                    isServerAIMessage = true
+                    moveToNextStep()
+                    _phoneNumber.value = "phoneNumber"
+                    _errorMessage.value = ""
+                }
+            val errorAction: suspend (Triple<Boolean, String, Int>) -> Unit =
+                { responseTriple -> _errorMessage.value = responseTriple.second }
+            performReusableNetworkCalls(action, response, errorAction)
         }
     }
 }
@@ -323,6 +379,15 @@ data class ServerResponse(
     val isSuccess: Boolean,
     val errorMessage: String,
     val customerId: Int? = null
+)
+
+data class SignUpServerResponse(
+    val isSuccess: Boolean,
+    val errorMessage: String? = null,
+    val customerId: Int? = null,
+    val refreshToken: String? = null,
+    val accessToken: String? = null,
+    val name: String? = null
 )
 
 class ViewModelProviderFactory(private val application: Application) : ViewModelProvider.Factory {

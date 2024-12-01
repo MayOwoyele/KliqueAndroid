@@ -1,6 +1,7 @@
 package com.justself.klique
 import android.content.Context
 import android.util.Log
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
@@ -40,13 +41,13 @@ object NetworkUtils {
                     certs: Array<out X509Certificate>?,
                     authType: String?
                 ) {
-                } // Empty implementation - trust everything
+                }
 
                 override fun checkServerTrusted(
                     certs: Array<out X509Certificate>?,
                     authType: String?
                 ) {
-                } // Empty implementation - trust everything
+                }
 
                 override fun getAcceptedIssuers(): Array<X509Certificate>? = null
             }
@@ -72,7 +73,8 @@ object NetworkUtils {
         method: KliqueHttpMethod = KliqueHttpMethod.POST,
         params: Map<String, String>,
         jsonBody: String? = null,
-        binaryBody: ByteArray? = null
+        binaryBody: ByteArray? = null,
+        useJWT: Boolean = false
     ): Triple<Boolean, String, Int> {
         Log.d("GistDescription", endpoint)
         val baseUrl = baseUrl
@@ -90,6 +92,11 @@ object NetworkUtils {
 
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = method.method
+                if (useJWT) {
+                    val accessToken = JWTNetworkCaller.fetchAccessToken()
+                        ?: throw IllegalStateException("Access token is null. Ensure you're logged in.")
+                    setRequestProperty("Authorization", "Bearer $accessToken")
+                }
                 if (method == KliqueHttpMethod.POST) {
                     if (binaryBody != null) {
                         setRequestProperty("Content-Type", "application/octet-stream")
@@ -137,51 +144,57 @@ object NetworkUtils {
             Triple(isSuccessful, response, connection.responseCode)
         }
     }
-
-    suspend fun makeRequestWithStatusCode(
+    suspend fun makeMultipartRequest(
         endpoint: String,
-        method: String = "POST",
-        params: Map<String, String> = emptyMap()
-    ): Pair<String, Int> {
-        val baseUrl = baseUrl ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
+        fields: List<MultipartField>
+    ): Triple<Boolean, String, Int> {
+        val baseUrl = baseUrl
+            ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
 
         return withContext(Dispatchers.IO) {
-            val query = if (method == "GET" && params.isNotEmpty()) {
-                "?" + params.map {
-                    "${URLEncoder.encode(it.key, "UTF-8")}=${URLEncoder.encode(it.value, "UTF-8")}"
-                }.joinToString("&")
-            } else ""
-
-            val url = URL(baseUrl + endpoint + query)
-
+            val url = URL(baseUrl + endpoint)
+            val boundary = "Boundary-" + System.currentTimeMillis()
             val connection = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = method
-                if (method == "POST") {
-                    setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-                    doOutput = true
-                    BufferedWriter(OutputStreamWriter(outputStream, "UTF-8")).use { writer ->
-                        writer.write(params.map { (key, value) ->
-                            "${URLEncoder.encode(key, "UTF-8")}=${URLEncoder.encode(value, "UTF-8")}"
-                        }.joinToString("&"))
-                    }
-                }
-                connect()
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+                doOutput = true
             }
 
-            val responseCode = connection.responseCode
-            val responseBody = try {
+            connection.outputStream.use { outputStream ->
+                val writer = outputStream.bufferedWriter()
+                for (field in fields) {
+                    writer.append("--$boundary\r\n")
+                    if (field.value is ByteArray && field.mimeType != null) {
+                        writer.append("Content-Disposition: form-data; name=\"${field.name}\"; filename=\"${field.fileName ?: "file"}\"\r\n")
+                        writer.append("Content-Type: ${field.mimeType.type}\r\n\r\n")
+                        writer.flush()
+                        outputStream.write(field.value)
+                        outputStream.flush()
+                    } else if (field.value is String) {
+                        writer.append("Content-Disposition: form-data; name=\"${field.name}\"\r\n\r\n")
+                        writer.append("${field.value}\r\n")
+                    }
+                    writer.flush()
+                }
+
+                // End boundary
+                writer.append("\r\n--$boundary--\r\n")
+                writer.flush()
+            }
+
+            val response = try {
                 BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             } catch (e: IOException) {
-                // If there's an IOException, the response body might come from the error stream
                 BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() }
             } finally {
                 connection.disconnect()
             }
 
-            Log.d("NetworkUtils", "HTTP $method Response Code: $responseCode")
-            Pair(responseBody, responseCode)
+            val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
+            Triple(isSuccessful, response, connection.responseCode)
         }
     }
+
     fun fixLocalHostUrl(url: String): String {
         return if (url.contains("127.0.0.1")) {
             baseUrl?.let { base ->
@@ -215,3 +228,18 @@ enum class KliqueHttpMethod(val method: String) {
     GET("GET"),
     POST("POST")
 }
+enum class MimeType(val type: String) {
+    IMAGE_JPEG("image/jpeg"),
+    IMAGE_PNG("image/png"),
+    TEXT_PLAIN("text/plain"),
+    APPLICATION_JSON("application/json"),
+    APPLICATION_OCTET_STREAM("application/octet-stream"),
+    VIDEO_MP4("video/mp4"),
+    AUDIO_MPEG4("audio/m4a");
+}
+data class MultipartField(
+    val name: String,
+    val value: Any,
+    val mimeType: MimeType? = null,
+    val fileName: String? = null
+)

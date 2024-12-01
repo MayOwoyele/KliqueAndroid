@@ -264,7 +264,6 @@ fun ClickableMessageText(
         modifier = Modifier.pointerInput(Unit) {
             detectTapGestures(
                 onLongPress = {
-                    // Trigger long press (selection mode)
                     onLongPressLambda()
                     Log.d("Websocket", "Long press detected")
                 },
@@ -279,7 +278,7 @@ fun ClickableMessageText(
                                     val url = if (annotation.item.startsWith("https")) {
                                         annotation.item
                                     } else {
-                                        "https://${annotation.item}" // Ensure valid HTTPS URL
+                                        "https://${annotation.item}"
                                     }
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
                                     context.startActivity(

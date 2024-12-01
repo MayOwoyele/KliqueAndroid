@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +32,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -51,14 +53,17 @@ import coil.compose.rememberAsyncImagePainter
 fun UpdateProfileScreen(
     navController: NavController,
     mediaViewModel: MediaViewModel,
-    chatScreenViewModel: ChatScreenViewModel,
-    customerId: Int
+    customerId: Int,
+    viewModel: ProfileViewModel
 ) {
-    val viewModel: ProfileViewModel = viewModel(
-        factory = ProfileViewModelFactory(chatScreenViewModel)
-    )
-    val profilePictureUrl by remember { mutableStateOf(viewModel.profilePictureUrl) }
-    var bio by remember { mutableStateOf(viewModel.bio) }
+    LaunchedEffect(key1 = Unit) {
+        if (!viewModel.loaded.value) {
+            viewModel.fetchProfile()
+        }
+    }
+    val bioInfo by viewModel.tinyProfileDetails.collectAsState()
+    var profilePictureUrl by remember { mutableStateOf(bioInfo.profileUrl) }
+    var bio by remember { mutableStateOf(bioInfo.bioText) }
     var newProfilePictureUri: Uri? by remember { mutableStateOf(null) }
     var bioChanged by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -75,28 +80,37 @@ fun UpdateProfileScreen(
             Toast.makeText(context, "Failed to save image.", Toast.LENGTH_SHORT).show()
         }
     }
+    LaunchedEffect(key1 = bioInfo) {
+        profilePictureUrl = bioInfo.profileUrl
+    }
 
     Column {
         ProfilePictureSection(
             profilePictureUrl = profilePictureUrl,
             onImageChange = { uri ->
-                // Update state to reflect the change
                 mediaViewModel.setBitmapFromUri(uri.toString(), context)
                 navController.navigate("imageEditScreen/${SourceScreen.PROFILE.name}")
-            }
+            },
+            newProfilePictureUri = newProfilePictureUri
         )
         BioSection(
-            bio = bio,
             onBioChange = {
                 bio = it
                 bioChanged = true
-            }
+            },
+            viewModel = viewModel
         )
         SaveChangesButton(
             profilePictureChanged = newProfilePictureUri != null,
             bioChanged = bioChanged,
             onSaveChanges = {
-                viewModel.updateProfile(newProfilePictureUri, bio, averageColor, context, customerId)
+                viewModel.updateProfile(
+                    newProfilePictureUri,
+                    bio,
+                    averageColor,
+                    context,
+                    customerId
+                )
             }
         )
     }
@@ -105,7 +119,8 @@ fun UpdateProfileScreen(
 @Composable
 fun ProfilePictureSection(
     profilePictureUrl: String,
-    onImageChange: (Uri?) -> Unit
+    onImageChange: (Uri?) -> Unit,
+    newProfilePictureUri: Uri?
 ) {
     var shouldCheckPermission by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -115,8 +130,12 @@ fun ProfilePictureSection(
         }
 
     Box(modifier = Modifier.padding(16.dp)) {
+        val imageToDisplay = newProfilePictureUri ?: profilePictureUrl
+        LaunchedEffect(key1 = Unit) {
+            Log.d("ProfileImageUri", "$newProfilePictureUri, $profilePictureUrl")
+        }
         Image(
-            painter = rememberAsyncImagePainter(model = profilePictureUrl),
+            painter = rememberAsyncImagePainter(model = imageToDisplay),
             contentDescription = "Profile Picture",
             modifier = Modifier
                 .size(280.dp)
@@ -141,21 +160,27 @@ fun ProfilePictureSection(
 
 @Composable
 fun BioSection(
-    bio: String,
-    onBioChange: (String) -> Unit
+    onBioChange: (String) -> Unit,
+    viewModel: ProfileViewModel
 ) {
     var isEditing by remember { mutableStateOf(false) }
-    var bioText by remember { mutableStateOf(bio) }
+    val bioText by viewModel.bio.collectAsState()
+    var text by remember { mutableStateOf(bioText) }
 
+    LaunchedEffect(bioText) {
+        if (!isEditing) {
+            text = bioText
+        }
+    }
     Column(modifier = Modifier.padding(16.dp)) {
         Text(text = "Bio", style = MaterialTheme.typography.bodyLarge)
         if (isEditing) {
             TextField(
-                value = bioText,
+                value = text,
                 onValueChange = {
                     val sanitizedText = it.replace("\n", "")
                     if (sanitizedText.length <= 500) {
-                        bioText = sanitizedText
+                        text = sanitizedText
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
@@ -163,10 +188,10 @@ fun BioSection(
             )
             Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                 TextButton(onClick = { isEditing = false }) { Text("Cancel") }
-                TextButton(onClick = { onBioChange(bioText); isEditing = false }) { Text("Save") }
+                TextButton(onClick = { onBioChange(text); isEditing = false; viewModel.updateBio(text) }) { Text("Save") }
             }
         } else {
-            Text(text = bioText, style = MaterialTheme.typography.bodyLarge)
+            Text(text = text, style = MaterialTheme.typography.bodyLarge)
             IconButton(onClick = { isEditing = true }) {
                 Icon(Icons.Default.Edit, contentDescription = "Edit Bio")
             }
