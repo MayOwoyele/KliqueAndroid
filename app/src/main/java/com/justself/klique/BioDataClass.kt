@@ -15,7 +15,6 @@ data class Post(
 data class Profile(
     val customerId: Int,
     val bioImage: String,
-    val backgroundColor: Color,
     val fullName: String,
     val bioText: String,
     val posts: List<Post>,

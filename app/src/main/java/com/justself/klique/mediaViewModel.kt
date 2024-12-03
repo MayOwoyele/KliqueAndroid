@@ -87,9 +87,9 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearBitmap() {
-//        if (!_isUploading.value) {
-//            _bitmap.postValue(null)
-//        }
+        if (!_isUploading.value) {
+            _bitmap.postValue(null)
+        }
     }
     fun setIsUploading(bool: Boolean){
         _isUploading.value = bool

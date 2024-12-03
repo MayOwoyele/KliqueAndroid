@@ -51,7 +51,7 @@ class UserDetailsViewModel : ViewModel() {
                         val jsonObject = jsonArray.getJSONObject(i)
                         val userId = jsonObject.optInt("userId", -1)
                         val userAlias = jsonObject.optString("userAlias", "Unknown")
-                        val profilePictureUrl = jsonObject.optString("profilePictureUrl", "")
+                        val profilePictureUrl = NetworkUtils.fixLocalHostUrl(jsonObject.optString("profilePictureUrl", ""))
                         val isVerified = jsonObject.optBoolean("isVerified", false)
                         val user = SearchUser(
                             userId = userId,

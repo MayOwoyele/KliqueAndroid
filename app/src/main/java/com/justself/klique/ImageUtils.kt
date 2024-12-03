@@ -10,7 +10,6 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
 import kotlin.math.absoluteValue
-import kotlin.math.max
 import kotlin.math.sin
 
 object ImageUtils {
@@ -121,7 +120,7 @@ object ImageUtils {
         } else {
             Log.d("ImageLoad", "this is also called for")
             val byteArrayOutputStream = ByteArrayOutputStream()
-            downscaledBitmap.compress(Bitmap.CompressFormat.JPEG, 90, byteArrayOutputStream)
+            downscaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteArrayOutputStream)
             val byteArray = byteArrayOutputStream.toByteArray()
 
             if (downscaledBitmap != bitmap && downscaledBitmap != correctedBitmap) {
@@ -157,7 +156,7 @@ object ImageUtils {
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, rotationMatrix, true)
     }
 
-    fun calculateAverageColor(bitmap: Bitmap): String {
+    fun calculateAverageColor(bitmap: Bitmap): Int {
         var red = 0
         var green = 0
         var blue = 0
@@ -172,12 +171,10 @@ object ImageUtils {
             }
         }
 
-        // Calculate the average of each color component
         red /= pixelCount
         green /= pixelCount
         blue /= pixelCount
 
-        // Convert to hex format
-        return String.format("#%02X%02X%02X", red, green, blue)
+        return Color.rgb(red, green, blue)
     }
 }

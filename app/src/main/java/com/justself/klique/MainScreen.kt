@@ -6,6 +6,12 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -68,9 +74,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -234,12 +242,15 @@ fun MainScreen(
     when (appState) {
         AppState.Loading -> {
             Box(
-                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
             }
         }
+
         AppState.LoggedIn -> Scaffold(
             topBar = {
                 if (!(messageScreenGuy || bioScreenGuy || imageViewer || videoViewer || chatRoomGuy)) {
@@ -259,7 +270,6 @@ fun MainScreen(
                 }
             },
             bottomBar = {
-                // Conditionally render the bottom navigation bar
                 if (!(imeVisible || showEmojiPicker || messageScreenGuy || bioScreenGuy || imageViewer || videoViewer || chatRoomGuy)) {
                     BottomNavigationBar(navController)
                 }
@@ -304,8 +314,9 @@ fun MainScreen(
                                         .fillMaxWidth()
                                         .padding(8.dp)
                                         .clickable {
-                                            navController.navigate("bioScreen/${user.userId}")
+                                            isSearchMode = false
                                             searchResults = emptyList()
+                                            navController.navigate("bioScreen/${user.userId}")
                                         },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -352,11 +363,13 @@ fun MainScreen(
                 }
             }
         }
+
         AppState.LoggedOut -> {
             RegistrationScreen(navController = navController)
         }
+
         AppState.UpdateRequired -> {
-            UpdateRequiredScreen (navController)
+            UpdateRequiredScreen(navController)
         }
     }
 }
@@ -515,11 +528,16 @@ fun CustomAppBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(90.dp)  // Standard app bar height
+            .height(90.dp)
             .background(MaterialTheme.colorScheme.background),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isSearchMode) {
+        AnimatedVisibility(
+            visible = isSearchMode,
+            enter = fadeIn() + slideInVertically(initialOffsetY = { -40 }),
+            exit = fadeOut() + slideOutVertically(targetOffsetY = { -40 })
+        )
+        {
             TextField(
                 value = searchText,
                 onValueChange = {
@@ -538,7 +556,11 @@ fun CustomAppBar(
                         onSearchTextChange("")
                         cannotFindUser(false)
                     }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cancel Search")
+                        Icon(
+                            Icons.Filled.Close,
+                            contentDescription = "Cancel Search",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 },
                 maxLines = 1,
@@ -548,7 +570,8 @@ fun CustomAppBar(
                 ),
                 keyboardOptions = KeyboardOptions(KeyboardCapitalization.Sentences)
             )
-        } else {
+        }
+        if (!isSearchMode) {
             val topPadding = Modifier.padding(top = 40.dp)
             IconButton(
                 onClick = {

@@ -68,9 +68,7 @@ fun UpdateProfileScreen(
     var bioChanged by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val croppedBitmap by mediaViewModel.croppedBitmap.observeAsState()
-    var averageColor by remember { mutableStateOf("#FFFFFF") }
     croppedBitmap?.let { bitmap ->
-        averageColor = ImageUtils.calculateAverageColor(bitmap)
         val byteArray = FileUtils.bitmapToByteArray(bitmap)
         val uri = FileUtils.saveImage(context, byteArray, true)
         mediaViewModel.clearCroppedBitmap()
@@ -107,7 +105,6 @@ fun UpdateProfileScreen(
                 viewModel.updateProfile(
                     newProfilePictureUri,
                     bio,
-                    averageColor,
                     context,
                     customerId
                 )

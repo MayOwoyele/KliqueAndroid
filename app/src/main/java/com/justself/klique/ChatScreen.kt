@@ -267,7 +267,7 @@ fun ChatListScreen(
                             .animateContentSize()
                     ) {
                         TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
-                        TextOption("Update Status", onClick = {navController.navigate("statusSelectionScreen")})
+                        TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
                         TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/2/Personal Shopper")})
                     }
                 }

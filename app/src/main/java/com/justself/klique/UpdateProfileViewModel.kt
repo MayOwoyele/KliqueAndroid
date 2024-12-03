@@ -16,31 +16,37 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class TinyProfileDetails(val name: String, val bioText: String, val profileUrl: String, val kcBalance: Int, val phoneNumber: String)
+data class TinyProfileDetails(
+    val name: String,
+    val bioText: String,
+    val profileUrl: String,
+    val kcBalance: Int,
+    val phoneNumber: String
+)
+
 class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : ViewModel() {
-    var profilePictureUrl: String =
-        "https://fastly.picsum.photos/id/433/450/300.jpg?hmac=FIWPaQ-to3njMOAmnwI8dg-5TyOzFGi1nVVfEoEERf4"
-        private set
     private val _loaded = MutableStateFlow(false)
     val loaded = _loaded.asStateFlow()
 
-    private val _tinyProfileDetails = MutableStateFlow(TinyProfileDetails("","","", 0, ""))
+    private val _tinyProfileDetails = MutableStateFlow(TinyProfileDetails("", "", "", 0, ""))
     val tinyProfileDetails: StateFlow<TinyProfileDetails> = _tinyProfileDetails
 
     private val _bio = MutableStateFlow("")
     val bio: StateFlow<String> = _bio
 
-        init {
+    init {
         viewModelScope.launch {
             tinyProfileDetails.collect {
                 _bio.value = _tinyProfileDetails.value.bioText
             }
         }
     }
+
     override fun onCleared() {
         Log.d("UpdateProfile", "on cleared called")
     }
-    fun fetchProfile(){
+
+    fun fetchProfile() {
         Log.d("UpdateProfile", "Called")
         _loaded.value = true
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
@@ -51,7 +57,8 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                 if (response.first) {
                     val jsonObject = JSONObject(response.second)
                     val bioText = jsonObject.getString("bio")
-                    val profilePicture = jsonObject.getString("profileUrl").replace("127.0.0.1", "10.0.2.2")
+                    val profilePicture =
+                        jsonObject.getString("profileUrl").replace("127.0.0.1", "10.0.2.2")
                     val tinyDetails = TinyProfileDetails(
                         "", bioText, profilePicture, 0, ""
                     )
@@ -71,17 +78,19 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
     fun updateProfile(
         newProfilePictureUri: Uri?,
         newBio: String,
-        averageColor: String,
         context: Context,
         customerId: Int
     ) {
         if (newProfilePictureUri != null) {
-            Log.d("Update Profile", "Uri is $newProfilePictureUri")
             viewModelScope.launch(Dispatchers.IO) {
                 val chatParticipantIds = chatScreenViewModel.fetchRelevantIds()
                 val byteArray = FileUtils.loadFileAsByteArray(context, newProfilePictureUri)
                 if (byteArray != null) {
-                    sendProfilePictureUpdateToServer(byteArray, chatParticipantIds, averageColor, customerId)
+                    sendProfilePictureUpdateToServer(
+                        byteArray,
+                        chatParticipantIds,
+                        customerId
+                    )
                 } else {
                     Log.d("Profile Picture", "Byte array null")
                 }
@@ -96,35 +105,35 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
     private fun sendProfilePictureUpdateToServer(
         byteArray: ByteArray,
         chatParticipantIds: List<Int>,
-        averageColor: String,
         customerId: Int
     ) {
-        val uploadJsonObject = JSONObject().apply {
-            put("averageColor", averageColor)
-            put("userId", customerId)
-            put("chatParticipantIds", JSONArray(chatParticipantIds))
-        }.toString()
-        val participantJson = JSONObject().apply {
-            put("type", "chatListArray")
-            put("chatParticipantIds", JSONArray(chatParticipantIds))
-        }.toString()
-        try {
-            viewModelScope.launch {
-                val response = NetworkUtils.makeRequest(
-                    "uploadBioImage",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    binaryBody = byteArray,
-                    jsonBody = uploadJsonObject
-                )
-                if (response.first) {
-                    WebSocketManager.send(participantJson)
-                }
+        val uploadFields = listOf(
+            MultipartField(
+                name = "userId",
+                value = customerId.toString()
+            ),
+            MultipartField(
+                name = "chatParticipantIds",
+                value = chatParticipantIds.joinToString(separator = ",")
+            ),
+            MultipartField(
+                name = "image",
+                value = byteArray,
+                fileName = "profile_picture.jpg",
+                mimeType = MimeType.IMAGE_JPEG
+            )
+        )
+
+        viewModelScope.launch {
+            try {
+                val response = NetworkUtils.makeMultipartRequest("uploadBioImage", uploadFields)
+                Log.d("UpdateProfileImage", "${ response.second }, ${response.third}")
+            } catch (e: Exception) {
+                Log.d("UpdateProfile", e.toString())
             }
-        }catch (e: Exception){
-            e.printStackTrace()
         }
     }
+
     private fun updateBio(text: String, customerId: Int) {
         val bioJson = JSONObject().apply {
             put("userId", customerId)
@@ -132,12 +141,18 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
         }.toString()
         try {
             viewModelScope.launch {
-                NetworkUtils.makeRequest("updateBioText", KliqueHttpMethod.POST, emptyMap(), jsonBody = bioJson)
+                NetworkUtils.makeRequest(
+                    "updateBioText",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody = bioJson
+                )
             }
-        } catch (e:Exception){
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }
+
     fun updateBio(newBio: String) {
         _bio.value = newBio // Allow independent updates to bio
     }

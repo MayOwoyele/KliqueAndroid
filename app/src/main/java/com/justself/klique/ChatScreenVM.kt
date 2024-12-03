@@ -673,8 +673,6 @@ class ChatScreenViewModel(
     suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
     }
-
-
     fun handleRecordedAudio(
         file: File,
         enemyId: Int,

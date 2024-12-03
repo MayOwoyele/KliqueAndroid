@@ -704,7 +704,21 @@ fun MessageScreenContent(
                     .clip(RoundedCornerShape(50)),
             )
         }
-        if (personalChat.size > lastSeenMessageCount) {
+        LaunchedEffect(scrollState) {
+            snapshotFlow { scrollState.firstVisibleItemIndex }
+                .collect { index ->
+                    if (index == 0) {
+                        lastSeenMessageCount = personalChat.size
+                    }
+                }
+
+        }
+        val shouldShowButton by remember {
+            derivedStateOf {
+                personalChat.size > lastSeenMessageCount || scrollState.firstVisibleItemIndex > viewModel.pageSize
+            }
+        }
+        if (shouldShowButton) {
             FloatingActionButton(
                 onClick = {
                     coroutineScope.launch {

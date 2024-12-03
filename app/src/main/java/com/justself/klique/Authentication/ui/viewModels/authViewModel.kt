@@ -37,11 +37,13 @@ import kotlinx.coroutines.flow.update
 import org.json.JSONException
 import java.util.Calendar
 import com.justself.klique.BuildConfig
+import com.justself.klique.SessionManager.saveCountryToSharedPreferences
 
 
 enum class RegistrationStep {
     PHONE_NUMBER, CONFIRMATION_CODE, NAME, GENDER, YEAR_OF_BIRTH, COMPLETE
 }
+
 enum class AppState {
     LoggedIn,
     LoggedOut,
@@ -51,19 +53,20 @@ enum class AppState {
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val context = getApplication<Application>()
-    val appState: StateFlow<AppState> = combine(customerId, updateDismissedFlow) { customerId, updateDismissedFlow ->
-        val updateRequired = isUpdateRequired(appContext) && !updateDismissedFlow
-        when {
-            updateRequired -> AppState.UpdateRequired
-            customerId > 0 -> AppState.LoggedIn
-            customerId <= 0 -> AppState.LoggedOut
-            else -> AppState.Loading
-        }
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.Lazily,
-        AppState.Loading
-    )
+    val appState: StateFlow<AppState> =
+        combine(customerId, updateDismissedFlow) { customerId, updateDismissedFlow ->
+            val updateRequired = isUpdateRequired(appContext) && !updateDismissedFlow
+            when {
+                updateRequired -> AppState.UpdateRequired
+                customerId > 0 -> AppState.LoggedIn
+                customerId <= 0 -> AppState.LoggedOut
+                else -> AppState.Loading
+            }
+        }.stateIn(
+            viewModelScope,
+            SharingStarted.Lazily,
+            AppState.Loading
+        )
 
     private val _registrationStep = MutableStateFlow(RegistrationStep.PHONE_NUMBER)
     val registrationStep: StateFlow<RegistrationStep> = _registrationStep.asStateFlow()
@@ -97,6 +100,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _countdown = MutableStateFlow(countdownSeconds)
     val countdown: StateFlow<Int> = _countdown.asStateFlow()
+
+    private var _country = MutableStateFlow<String?>(null)
+    val country: StateFlow<String?> = _country.asStateFlow()
 
     private val _canResendCode = MutableStateFlow(false)
     val canResendCode: StateFlow<Boolean> = _canResendCode.asStateFlow()
@@ -134,7 +140,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun retryConfirmationCode(code: String) {
         _errorMessage.value = ""
-        val jsonBody = JSONObject().put("confirmationCode", code).toString()
+        val jsonBody = JSONObject().apply {
+            put("code", code)
+            put("phoneNumber", phoneNumber.value)
+        }.toString()
         viewModelScope.launch {
             try {
                 val response = NetworkUtils.makeRequest(
@@ -157,12 +166,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.d("KliqueCode", e.toString())
             }
         }
     }
 
-    fun verifyPhoneNumber(phoneNumber: String) {
+    fun verifyPhoneNumber(phoneNumber: String, selectedCountry: String, retrial: Boolean = false) {
         _errorMessage.value = ""
         viewModelScope.launch {
             try {
@@ -179,14 +188,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 if (responseString.first) {
                     _aiMessage.value = responseString.second
                     isServerAIMessage = true
-                    moveToNextStep()
+                    if (!retrial) {
+                        moveToNextStep()
+                    }
                     _phoneNumber.value = phoneNumber
+                    _country.value = selectedCountry
                     _errorMessage.value = ""
                 } else {
                     _errorMessage.value = responseString.second
                 }
             } catch (e: IOException) {
-                _errorMessage.value = "An error occurred: ${e.message}"
+                Log.d("SignUpError", e.toString())
+                _errorMessage.value =
+                    "I'm sorry, something went wrong and we do not know. Please try again soon"
             }
         }
     }
@@ -219,8 +233,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun verifyName(name: String) {
         _errorMessage.value = ""
-        try {
-            viewModelScope.launch {
+        viewModelScope.launch {
+            try {
                 val jsonBody = JSONObject().put("name", name).toString()
                 val response = NetworkUtils.makeRequest(
                     "nameSubmission",
@@ -234,20 +248,22 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     _errorMessage.value = response.second
                 }
+            } catch (e: Exception) {
+                Log.d("KliqueName", e.toString())
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 
     fun verifyBirthday(day: Int, month: Int, year: Int) {
         _errorMessage.value = ""
         viewModelScope.launch {
-            val response = screenBirthdayAgeSubmission( year)
+            val response = screenBirthdayAgeSubmission(year)
             if (response.isSuccess) {
                 _birthday.value = Triple(day, month, year)
-                if (finalizeRegistration()){
+                if (finalizeRegistration()) {
                     moveToNextStep()
+                } else {
+                    _errorMessage.value = "There was an error signing up. Please try again soon"
                 }
             } else {
                 _errorMessage.value = response.errorMessage
@@ -255,7 +271,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun screenBirthdayAgeSubmission( year: Int): ServerResponse {
+    private fun screenBirthdayAgeSubmission(year: Int): ServerResponse {
         return if (year <= Calendar.getInstance().get(Calendar.YEAR) - 13) {
             ServerResponse(isSuccess = true, errorMessage = "")
         } else {
@@ -288,6 +304,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             completeRegistrationData.put("birthday", formattedBirthday)
         }
         completeRegistrationData.put("platform", "android")
+        country.value?.let { completeRegistrationData.put("country", it) }
         val jsonString = completeRegistrationData.toString()
         try {
             val responseString = NetworkUtils.makeRequest(
@@ -307,6 +324,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         response.accessToken!!,
                         response.refreshToken!!
                     )
+                    saveCountryToSharedPreferences(country.value!!)
                 }
                 return true
             } else {
@@ -315,7 +333,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         } catch (e: IOException) {
-            _errorMessage.value = "An error occurred: ${e.message}"
+            _errorMessage.value =
+                "An error occurred and we are not sure what it is. Please try again soon"
             Log.d("Final", "$completeRegistrationData")
         }
         return false
@@ -339,7 +358,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resendCode() {
         _phoneNumber.value?.let { phoneNumber ->
-            verifyPhoneNumber(phoneNumber)
+            verifyPhoneNumber(phoneNumber, country.value!!, true)
             resetCountdown()
         }
     }
@@ -352,25 +371,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 _errorMessage.value =
                     "Registration data is missing or incomplete. Please try again."
             }
-        }
-    }
-
-    fun testLambda() {
-        viewModelScope.launch {
-            val params = mapOf("this" to "that")
-            val response: suspend () -> Triple<Boolean, String, Int> =
-                { NetworkUtils.makeRequest("yahoo", KliqueHttpMethod.GET, params) }
-            val action: suspend (Triple<Boolean, String, Int>) -> Unit =
-                { responseTriple: Triple<Boolean, String, Int> ->
-                    _aiMessage.value = responseTriple.second
-                    isServerAIMessage = true
-                    moveToNextStep()
-                    _phoneNumber.value = "phoneNumber"
-                    _errorMessage.value = ""
-                }
-            val errorAction: suspend (Triple<Boolean, String, Int>) -> Unit =
-                { responseTriple -> _errorMessage.value = responseTriple.second }
-            performReusableNetworkCalls(action, response, errorAction)
         }
     }
 }

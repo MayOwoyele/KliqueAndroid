@@ -130,14 +130,16 @@ object NetworkUtils {
             val response = try {
                 BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             } catch (e: IOException) {
-                BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() } // Handle error stream on exceptions
+                BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() }
             } finally {
                 connection.disconnect()
             }
             Log.d("NetworkUtils", "HTTP $method Response Code: ${connection.responseCode}")
 
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IOException("HTTP error code: ${connection.responseCode} - $response")
+            val responseCode = connection.responseCode
+
+            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_UNAUTHORIZED && responseCode != HttpURLConnection.HTTP_FORBIDDEN) {
+                throw IOException("Unexpected HTTP response code: $responseCode. Response: $response")
             }
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
             Log.d("NetworkUtils", "response is $response, $isSuccessful")
@@ -176,8 +178,6 @@ object NetworkUtils {
                     }
                     writer.flush()
                 }
-
-                // End boundary
                 writer.append("\r\n--$boundary--\r\n")
                 writer.flush()
             }

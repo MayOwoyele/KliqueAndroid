@@ -1,5 +1,7 @@
 package com.justself.klique
 
+import ImageUtils.calculateAverageColor
+import android.graphics.drawable.BitmapDrawable
 import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Log
@@ -51,8 +53,11 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -65,9 +70,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Popup
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import coil.request.SuccessResult
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -93,7 +102,6 @@ fun BioScreen(
     )
     val profile by bioViewModel.profile.collectAsState()
     val contactName by bioViewModel.checkIfContact(enemyId).observeAsState()
-
     var showClassSection by remember { mutableStateOf(false) }
     var expandedPostId by remember { mutableStateOf<String?>(null) }
     val postComments by bioViewModel.postComments.collectAsState()
@@ -116,6 +124,31 @@ fun BioScreen(
     LaunchedEffect(key1 = Unit) {
         bioViewModel.fetchProfile(enemyId, customerId)
     }
+    var backgroundColor by remember { mutableStateOf(Color.Transparent) }
+    var imagePainter by remember { mutableStateOf<BitmapPainter?>(null) }
+
+    LaunchedEffect(profile?.bioImage) {
+        profile?.bioImage?.let { bioImageUrl ->
+            val loader = ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(bioImageUrl)
+                .allowHardware(false)
+                .build()
+
+            val result = loader.execute(request)
+            if (result is SuccessResult) {
+                val drawable = result.drawable
+                val bitmap = if (drawable is BitmapDrawable) {
+                    drawable.bitmap
+                } else {
+                    drawable.toBitmap()
+                }
+                imagePainter = BitmapPainter(bitmap.asImageBitmap())
+                val color = calculateAverageColor(bitmap)
+                backgroundColor = Color(color)
+            }
+        }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -125,16 +158,23 @@ fun BioScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(profile!!.backgroundColor)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.background,
+                                backgroundColor
+                            )
+                        )
+                    )
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f))
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.05f))
                 ) {
                     Box(
                         modifier = Modifier
-                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.3f))
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.05f))
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -147,17 +187,22 @@ fun BioScreen(
                                 modifier = Modifier
                                     .size(180.dp)
                             ) {
-                                Image(
-                                    painter = rememberAsyncImagePainter(profile!!.bioImage),
-                                    contentDescription = null,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RectangleShape)
-                                        .padding(top = 16.dp)
-                                        .background(profile!!.backgroundColor)
-                                        .border(1.dp, color = MaterialTheme.colorScheme.primary),
-                                    contentScale = ContentScale.Crop
-                                )
+                                if(imagePainter != null){
+                                    Image(
+                                        painter = imagePainter!!,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RectangleShape)
+                                            .padding(top = 16.dp)
+                                            .background(backgroundColor)
+                                            .border(
+                                                1.dp,
+                                                color = MaterialTheme.colorScheme.primary
+                                            ),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                                 if (profile!!.isVerified) {
                                     Icon(
                                         imageVector = Icons.Default.CheckCircle,
@@ -431,14 +476,26 @@ fun BioScreen(
                                         .pointerInput(Unit) {
                                             detectTapGestures { tapOffset ->
                                                 textLayoutResult?.let { layoutResult ->
-                                                    val position = layoutResult.getOffsetForPosition(tapOffset)
-                                                    val annotations = layoutResult.layoutInput.text.getStringAnnotations(position, position)
-                                                    annotations.firstOrNull()?.let { annotation ->
-                                                        when (annotation.tag) {
-                                                            "COMMENTER" -> navController.navigate("bioScreen/${annotation.item}")
-                                                            "REPLYING_TO" -> navController.navigate("bioScreen/${annotation.item}")
+                                                    val position =
+                                                        layoutResult.getOffsetForPosition(tapOffset)
+                                                    val annotations =
+                                                        layoutResult.layoutInput.text.getStringAnnotations(
+                                                            position,
+                                                            position
+                                                        )
+                                                    annotations
+                                                        .firstOrNull()
+                                                        ?.let { annotation ->
+                                                            when (annotation.tag) {
+                                                                "COMMENTER" -> navController.navigate(
+                                                                    "bioScreen/${annotation.item}"
+                                                                )
+
+                                                                "REPLYING_TO" -> navController.navigate(
+                                                                    "bioScreen/${annotation.item}"
+                                                                )
+                                                            }
                                                         }
-                                                    }
                                                 }
                                             }
                                         },

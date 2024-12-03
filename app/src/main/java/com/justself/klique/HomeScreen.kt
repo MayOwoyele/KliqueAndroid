@@ -282,7 +282,7 @@ fun GistForm(
                     showTopicError = true
                 }
             },
-            label = { Text("Gist Topic", color = MaterialTheme.colorScheme.surface) },
+            label = { Text("Gist Topic", color = MaterialTheme.colorScheme.onPrimary) },
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.colorScheme.onPrimary,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -300,7 +300,7 @@ fun GistForm(
                     showDescriptionError = true
                 }
             },
-            label = { Text("Description (Optional)", color = MaterialTheme.colorScheme.surface) },
+            label = { Text("Description", color = MaterialTheme.colorScheme.onPrimary) },
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedBorderColor = MaterialTheme.colorScheme.onPrimary,
                 focusedBorderColor = MaterialTheme.colorScheme.primary,

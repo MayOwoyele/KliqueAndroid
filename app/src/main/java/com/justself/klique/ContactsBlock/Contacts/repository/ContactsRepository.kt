@@ -7,13 +7,20 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
+import com.justself.klique.AppUpdateManager
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import com.justself.klique.ContactsBlock.Contacts.data.ServerContactResponse
 import com.justself.klique.ContactEntity
 import com.justself.klique.ContactsDatabase
 import com.justself.klique.DatabaseProvider
+import com.justself.klique.KliqueHttpMethod
+import com.justself.klique.NetworkUtils
+import com.justself.klique.SessionManager
 import com.justself.klique.toContact
 import com.justself.klique.toContactEntity
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import okio.IOException
 import org.json.JSONArray
 import org.json.JSONException
@@ -27,7 +34,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
     private val database: ContactsDatabase = DatabaseProvider.getContactsDatabase(context)
     private val phoneUtil = PhoneNumberUtil.getInstance()
     private fun normalizePhoneNumber(phoneNumber: String, context: Context): String? {
-        val region = getUserCountryCode(context)
+        val region = SessionManager.getUserCountryCode(context)
         return try {
             val number: Phonenumber.PhoneNumber = phoneUtil.parse(phoneNumber, region)
             phoneUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.E164)
@@ -35,6 +42,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
             null
         }
     }
+
     suspend fun getContactByCustomerId(customerId: Int): ContactEntity? {
         return database.contactDao().getContactByCustomerId(customerId)
     }
@@ -65,8 +73,10 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
 
         return contactList
     }
+
     fun getUserCountryCode(context: Context): String {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val telephonyManager =
+            context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
         val networkCountry = telephonyManager.networkCountryIso?.uppercase()
         val simCountry = telephonyManager.simCountryIso?.uppercase()
 
@@ -74,55 +84,37 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         return networkCountry ?: simCountry ?: localeCountry
     }
 
-    fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
+    suspend fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
         val jsonArray = JSONArray().apply {
             localContacts.forEach {
-                put(JSONObject().apply {
-                    put("name", it.name)
-                    put("phoneNumber", it.phoneNumber)
-                })
+                put(it.phoneNumber)
             }
         }
-
-        try {
-            Log.d("checkContactsOnServer", "Preparing mock response")
-            val mockJsonResponse = JSONArray().apply {
-                localContacts.forEachIndexed { index, contact ->
-                    val isAppUser = Random.nextBoolean()
-                    Log.d("checkContactsOnServer", "Contact: ${contact.phoneNumber}, isAppUser: $isAppUser")
-                    if (isAppUser) {
-                        put(JSONObject().apply {
-                            put("phoneNumber", contact.phoneNumber)
-                            put("senderId", Random.nextInt(1000, 9999)) // Random customer ID
-                            put("thumbnailUrl", "https://picsum.photos/200/200?random=$index") // Mock thumbnail URL
-                        })
-                    }
-                }
-            }.toString()
-            val jsonResponse = mockJsonResponse
-
-            val serverContacts = mutableListOf<ServerContactResponse>()
-            try {
-                Log.d("checkContactsOnServer", "Received mock server response")
-                val responseArray = JSONArray(jsonResponse)
-                for (i in 0 until responseArray.length()) {
-                    val jsonObject = responseArray.getJSONObject(i)
-                    val phoneNumber = jsonObject.getString("phoneNumber")
-                    val customerId = jsonObject.getInt("senderId")
-                    val thumbnailUrl = jsonObject.getString("thumbnailUrl")
-                    Log.d("checkContactsOnServer", "Processing contact: $phoneNumber, senderId: $customerId")
-                    serverContacts.add(ServerContactResponse(phoneNumber, customerId, thumbnailUrl))
-                }
-            } catch (e: JSONException) {
-                Log.e("checkContactsOnServer", "Failed to parse server response", e)
-                return emptyList()
+        val jsonObject = JSONObject().apply {
+            put("userId", SessionManager.customerId.value)
+            put("numbers", jsonArray)
+        }.toString()
+        Log.d("number", jsonObject)
+        val users = mutableListOf<ServerContactResponse>()
+        val response = NetworkUtils.makeRequest(
+            "fetchContacts",
+            KliqueHttpMethod.POST,
+            emptyMap(),
+            jsonBody = jsonObject
+        )
+        if (response.first) {
+            val responseJsonArray = JSONArray(response.second)
+            for (i in 0 until responseJsonArray.length()) {
+                val eachJsonObject = responseJsonArray.getJSONObject(i)
+                val phoneNumber = eachJsonObject.getString("phoneNumber")
+                val customerId = eachJsonObject.getInt("userId")
+                val thumbnailUrl = NetworkUtils.fixLocalHostUrl(eachJsonObject.getString("profilePictureUrl"))
+                val theData = ServerContactResponse(phoneNumber, customerId, thumbnailUrl)
+                users.add(theData)
             }
-
-            return serverContacts
-        } catch (e: IOException) {
-            Log.e("checkContactsOnServer", "Network Error", e)
-            return emptyList()
         }
+        Log.d("number", users.toString())
+        return users;
     }
 
     suspend fun mergeContacts(

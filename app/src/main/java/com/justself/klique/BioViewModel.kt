@@ -39,7 +39,6 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     val profileAssigned = Profile(
                         customerId = jsonObject.getInt("userId"),
                         bioImage = jsonObject.getString("bioImage").replace("127.0.0.1", "10.0.2.2"),
-                        backgroundColor = colorFromHex(jsonObject.getString("backgroundColor")),
                         fullName = jsonObject.getString("fullName"),
                         bioText = jsonObject.getString("bioText"),
                         posts = parsePosts(jsonObject.getJSONArray("posts")),
@@ -48,7 +47,6 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         seatedCount = jsonObject.getInt("seatedCount"),
                         isVerified = jsonObject.getBoolean("isVerified")
                     )
-                    Log.d("ProfileJson", profileAssigned.backgroundColor.toString())
                     _profile.value = profileAssigned
                 }
             } catch (e: Exception) {

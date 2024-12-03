@@ -7,10 +7,11 @@ import com.google.firebase.FirebaseApp
 class MyKliqueApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        appContext = applicationContext
         FirebaseApp.initializeApp(this)
         NetworkUtils.initialize(this)
         AppUpdateManager.initialize()
-        appContext = applicationContext
+        SessionManager.startSession()
     }
     companion object {
         lateinit var appContext: Context

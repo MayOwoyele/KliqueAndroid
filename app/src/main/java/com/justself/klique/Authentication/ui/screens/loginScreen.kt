@@ -45,6 +45,8 @@ import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
 import com.justself.klique.Authentication.ui.viewModels.ViewModelProviderFactory
+import com.justself.klique.MyKliqueApp.Companion.appContext
+import com.justself.klique.SessionManager
 import java.util.Calendar
 import java.util.Locale
 
@@ -92,20 +94,18 @@ fun RegistrationScreen(
 @Composable
 fun PhoneNumberScreen(authViewModel: AuthViewModel) {
     var phoneNumber by remember { mutableStateOf("") }
-    var selectedCountry by remember { mutableStateOf("GB") }
+    val defaultCountry = remember { SessionManager.getUserCountryCode(appContext) }
+    var selectedCountry by remember { mutableStateOf(defaultCountry) }
     val countryCode = remember(selectedCountry) { getCountryCodeForRegion(selectedCountry) }
     val phoneUtil = remember { PhoneNumberUtil.getInstance() }
     val errorMessage by authViewModel.errorMessage.collectAsState()
 
     Column(modifier = Modifier.padding(16.dp)) {
-        // Display Country Name
         Text(
             text = Locale("", selectedCountry).displayCountry,
             style = MaterialTheme.typography.bodyLarge,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-
-        // Country Code and Phone Number Input
         Row(verticalAlignment = Alignment.CenterVertically) {
             CountryCodePicker(
                 selectedCountry = selectedCountry,
@@ -141,18 +141,17 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
             Text(
                 text = errorMessage,
                 color = Color.Red,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
         Spacer(Modifier.height(16.dp))
 
-        // Continue Button
         Button(
             onClick = {
                 if (isValidPhoneNumber(phoneNumber, selectedCountry, phoneUtil)) {
-                    authViewModel.verifyPhoneNumber("+$countryCode$phoneNumber")
+                    authViewModel.verifyPhoneNumber("+$countryCode$phoneNumber", selectedCountry)
                 }
             },
             enabled = phoneNumber.isNotEmpty() && isValidPhoneNumber(
@@ -378,7 +377,7 @@ fun NameScreen(authViewModel: AuthViewModel) {
             Text(
                 text = errorMessage,
                 color = Color.Red,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
