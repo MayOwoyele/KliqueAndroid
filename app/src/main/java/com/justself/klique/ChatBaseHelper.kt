@@ -52,7 +52,7 @@ interface ChatDao {
     @Query("SELECT EXISTS(SELECT 1 FROM chats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))")
     suspend fun chatExists(myId: Int, enemyId: Int): Boolean
 
-    @Query("SELECT * FROM chats WHERE myId = :myId AND contactName LIKE :query")
+    @Query("SELECT * FROM chats WHERE (myId = :myId AND contactName LIKE :query) OR (enemyId = :myId AND contactName LIKE :query)")
     fun searchChats(myId: Int, query: String): List<ChatList>
 }
 

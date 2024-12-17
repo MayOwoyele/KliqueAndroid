@@ -85,8 +85,6 @@ fun HomeScreen(
     var showOptions by remember { mutableStateOf(false) }
     var showForm by remember { mutableStateOf(false) }
     val gistCreationError by viewModel.gistCreationError.observeAsState()
-
-    // Observe gist state from ViewModel
     val gistState by viewModel.gistCreatedOrJoined.observeAsState()
     val gistActive = gistState != null
 

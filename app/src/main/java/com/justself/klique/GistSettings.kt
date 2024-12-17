@@ -85,6 +85,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
     val searchResults by viewModel.searchResults.observeAsState(emptyList())
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val minCharacterLimit = 10
+    val gistCreationError by viewModel.gistCreationError.observeAsState()
     BackHandler {
         navController.popBackStack()
         viewModel.turnSearchPerformedOff()
@@ -100,221 +101,233 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .imePadding()
-    ) {
-        Row(
+    Box (modifier = Modifier.fillMaxSize()){
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(color = MaterialTheme.colorScheme.background)
+                .fillMaxSize()
+                .imePadding()
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .weight(1f)
-                    .background(MaterialTheme.colorScheme.background),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isEditing) {
-                    editedText?.let {
-                        TextField(
-                            value = it,
-                            onValueChange = { newValue ->
-                                if (newValue.length <= 100) {
-                                    editedText = newValue.replace("\n", "")
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth(1f)
-                                .height(100.dp)
-                                .padding(4.dp)
-                                .align(alignment = Alignment.Center),
-                            textStyle = MaterialTheme.typography.bodyMedium,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.background,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.background,
-                                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
-                                unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary
-                            ),
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Text,
-                                capitalization = KeyboardCapitalization.Sentences
-                            )
-                        )
-                    }
-                } else {
-                    editedText?.let {
-                        Text(
-                            text = it,
-                            modifier = Modifier
-                                .fillMaxSize(1f)
-                                .padding(4.dp)
-                                .wrapContentHeight(Alignment.CenterVertically)
-                                .align(alignment = Alignment.Center),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-                IconButton(
-                    onClick = { isEditing = !isEditing; isSearchMode = false },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(4.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit, contentDescription = "Edit Icon"
-                    )
-                }
-            }
-        }
-        errorMessage?.let {
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.error,
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp)
-            )
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isSearchMode) {
-                TextField(value = searchQuery,
-                    onValueChange = { newValue ->
-                        if (newValue.length <= 20) {
-                            searchQuery = newValue
-                        }
-                    },
+                    .weight(1f)
+                    .background(color = MaterialTheme.colorScheme.background)
+            ) {
+                Box(
                     modifier = Modifier
+                        .fillMaxHeight()
                         .weight(1f)
-                        .focusRequester(focusRequester)
-                        .clip(RoundedCornerShape(16.dp)),
-                    singleLine = true,
-                    placeholder = { Text("search using their alias, not contact name...") },
-                    leadingIcon = {
-                        IconButton(onClick = {
-                            isSearchMode = false
-                        }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
+                        .background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isEditing) {
+                        editedText?.let {
+                            TextField(
+                                value = it,
+                                onValueChange = { newValue ->
+                                    if (newValue.length <= 100) {
+                                        editedText = newValue.replace("\n", "")
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth(1f)
+                                    .height(100.dp)
+                                    .padding(4.dp)
+                                    .align(alignment = Alignment.Center),
+                                textStyle = MaterialTheme.typography.bodyMedium,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.background,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                                    focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedIndicatorColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Text,
+                                    capitalization = KeyboardCapitalization.Sentences
+                                )
                             )
                         }
-                        LaunchedEffect(Unit) {
-                            focusRequester.requestFocus()
+                    } else {
+                        editedText?.let {
+                            Text(
+                                text = it,
+                                modifier = Modifier
+                                    .fillMaxSize(1f)
+                                    .padding(4.dp)
+                                    .wrapContentHeight(Alignment.CenterVertically)
+                                    .align(alignment = Alignment.Center),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                         }
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(imageVector = Icons.Filled.Clear, contentDescription = "Clear")
-                            }
-                        }
-                    },
-                    keyboardOptions = KeyboardOptions.Default.copy(
-                        imeAction = ImeAction.Search,
-                        keyboardType = KeyboardType.Text
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            viewModel.doTheSearch(searchQuery)
-                        }
-                    )
+                    }
+                    IconButton(
+                        onClick = { isEditing = !isEditing; isSearchMode = false },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit, contentDescription = "Edit Icon"
+                        )
+                    }
+                }
+            }
+            errorMessage?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp)
                 )
+            }
 
-            } else {
-                IconButton(onClick = {
-                    navController.popBackStack()
-                    viewModel.turnSearchPerformedOff()
-                    viewModel.unsubscribeToMembersUpdate()
-                }) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back"
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isSearchMode) {
+                    TextField(value = searchQuery,
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 20) {
+                                searchQuery = newValue
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester)
+                            .clip(RoundedCornerShape(16.dp)),
+                        singleLine = true,
+                        placeholder = { Text("search using their alias, not contact name...") },
+                        leadingIcon = {
+                            IconButton(onClick = {
+                                isSearchMode = false
+                            }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                            LaunchedEffect(Unit) {
+                                focusRequester.requestFocus()
+                            }
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Clear,
+                                        contentDescription = "Clear"
+                                    )
+                                }
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions.Default.copy(
+                            imeAction = ImeAction.Search,
+                            keyboardType = KeyboardType.Text
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onSearch = {
+                                viewModel.doTheSearch(searchQuery)
+                            }
+                        )
                     )
+
+                } else {
+                    IconButton(onClick = {
+                        navController.popBackStack()
+                        viewModel.turnSearchPerformedOff()
+                        viewModel.unsubscribeToMembersUpdate()
+                    }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if ((editedText?.length ?: 0) < minCharacterLimit) {
+                                errorMessage =
+                                    "Description must be at least $minCharacterLimit characters long."
+                            } else {
+                                isEditing = false
+                                editedText?.let { viewModel.sendUpdatedDescription(it, gistId!!) }
+                                errorMessage = null
+                            }
+                        }, modifier = Modifier.weight(1f)
+                    ) {
+                        Text(text = "Save")
+                    }
+                    IconButton(onClick = {
+                        isSearchMode = true
+                    }) {
+                        Icon(imageVector = Icons.Filled.Search, contentDescription = "Search")
+                    }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        if ((editedText?.length ?: 0) < minCharacterLimit) {
-                            errorMessage = "Description must be at least $minCharacterLimit characters long."
-                        } else {
-                            isEditing = false
-                            editedText?.let { viewModel.sendUpdatedDescription(it, gistId!!) }
-                            errorMessage = null
+            }
+
+            val listOfContactMembers by viewModel.listOfContactMembers.collectAsState()
+            val listOfNonContactMembers by viewModel.listOfNonContactMembers.collectAsState()
+            val listOfOwners by viewModel.listOfOwners.collectAsState()
+            val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
+            val searchPerformed by viewModel.searchPerformed.observeAsState(false)
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(2f)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                if (isSearchMode) {
+                    if (searchPerformed && searchResults.isEmpty()) {
+                        item {
+                            Text(
+                                text = "Contact isn't in gist",
+                                modifier = Modifier.padding(16.dp),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
                         }
-                    }, modifier = Modifier.weight(1f)
-                ) {
-                    Text(text = "Save")
-                }
-                IconButton(onClick = {
-                    isSearchMode = true
-                }) {
-                    Icon(imageVector = Icons.Filled.Search, contentDescription = "Search")
+                    } else {
+                        items(searchResults) { member ->
+                            MyMembersList(member = member, viewModel)
+                        }
+                    }
+                } else {
+                    item {
+                        Headers("Owners")
+                    }
+                    items(listOfOwners) { member ->
+                        MyMembersList(member, viewModel)
+                    }
+                    item {
+                        Headers("Speakers")
+                    }
+                    items(listOfSpeakers) { member ->
+                        MyMembersList(member, viewModel)
+                    }
+                    item {
+                        Headers("Your Contacts")
+                    }
+                    items(listOfContactMembers) { member ->
+                        MyMembersList(member, viewModel)
+                    }
+                    item {
+                        Headers("Non Contacts")
+                    }
+                    items(listOfNonContactMembers) { member ->
+                        MyMembersList(member, viewModel)
+                    }
                 }
             }
         }
-
-        val listOfContactMembers by viewModel.listOfContactMembers.collectAsState()
-        val listOfNonContactMembers by viewModel.listOfNonContactMembers.collectAsState()
-        val listOfOwners by viewModel.listOfOwners.collectAsState()
-        val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
-        val searchPerformed by viewModel.searchPerformed.observeAsState(false)
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(2f)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            if (isSearchMode) {
-                if (searchPerformed && searchResults.isEmpty()) {
-                    item {
-                        Text(
-                            text = "Contact isn't in gist",
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                } else {
-                    items(searchResults) {member ->
-                        MyMembersList(member = member, viewModel)
-                    }
-                }
-            } else {
-                item {
-                    Headers("Owners")
-                }
-                items(listOfOwners) { member ->
-                    MyMembersList(member, viewModel)
-                }
-                item {
-                    Headers("Speakers")
-                }
-                items(listOfSpeakers) { member ->
-                    MyMembersList(member, viewModel)
-                }
-                item {
-                    Headers("Your Contacts")
-                }
-                items(listOfContactMembers) { member ->
-                    MyMembersList(member, viewModel)
-                }
-                item {
-                    Headers("Non Contacts")
-                }
-                items(listOfNonContactMembers) { member ->
-                    MyMembersList(member, viewModel)
-                }
-            }
+        gistCreationError?.let { error ->
+            ErrorDialog(
+                errorMessage = error,
+                onDismiss = { viewModel.clearGistCreationError() }
+            )
         }
     }
 }

@@ -171,7 +171,6 @@ fun GistRoom(
         }
     }
 
-// Image Picker Launcher for Android 13 and below
     val imagePickerLauncherBelow14 = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -179,7 +178,6 @@ fun GistRoom(
             handleImageUri(context, uri, viewModel, gistId, customerId, myName, coroutineScope)
         }
     }
-    // Image Picker Launcher
     val imagePickerLauncher: (String) -> Unit = { mimeType ->
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             imagePickerLauncher14Plus.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -187,14 +185,12 @@ fun GistRoom(
             imagePickerLauncherBelow14.launch(mimeType)
         }
     }
-    // Video Picker Launcher for Android 14+ (TIRAMISU)
     val videoPickerLauncher14Plus = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         handleVideoUri(context, uri, coroutineScope, onNavigateToTrimScreen)
     }
 
-// Video Picker Launcher for Android 13 and below
     val videoPickerLauncherBelow14 = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -255,18 +251,6 @@ fun GistRoom(
         resetSelectedEmoji()
     }
 
-    // Load Messages
-    LaunchedEffect(key1 = gistId) {
-        if (gistId != null) {
-            if (gistId.isNotEmpty()) {
-                try {
-                    viewModel.loadMessages(gistId)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-    }
     LaunchedEffect(homeScreenUri) {
         Log.d("onTrim", "ontrim triggered again with value $homeScreenUri")
         homeScreenUri?.let {
@@ -276,10 +260,9 @@ fun GistRoom(
         }
     }
     DisposableEffect(Unit) {
-        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value?.startedBy}", 25)
+        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value?.startedBy}", viewModel.gistTopRow.value?.startedById ?: 0)
         onDispose { onDisplayTextChange("", 0) }
     }
-    // Scroll State to handle Gist Title visibility
     val scrollState = rememberLazyListState()
     val showTitle = remember { mutableStateOf(true) }
     var initialMessageCount by remember { mutableIntStateOf(observedMessages.size) }
@@ -344,10 +327,8 @@ fun GistRoom(
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
                 if (available.y < 0) {
-                    // Scrolling down
                     showTitle.value = true
                 } else if (available.y > 0) {
-                    // Scrolling up
                     showTitle.value = false
                 }
                 return Offset.Zero
@@ -356,7 +337,6 @@ fun GistRoom(
     }
     val isRecording = remember { mutableStateOf(false) }
 
-    // Permission launcher for recording audio
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -544,7 +524,6 @@ fun GistTitleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-
         Text(
             text = "Gist: $gistTopic",
             style = MaterialTheme.typography.bodyLarge.copy(
@@ -1144,7 +1123,7 @@ fun handleImageUri(
     coroutineScope: CoroutineScope
 ) {
     uri?.let {
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.IO) {
             try {
                 val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
                 Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")

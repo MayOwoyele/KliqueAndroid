@@ -26,6 +26,7 @@ import com.justself.klique.GistState
 import com.justself.klique.GistStateDao
 import com.justself.klique.GistStateEntity
 import com.justself.klique.GistTopRow
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.ListenerIdEnum
 import com.justself.klique.Members
@@ -682,7 +683,9 @@ class SharedCliqueViewModel(
             val messageExists = updatedMessages.any { it.id == message.id }
             if (!messageExists) {
                 updatedMessages.add(0, message)
-                _messages.value = updatedMessages
+                viewModelScope.launch(Dispatchers.Main) {
+                    _messages.value = updatedMessages
+                }
                 Log.d("Logging", "Add message post-logging: ${_messages.value}")
                 Log.d("CliqueViewModel", "Message added: $message")
                 if (message.externalUrl != null && message.localPath == null) {
@@ -693,17 +696,6 @@ class SharedCliqueViewModel(
                 Log.d("CliqueViewModel", "Duplicate message prevented: $message")
             }
         }
-    }
-
-    fun loadMessages(gistId: String) {
-        Log.i("SharedCliqueViewModel", "Loading messages for gistId: $gistId")
-        val message = """
-            {
-                "type": "loadMessages",
-                "gistId": "$gistId"
-            }
-        """.trimIndent()
-        send(message)
     }
 
     fun startGist(topic: String, type: String, description: String) {
@@ -1019,21 +1011,33 @@ class SharedCliqueViewModel(
                 val jsonBody = """{
                 "descriptionUpdate": "$editedText",
                 "gistId": "$gistId"
-                }
-            """.trimMargin()
-                val response = NetworkUtils.makeRequest(
-                    "updateGistDescription",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody
+            }""".trimMargin()
+
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest(
+                            "updateGistDescription",
+                            KliqueHttpMethod.POST,
+                            params = emptyMap(),
+                            jsonBody = jsonBody
+                        )
+                    },
+                    action = { response ->
+                        try {
+                            val jsonObject = JSONObject(response.second)
+                            val description = jsonObject.getString("description")
+                            _gistTopRow.value = _gistTopRow.value?.copy(gistDescription = description)
+                            Log.d("GistDescription", "Successfully updated description")
+                        } catch (e: Exception) {
+                            Log.e("GistDescription", "Error parsing response: ${e.message}")
+                        }
+                    },
+                    errorAction = { response ->
+                        Log.e("GistDescription", "Failed to update description: ${response.second}")
+                    }
                 )
-                if (response.first) {
-                    val jsonObject = JSONObject(response.second)
-                    val description = jsonObject.getString("description")
-                    _gistTopRow.value = _gistTopRow.value?.copy(gistDescription = description)
-                }
-            } catch (e: Exception){
-                Log.e("NetworkUtils", "Network request failed: ${e.message}")
+            } catch (e: Exception) {
+                Log.e("GistDescription", "Exception: ${e.message}", e)
             }
         }
     }
@@ -1137,35 +1141,39 @@ class SharedCliqueViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             try{
-                val response =
-                    NetworkUtils.makeRequest(endpoint, KliqueHttpMethod.POST, emptyMap(), jsonBody)
-                if (response.first) {
-                    val myNewComment = GistComment(
-                        comment = comment,
-                        fullName = "My Comment",
-                        customerId = customerId,
-                        replies = emptyList(),
-                        id = theCommentId,
-                        upVotes = 0
-                    )
-                    val myNewReply = Reply(
-                        id = theCommentId,
-                        fullName = "My Comment Reply",
-                        customerId = customerId,
-                        reply = comment,
-                    )
-                    if (!isReply) {
-                        _comments.value += myNewComment
-                    } else {
-                        _comments.value = _comments.value.map {
-                            if (it.id == commentId) {
-                                it.copy(replies = it.replies + myNewReply)
-                            } else {
-                                it
+                performReusableNetworkCalls(
+                    response = { NetworkUtils.makeJwtRequest(endpoint, KliqueHttpMethod.POST, emptyMap(), jsonBody) },
+                    action = {
+                        val myNewComment = GistComment(
+                            comment = comment,
+                            fullName = "My Comment",
+                            customerId = customerId,
+                            replies = emptyList(),
+                            id = theCommentId,
+                            upVotes = 0
+                        )
+                        val myNewReply = Reply(
+                            id = theCommentId,
+                            fullName = "My Comment Reply",
+                            customerId = customerId,
+                            reply = comment,
+                        )
+                        if (!isReply) {
+                            _comments.value += myNewComment
+                        } else {
+                            _comments.value = _comments.value.map {
+                                if (it.id == commentId) {
+                                    it.copy(replies = it.replies + myNewReply)
+                                } else {
+                                    it
+                                }
                             }
                         }
+                    },
+                    errorAction = { response ->
+                        Log.e("NetworkUtils", "Error during request: ${response.second}")
                     }
-                }
+                )
             } catch (e: Exception){
                 Log.e("NetworkUtils", "Network request failed: ${e.message}")
             }
@@ -1179,23 +1187,31 @@ class SharedCliqueViewModel(
         )
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = NetworkUtils.makeRequest("addUpVotes", KliqueHttpMethod.GET, params)
-                if (response.first) {
-                    if (response.second.contains("true")) {
-                        _comments.value = _comments.value.map { comment ->
-                            if (comment.id == commentId) comment.copy(upVotes = comment.upVotes + 1, upVotedByYou = true) else {
-                                comment
+                performReusableNetworkCalls(
+                    response = { NetworkUtils.makeJwtRequest("addUpVotes", KliqueHttpMethod.GET, params) },
+                    action = { response ->
+                        if (response.second.contains("true")) {
+                            _comments.value = _comments.value.map { comment ->
+                                if (comment.id == commentId) {
+                                    comment.copy(upVotes = comment.upVotes + 1, upVotedByYou = true)
+                                } else {
+                                    comment
+                                }
+                            }
+                        } else if (response.second.contains("false")) {
+                            _comments.value = _comments.value.map { comment ->
+                                if (comment.id == commentId) {
+                                    comment.copy(upVotes = comment.upVotes - 1, upVotedByYou = false)
+                                } else {
+                                    comment
+                                }
                             }
                         }
+                    },
+                    errorAction = { response ->
+                        Log.e("NetworkUtils", "Error during request: ${response.second}")
                     }
-                    if (response.second.contains("false")) {
-                        _comments.value = _comments.value.map { comment ->
-                            if (comment.id == commentId) comment.copy(upVotes = comment.upVotes - 1, upVotedByYou = false) else {
-                                comment
-                            }
-                        }
-                    }
-                }
+                )
             } catch (e: Exception){
                 Log.e("NetworkUtils", "Network request failed: ${e.message}")
             }

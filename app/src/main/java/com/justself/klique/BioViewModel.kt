@@ -8,6 +8,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -38,7 +39,8 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
                     val profileAssigned = Profile(
                         customerId = jsonObject.getInt("userId"),
-                        bioImage = jsonObject.getString("bioImage").replace("127.0.0.1", "10.0.2.2"),
+                        bioImage = jsonObject.getString("bioImage")
+                            .replace("127.0.0.1", "10.0.2.2"),
                         fullName = jsonObject.getString("fullName"),
                         bioText = jsonObject.getString("bioText"),
                         posts = parsePosts(jsonObject.getJSONArray("posts")),
@@ -68,6 +70,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                 totalComments = postJson.getInt("totalComments"),
                 kcLikesCount = postJson.getInt("kcLikesCount")
             )
+            Log.d("fetchProfile", postJson.getString("content"))
             posts.add(post)
         }
         return posts
@@ -94,49 +97,71 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
     fun leaveSeat(enemyId: Int, customerId: Int) {
         val json = """
-            {
-            "enemyId": $enemyId,
-            "userId": $customerId
-            }
-        """.trimIndent()
+        {
+        "enemyId": $enemyId,
+        "userId": $customerId
+        }
+    """.trimIndent()
+
         viewModelScope.launch {
             try {
-                val response = NetworkUtils.makeRequest(
-                    "leaveSeat",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody = json
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest(
+                            "leaveSeat",
+                            KliqueHttpMethod.POST,
+                            params = emptyMap(),
+                            jsonBody = json
+                        )
+                    },
+                    action = { response ->
+                        _profile.value = _profile.value?.copy(
+                            isSpectator = false,
+                            seatedCount = (_profile.value?.seatedCount ?: 1) - 1
+                        )
+                    },
+                    errorAction = { response ->
+                        Log.e("Response", "Error leaving seat: ${response.second}")
+                    }
                 )
-                if (response.first){
-                    _profile.value = _profile.value?.copy(isSpectator = false, seatedCount = (_profile.value?.seatedCount ?: 1) - 1)
-                }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("Response", "Exception: ${e.message}", e)
             }
         }
     }
 
     fun takeSeat(enemyId: Int, customerId: Int) {
         val json = """
-            {
-            "enemyId": $enemyId,
-            "userId": $customerId
-            }
-        """.trimIndent()
+        {
+        "enemyId": $enemyId,
+        "userId": $customerId
+        }
+    """.trimIndent()
+
         viewModelScope.launch {
             try {
-                val response = NetworkUtils.makeRequest(
-                    "takeSeat",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody = json
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest(
+                            "takeSeat",
+                            KliqueHttpMethod.POST,
+                            params = emptyMap(),
+                            jsonBody = json
+                        )
+                    },
+                    action = {
+                        Log.d("Response", "response successful")
+                        _profile.value = _profile.value?.copy(
+                            isSpectator = true,
+                            seatedCount = (_profile.value?.seatedCount ?: 1) + 1
+                        )
+                    },
+                    errorAction = { response ->
+                        Log.e("Response", "Error taking seat: ${response.second}")
+                    }
                 )
-                if (response.first){
-                    Log.d("Response", "response successful")
-                    _profile.value = _profile.value?.copy(isSpectator = true, seatedCount = (_profile.value?.seatedCount ?: 1) + 1)
-                }
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("Response", "Exception: ${e.message}", e)
             }
         }
     }
@@ -155,43 +180,71 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         }
     }
 
-    fun sendComment(comment: String, customerId: Int, commentText: String, replyingTo: String?, replyingToId: Int?) {
+    fun sendComment(
+        comment: String,
+        customerId: Int,
+        commentText: String,
+        replyingTo: String?,
+        replyingToId: Int?,
+        postId: String
+    ) {
         Log.d("CommentStatus", "called")
         viewModelScope.launch {
             try {
-                val response = NetworkUtils.makeRequest(
-                    "sendStatusComment",
-                    KliqueHttpMethod.POST,
-                    params = emptyMap(),
-                    jsonBody = comment
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest(
+                            "sendStatusComment",
+                            KliqueHttpMethod.POST,
+                            params = emptyMap(),
+                            jsonBody = comment
+                        )
+                    },
+                    action = { response ->
+                        val newComment = StatusComments(
+                            name = "You",
+                            customerId = customerId,
+                            text = commentText,
+                            replyingToId = replyingToId,
+                            replyingTo = replyingTo
+                        )
+                        val updatedComments = _postComments.value.toMutableList().apply {
+                            add(newComment)
+                        }
+                        _postComments.value = updatedComments
+
+                        val updatedPosts = _profile.value?.posts?.map { post ->
+                            if (post.id == postId) {
+                                post.copy(totalComments = post.totalComments + 1)
+                            } else {
+                                post
+                            }
+                        }?.toMutableList() ?: mutableListOf()
+
+                        _profile.value = _profile.value?.copy(posts = updatedPosts)
+
+                        Log.d("CommentStatus", response.second)
+                    },
+                    errorAction = { response ->
+                        Log.d("CommentStatus", "Error: ${response.second}")
+                    }
                 )
-                if (response.first) {
-                    val newComment = StatusComments(
-                        name = "You",
-                        customerId = customerId,
-                        text = commentText,
-                        replyingToId = replyingToId,
-                        replyingTo = replyingTo
-                    )
-                    val updatedComments = _postComments.value.toMutableList()
-                    updatedComments.add(newComment)
-                    _postComments.value = updatedComments
-                    Log.d("CommentStatus", response.second)
-                } else {
-                    Log.d("CommentStatus", response.second)
-                }
             } catch (e: Exception) {
-                Log.d("CommentStatus", e.toString())
+                Log.d("CommentStatus", "Exception: ${e.message}")
             }
         }
     }
 
     fun fetchPostComments(postId: String) {
         val params = mapOf("postId" to postId)
-        try {
-            viewModelScope.launch {
+        viewModelScope.launch {
+            try {
                 val response =
-                    NetworkUtils.makeRequest("fetchStatusPostComments", KliqueHttpMethod.GET, params)
+                    NetworkUtils.makeRequest(
+                        "fetchStatusPostComments",
+                        KliqueHttpMethod.GET,
+                        params
+                    )
                 if (response.first) {
                     val jsonResponse = response.second
                     val jsonObject = JSONObject(jsonResponse)
@@ -204,17 +257,19 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                             name = commentJson.getString("name"),
                             customerId = commentJson.getInt("customer_id"),
                             text = commentJson.getString("text"),
-                            replyingToId = commentJson.optInt("replying_to_id").takeIf { it != 0 },
-                            replyingTo = commentJson.optString("replying_to").takeIf { it != "null" }
+                            replyingToId = commentJson.optInt("replying_to_id")
+                                .takeIf { it != 0 },
+                            replyingTo = commentJson.optString("replying_to")
+                                .takeIf { it != "null" }
                         )
                         commentsList.add(statusComment)
                     }
                     _postComments.value = commentsList
                     Log.d("PostComments", "$commentsList")
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e: Exception){
-            e.printStackTrace()
         }
     }
 }

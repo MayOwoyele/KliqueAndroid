@@ -29,8 +29,10 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
-            resValue("string", "base_url", "http://10.0.2.2:8080/")
-            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
+//            resValue("string", "base_url", "http://10.0.2.2:8080/")
+//            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
+            resValue("string", "base_url", "https://api.kliquesocial.com/")
+            resValue("string", "websocket_url", "wss://websocket.kliquesocial.com")
         }
         release {
             isMinifyEnabled = false
@@ -38,8 +40,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "base_url", "https://192.168.0.77:3000/")
-            resValue("string", "websocket_url", "ws://192.168.0.77:8080")
+            resValue("string", "base_url", "https://api.kliquesocial.com/")
+            resValue("string", "websocket_url", "wss://websocket.kliquesocial.com")
         }
     }
     compileOptions {
@@ -68,6 +70,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.car.ui.lib)
+    implementation(libs.core.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

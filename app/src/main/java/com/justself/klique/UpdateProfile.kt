@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,9 +59,7 @@ fun UpdateProfileScreen(
     viewModel: ProfileViewModel
 ) {
     LaunchedEffect(key1 = Unit) {
-        if (!viewModel.loaded.value) {
             viewModel.fetchProfile()
-        }
     }
     val bioInfo by viewModel.tinyProfileDetails.collectAsState()
     var profilePictureUrl by remember { mutableStateOf(bioInfo.profileUrl) }
@@ -67,11 +67,13 @@ fun UpdateProfileScreen(
     var newProfilePictureUri: Uri? by remember { mutableStateOf(null) }
     var bioChanged by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val isDownscaling by mediaViewModel.isDownScalingImageForUpdateProfile.collectAsState()
     val croppedBitmap by mediaViewModel.croppedBitmap.observeAsState()
     croppedBitmap?.let { bitmap ->
         val byteArray = FileUtils.bitmapToByteArray(bitmap)
         val uri = FileUtils.saveImage(context, byteArray, true)
         mediaViewModel.clearCroppedBitmap()
+        mediaViewModel.setIsDownScalingImageForUpdateProfile(false)
         uri?.let {
             newProfilePictureUri = uri
         } ?: run {
@@ -110,6 +112,25 @@ fun UpdateProfileScreen(
                 )
             }
         )
+        if (isDownscaling) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    Text(
+                        text = "Processing image...",
+                        style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onPrimary)
+                    )
+                }
+            }
+        }
     }
 }
 

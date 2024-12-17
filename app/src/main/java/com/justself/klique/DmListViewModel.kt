@@ -3,6 +3,7 @@ package com.justself.klique
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -27,41 +28,51 @@ class DmListViewModel : ViewModel() {
 
     fun fetchDmList(customerId: Int) {
         viewModelScope.launch {
-            val params = mapOf("userId" to "$customerId")
-            val response = NetworkUtils.makeRequest("fetchDmList", KliqueHttpMethod.GET, params)
-            if (response.first) {
-                try {
-                    val jsonArray = JSONArray(response.second)
-                    Log.d("Parsing", response.second)
-                    val dmItems = (0 until jsonArray.length()).map { i ->
-                        val jsonObject = jsonArray.getJSONObject(i)
+            try {
+                val params = mapOf("userId" to "$customerId")
 
-                        val imageLink = jsonObject.getString("imageLink").replace("127.0.0.1", "10.0.2.2")
-                        val fullName = jsonObject.getString("fullName")
-                        val enemyId = jsonObject.getInt("enemyId")
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest("fetchDmList", KliqueHttpMethod.GET, params)
+                    },
+                    action = { response ->
+                        try {
+                            val jsonArray = JSONArray(response.second)
+                            Log.d("Parsing", response.second)
+                            val dmItems = (0 until jsonArray.length()).map { i ->
+                                val jsonObject = jsonArray.getJSONObject(i)
 
-                        val lastMessageType = jsonObject.getString("lastMessageType")
-                        val lastMessage = when (lastMessageType) {
-                            "DText" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
-                            "DImage" -> LastMessage.Photo
-                            else -> LastMessage.Text("")
+                                val imageLink =
+                                    NetworkUtils.fixLocalHostUrl(jsonObject.getString("imageLink"))
+                                val fullName = jsonObject.getString("fullName")
+                                val enemyId = jsonObject.getInt("enemyId")
+
+                                val lastMessageType = jsonObject.getString("lastMessageType")
+                                val lastMessage = when (lastMessageType) {
+                                    "DText" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
+                                    "DImage" -> LastMessage.Photo
+                                    else -> LastMessage.Text("")
+                                }
+                                Log.e("fetchDmList", "image link: $imageLink")
+
+                                DmItem(
+                                    imageLink = imageLink,
+                                    fullName = fullName,
+                                    enemyId = enemyId,
+                                    lastMessage = lastMessage
+                                )
+                            }
+                            _dmList.value = dmItems
+                        } catch (e: Exception) {
+                            Log.e("fetchDmList", "Error parsing response: ${e.message}")
                         }
-                        Log.e("fetchDmList", "image link: $imageLink")
-
-                        DmItem(
-                            imageLink = imageLink,
-                            fullName = fullName,
-                            enemyId = enemyId,
-                            lastMessage = lastMessage
-                        )
+                    },
+                    errorAction = { response ->
+                        Log.e("fetchDmList", "Request failed: ${response.second}")
                     }
-                    _dmList.value = dmItems
-
-                } catch (e: Exception) {
-                    Log.e("fetchDmList", "Error parsing response: ${e.message}")
-                }
-            } else {
-                Log.e("fetchDmList", "Request failed: ${response.second}")
+                )
+            } catch (e: Exception) {
+                Log.e("fetchDmList", "Exception: ${e.message}", e)
             }
         }
     }

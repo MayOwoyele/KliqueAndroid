@@ -34,7 +34,7 @@ object SessionManager {
         val savedCustomerId = sharedPreferences.getInt(CUSTOMER_ID, -1)
         val savedFullName = sharedPreferences.getString(FULL_NAME_KEY, "") ?: ""
 
-        _customerId.value =  1//savedCustomerId
+        _customerId.value =  savedCustomerId
         _fullName.value = savedFullName
     }
 
@@ -70,10 +70,10 @@ object SessionManager {
         val sharedPreferences = appContext.getSharedPreferences(KLIQUE_APP_USER, Context.MODE_PRIVATE)
         return sharedPreferences.getString(COUNTRY_KEY, "") ?: ""
     }
-    fun getUserCountryCode(context: Context): String {
-        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
+    fun getUserCountryCode(): String {
+//        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+//        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
         val savedCountry = getCountryFromSharedPreferences()
-        return networkCountry ?: savedCountry
+        return savedCountry
     }
 }

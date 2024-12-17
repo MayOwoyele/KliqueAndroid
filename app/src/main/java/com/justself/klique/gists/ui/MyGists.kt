@@ -16,7 +16,7 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 fun MyGists(myGists: List<GistModel>, customerId: Int, viewModel: SharedCliqueViewModel) {
     if (myGists.isEmpty()) {
         Text(
-            text = "You haven't created a gist. Click on the plus icon below to do so",
+            text = "You haven't created a gist. Click on the plus icon below to do so. Note that you can't own more than 5 gists",
             color = MaterialTheme.colorScheme.onPrimary,
             style = MaterialTheme.typography.bodyLarge
         )

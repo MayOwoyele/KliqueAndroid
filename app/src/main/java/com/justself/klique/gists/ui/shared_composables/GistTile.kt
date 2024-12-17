@@ -93,7 +93,7 @@ fun GistTile(
                     modifier = Modifier.weight(4F)
                 )
                 Text(
-                    text = "Description: $description",
+                    text = description,
                     style = MaterialTheme.typography.bodyMedium,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
@@ -106,10 +106,6 @@ fun GistTile(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1.5F)
                 )
-//                Button(onClick = { /*TODO*/ }) {
-
-//                    Text(text = "View Gist")
-//                }
             }
         }
         if (isDialogVisible) {

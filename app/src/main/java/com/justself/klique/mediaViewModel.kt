@@ -14,6 +14,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +35,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _bitmap = MutableLiveData<Bitmap?>()
     val bitmap: LiveData<Bitmap?> get() = _bitmap
+    private val _toCropImageUri = MutableStateFlow<String?>(null)
+    val toCropImageURi = _toCropImageUri.asStateFlow()
     private val _homeScreenUri = MutableLiveData<Uri?>()
     val homeScreenUri: LiveData<Uri?> get() = _homeScreenUri
 
@@ -44,6 +47,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     val customerId = MutableStateFlow<Int?>(null)
     private val _isUploading = MutableStateFlow(false)
     val isUploading = _isUploading.asStateFlow()
+    private val _isDownScalingImageForUpdateProfile = MutableStateFlow(false)
+    val isDownScalingImageForUpdateProfile = _isDownScalingImageForUpdateProfile.asStateFlow()
 
     fun setCustomerId(value: Int) {
         customerId.value = value
@@ -71,8 +76,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val bitmap = loadBitmapFromUri(uri, context)
             withContext(Dispatchers.Main) {
                 _bitmap.value = bitmap
+                _toCropImageUri.value = uri
             }
         }
+    }
+    fun resetToCropImageUri(){
+        _toCropImageUri.value = null
     }
 
     private fun loadBitmapFromUri(uri: String, context: Context): Bitmap? {
@@ -91,7 +100,8 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             _bitmap.postValue(null)
         }
     }
-    fun setIsUploading(bool: Boolean){
+
+    fun setIsUploading(bool: Boolean) {
         _isUploading.value = bool
     }
 
@@ -147,41 +157,62 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             Log.d("Video Status", "Video Uri: $uri")
             val videoBytes = FileUtils.loadFileAsByteArray(context, uri)
 
-            try {
-                videoBytes?.let {
-                    viewModelScope.launch {
-                        try {
-                            val userIdField = MultipartField(
-                                name = "userId",
-                                value = SessionManager.customerId.value.toString()
-                            )
-                            val videoFileField = MultipartField(
-                                name = "file",
-                                value = videoBytes,
-                                fileName = "video.mp4",
-                                mimeType = MimeType.VIDEO_MP4
-                            )
+            videoBytes?.let {
+                viewModelScope.launch {
+                    try {
+                        val userIdField = MultipartField(
+                            name = "userId",
+                            value = SessionManager.customerId.value.toString()
+                        )
+                        val videoFileField = MultipartField(
+                            name = "file",
+                            value = videoBytes,
+                            fileName = "video.mp4",
+                            mimeType = MimeType.VIDEO_MP4
+                        )
+                        val fields = listOf(userIdField, videoFileField)
 
-                            val response = NetworkUtils.makeMultipartRequest(
-                                endpoint = "sendVideoStatus",
-                                fields = listOf(userIdField, videoFileField)
-                            )
-                            Log.d("KliqueVideoStatus", "Video Uri: $uri")
-                            if (response.first) {
-                                Toast.makeText(context, "Video has successfully been uploaded", Toast.LENGTH_LONG).show()
+                        performReusableNetworkCalls(
+                            response = { NetworkUtils.makeMultipartRequest("sendVideoStatus", fields) },
+                            action = { response ->
+                                Log.d("KliqueVideoStatus", "Video uploaded successfully")
+                                Toast.makeText(
+                                    context,
+                                    "Video has successfully been uploaded",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            },
+                            errorAction = { response ->
+                                Log.e(
+                                    "KliqueVideoStatus",
+                                    "Failed to upload video: ${response.second}, ${response.third}"
+                                )
+                                Toast.makeText(
+                                    context,
+                                    "Error uploading the video",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             }
-                            else {
-                                Log.d("KliqueVideo", "${response.second}, ${response.third}")
-                                Toast.makeText(context, "Error successfully uploading the video", Toast.LENGTH_LONG).show()
-                            }
-                        } catch (e: Exception) {
-                            Log.e("Video Status", "Error uploading video", e)
-                        }
+                        )
+                    } catch (e: Exception) {
+                        Log.e("Video Status", "Error uploading video", e)
                     }
                 }
-            } catch (e: Exception) {
-                Log.e("Video Status", "Error preparing video file", e)
+            } ?: run {
+                Log.e("Video Status", "Error: Video file is null or invalid")
+                Toast.makeText(
+                    context,
+                    "Error preparing the video file. Please try again.",
+                    Toast.LENGTH_LONG
+                ).show()
             }
+        } ?: run {
+            Log.e("Video Status", "Error: Video URI is null")
+            Toast.makeText(
+                context,
+                "Invalid video URI. Please select a valid video.",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 
@@ -201,25 +232,30 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         fileName = "cropped_image.jpg"
                     )
                 )
-                val (isSuccessful, response, responseCode) = NetworkUtils.makeMultipartRequest(
-                    endpoint = "sendImageStatus",
-                    fields = fields
+
+                performReusableNetworkCalls(
+                    response = { NetworkUtils.makeMultipartRequest("sendImageStatus", fields) },
+                    action = { response ->
+                        Log.d("UploadSuccess", "Image uploaded successfully: ${response.second}")
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(context, "Image uploaded successfully!", Toast.LENGTH_LONG)
+                                .show()
+                        }
+                    },
+                    errorAction = { response ->
+                        Log.e(
+                            "UploadError",
+                            "Failed to upload image: ${response.third} - ${response.second}"
+                        )
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                "Failed to upload image. Please try again.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
                 )
-                if (isSuccessful) {
-                    Log.d("UploadSuccess", "Image uploaded successfully: $response")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Image uploaded successfully!", Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    Log.e("UploadError", "Failed to upload image: $responseCode - $response")
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            context,
-                            "Failed to upload image. Please try again.",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
 
             } catch (e: IOException) {
                 Log.e("UploadError", "Failed to upload image", e)
@@ -248,20 +284,36 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
                         fileName = "audio.m4a",
                         mimeType = MimeType.AUDIO_MPEG4
                     )
+                    val fields = listOf(userIdField, audioFileField)
 
-                    val response = NetworkUtils.makeMultipartRequest(
-                        endpoint = "sendAudioStatus",
-                        fields = listOf(userIdField, audioFileField)
-                    )
-
-                    // Handle the response
-                    withContext(Dispatchers.Main) {
-                        _audioStatusSubmissionResult.value = response.first
-                        if (!response.first) {
-                            Toast.makeText(
-                                context, "Failed with status code ${response.third}", Toast.LENGTH_LONG
-                            ).show()
+                    performReusableNetworkCalls(
+                        response = { NetworkUtils.makeMultipartRequest("sendAudioStatus", fields) },
+                        action = { response ->
+                            Log.d("UploadSuccess", "Audio file uploaded successfully: ${response.second}")
+                            withContext(Dispatchers.Main) {
+                                _audioStatusSubmissionResult.value = true
+                            }
+                        },
+                        errorAction = { response ->
+                            Log.e(
+                                "UploadError",
+                                "Failed to upload audio file: ${response.third} - ${response.second}"
+                            )
+                            withContext(Dispatchers.Main) {
+                                _audioStatusSubmissionResult.value = false
+                                Toast.makeText(
+                                    context,
+                                    "Failed with status code ${response.third}",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
+                    )
+                } else {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context, "Failed to load audio file.", Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
             } catch (e: IOException) {
@@ -282,30 +334,46 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             "theText": "$text"
             }
         """.trimIndent()
-        try {
-            viewModelScope.launch()
-            {
-                val response = NetworkUtils.makeRequest(
-                    "sendTextStatus",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody
+        viewModelScope.launch()
+        {
+            try {
+                performReusableNetworkCalls(
+                    response = { NetworkUtils.makeJwtRequest("sendTextStatus", KliqueHttpMethod.POST, emptyMap(), jsonBody) },
+                    action = { response ->
+                        _textStatusSubmissionResult.value = response.first
+                    },
+                    errorAction = { response ->
+                        Log.e("NetworkUtils", "Failed to send text status: ${response.second}")
+                        _textStatusSubmissionResult.value = false
+                    }
                 )
-                _textStatusSubmissionResult.value = response.first
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } catch (e:Exception){
-            e.printStackTrace()
         }
+
     }
 
     fun setCroppedBitmap(bitmap: Bitmap) {
-        val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
-            bitmap.copy(Bitmap.Config.ARGB_8888, false) // Copy to a compatible config
-        } else {
-            bitmap
+        viewModelScope.launch(Dispatchers.IO) {
+            setIsDownScalingImageForUpdateProfile(true)
+            val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false) // Copy to a compatible config
+            } else {
+                bitmap
+            }
+            var shouldReturnOriginal = false
+            val downscaledBitmap = ImageUtils.downscaleImage(safeBitmap, 720) {
+                shouldReturnOriginal = it
+            }
+            withContext(Dispatchers.Main) {
+                _croppedBitmap.value = if (shouldReturnOriginal) safeBitmap else downscaledBitmap
+            }
         }
-        _croppedBitmap.value = safeBitmap
-        Log.d("Bitmap", "${_croppedBitmap.value}")
+    }
+
+    fun setIsDownScalingImageForUpdateProfile(theBool: Boolean) {
+        _isDownScalingImageForUpdateProfile.value = theBool
     }
 
     fun clearCroppedBitmap() {

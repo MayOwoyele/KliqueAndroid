@@ -1,7 +1,12 @@
 package com.justself.klique
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.graphics.RectF
+import android.media.ExifInterface
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -61,6 +66,7 @@ fun ImageCropTool(
     customerId: Int
 ) {
     val bitmap by viewModel.bitmap.observeAsState()
+    val toCropImageUri by viewModel.toCropImageURi.collectAsState()
     val scale = remember { mutableFloatStateOf(1f) }
     val offsetX = remember { mutableFloatStateOf(0f) }
     val offsetY = remember { mutableFloatStateOf(0f) }
@@ -105,6 +111,7 @@ fun ImageCropTool(
             viewModel.clearBitmap()
             viewModel.clearCroppedBitmap()
             viewModel.setIsUploading(false)
+            viewModel.resetToCropImageUri()
         }
     }
     LaunchedEffect(key1 = bitmap) {
@@ -173,7 +180,6 @@ fun ImageCropTool(
                                 if (bottomBoundaryHit) newTop = newBottom - height
                             }
 
-                            // Stop scaling if two opposite boundaries are hit
                             if ((leftBoundaryHit && rightBoundaryHit) || (topBoundaryHit && bottomBoundaryHit)) {
                                 return@rememberTransformableState
                             }
@@ -183,7 +189,6 @@ fun ImageCropTool(
                     )
                     .pointerInput(Unit) {
                         detectTransformGestures { _, pan, zoom, _ ->
-                            // Handle pinch-to-zoom
                             val horizontalResize = (cropRect.value.width() * (zoom - 1)) / 2
                             val verticalResize = horizontalResize / aspectRatio
 
@@ -192,13 +197,11 @@ fun ImageCropTool(
                             var newRight = cropRect.value.right + horizontalResize
                             var newBottom = cropRect.value.bottom + verticalResize
 
-                            // Initialize boundary hit flags
                             var leftBoundaryHit = false
                             var topBoundaryHit = false
                             var rightBoundaryHit = false
                             var bottomBoundaryHit = false
 
-                            // Check and adjust for boundaries
                             if (newLeft <= 0) {
                                 newLeft = 0f
                                 leftBoundaryHit = true
@@ -231,15 +234,12 @@ fun ImageCropTool(
                                 if (topBoundaryHit) newBottom = newTop + height
                                 if (bottomBoundaryHit) newTop = newBottom - height
                             }
-
-                            // Stop scaling if two opposite boundaries are hit
                             if ((leftBoundaryHit && rightBoundaryHit) || (topBoundaryHit && bottomBoundaryHit)) {
                                 return@detectTransformGestures
                             }
 
                             cropRect.value = RectF(newLeft, newTop, newRight, newBottom)
 
-                            // Handle panning
                             val dragX = (pan.x / scale.value).coerceIn(
                                 -cropRect.value.left,
                                 bitmapWidthPx - cropRect.value.right
@@ -262,18 +262,17 @@ fun ImageCropTool(
 
                     val widthScaleFactor = canvasWidth / bitmapWidthPx
                     val heightScaleFactor = canvasHeight / bitmapHeightPx
-                    val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.value
+                    val scaleBitmapToFit = minOf(widthScaleFactor, heightScaleFactor) * scale.floatValue
 
                     val scaledBitmapWidth = bitmapWidthPx * scaleBitmapToFit
                     val scaledBitmapHeight = bitmapHeightPx * scaleBitmapToFit
 
-                    // Calculate the offsets to center the bitmap within the canvas
-                    val offsetXForFit = (canvasWidth - scaledBitmapWidth) / 2 + offsetX.value
-                    val offsetYForFit = (canvasHeight - scaledBitmapHeight) / 2 + offsetY.value
+                    val offsetXForFit = (canvasWidth - scaledBitmapWidth) / 2 + offsetX.floatValue
+                    val offsetYForFit = (canvasHeight - scaledBitmapHeight) / 2 + offsetY.floatValue
 
                     with(drawContext.canvas.nativeCanvas) {
                         save()
-                        translate(offsetXForFit, offsetYForFit) // Ensure this conversion is correct
+                        translate(offsetXForFit, offsetYForFit)
                         scale(scaleBitmapToFit, scaleBitmapToFit)
                         drawImage(
                             image = it.asImageBitmap(),
@@ -406,7 +405,7 @@ fun ImageCropTool(
                         )
                         .clickable {
                             bitmap?.let { originalBitmap ->
-                                croppedBitmap.value = cropBitmap(originalBitmap, cropRect.value)
+                                croppedBitmap.value = cropBitmap(context, originalBitmap, toCropImageUri ?: "", cropRect.value)
                                 isCropping.value = false
                             }
                         }
@@ -419,13 +418,42 @@ fun ImageCropTool(
     }
 }
 
-fun cropBitmap(original: Bitmap, cropRect: RectF): Bitmap {
+
+fun cropBitmap(context: Context, bitmap: Bitmap, uriString: String, cropRect: RectF): Bitmap? {
+    val imageUri = Uri.parse(uriString)
+    val exif = ExifInterface(context.contentResolver.openInputStream(imageUri)!!)
+    val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+    val correctedBitmap = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> rotateBitmap(bitmap, 90)
+        ExifInterface.ORIENTATION_ROTATE_180 -> rotateBitmap(bitmap, 180)
+        ExifInterface.ORIENTATION_ROTATE_270 -> rotateBitmap(bitmap, 270)
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> flipBitmap(bitmap, horizontal = true)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> flipBitmap(bitmap, horizontal = false)
+        else -> bitmap
+    }
+
     val left = cropRect.left.toInt()
     val top = cropRect.top.toInt()
     val width = cropRect.width().toInt()
     val height = cropRect.height().toInt()
 
-    return Bitmap.createBitmap(original, left, top, width, height)
+    return Bitmap.createBitmap(correctedBitmap, left, top, width, height)
+}
+
+fun rotateBitmap(source: Bitmap, angle: Int): Bitmap {
+    val matrix = Matrix().apply { postRotate(angle.toFloat()) }
+    return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+}
+
+fun flipBitmap(source: Bitmap, horizontal: Boolean): Bitmap {
+    val matrix = Matrix().apply {
+        if (horizontal) {
+            postScale(-1f, 1f)
+        } else {
+            postScale(1f, -1f)
+        }
+    }
+    return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
 }
 
 enum class SourceScreen {

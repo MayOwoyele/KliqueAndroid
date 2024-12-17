@@ -1,4 +1,5 @@
 package com.justself.klique
+
 import android.content.Context
 import android.util.Log
 import com.justself.klique.MyKliqueApp.Companion.appContext
@@ -67,6 +68,22 @@ object NetworkUtils {
             e.printStackTrace()
         }
     }
+    suspend fun makeJwtRequest(
+        endpoint: String,
+        method: KliqueHttpMethod = KliqueHttpMethod.POST,
+        params: Map<String, String>,
+        jsonBody: String? = null,
+        binaryBody: ByteArray? = null
+    ): Triple<Boolean, String, Int> {
+        return makeRequest(
+            endpoint = endpoint,
+            method = method,
+            params = params,
+            jsonBody = jsonBody,
+            binaryBody = binaryBody,
+            useJWT = true
+        )
+    }
 
     suspend fun makeRequest(
         endpoint: String,
@@ -79,7 +96,6 @@ object NetworkUtils {
         Log.d("GistDescription", endpoint)
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
-
         return withContext(Dispatchers.IO) {
             val query = if (method == KliqueHttpMethod.GET && params.isNotEmpty()) {
                 "?" + params.map {
@@ -102,8 +118,7 @@ object NetworkUtils {
                         setRequestProperty("Content-Type", "application/octet-stream")
                         doOutput = true
                         outputStream.use { it.write(binaryBody) }
-                    }
-                    else {
+                    } else {
                         setRequestProperty(
                             "Content-Type",
                             jsonBody?.let { "application/json" }
@@ -146,6 +161,7 @@ object NetworkUtils {
             Triple(isSuccessful, response, connection.responseCode)
         }
     }
+
     suspend fun makeMultipartRequest(
         endpoint: String,
         fields: List<MultipartField>
@@ -160,6 +176,10 @@ object NetworkUtils {
                 requestMethod = "POST"
                 setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
                 doOutput = true
+
+                val accessToken = JWTNetworkCaller.fetchAccessToken()
+                    ?: throw IllegalStateException("Access token is null. Ensure you're logged in.")
+                setRequestProperty("Authorization", "Bearer $accessToken")
             }
 
             connection.outputStream.use { outputStream ->
@@ -209,6 +229,7 @@ object NetworkUtils {
         }
     }
 }
+
 suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO) {
     val newUrl = NetworkUtils.fixLocalHostUrl(url = url)
     val connection = URL(newUrl).openConnection() as HttpURLConnection
@@ -224,10 +245,12 @@ suspend fun downloadFromUrl(url: String): ByteArray = withContext(Dispatchers.IO
     }
     connection.inputStream.use { it.readBytes() }
 }
+
 enum class KliqueHttpMethod(val method: String) {
     GET("GET"),
     POST("POST")
 }
+
 enum class MimeType(val type: String) {
     IMAGE_JPEG("image/jpeg"),
     IMAGE_PNG("image/png"),
@@ -237,6 +260,7 @@ enum class MimeType(val type: String) {
     VIDEO_MP4("video/mp4"),
     AUDIO_MPEG4("audio/m4a");
 }
+
 data class MultipartField(
     val name: String,
     val value: Any,

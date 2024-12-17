@@ -17,9 +17,9 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
-import com.justself.klique.Authentication.ui.screens.RegistrationScreen
 import com.justself.klique.ContactsBlock.Contacts.ui.ContactsScreen
 import com.justself.klique.ContactsBlock.ui.BookshelfScreen
+import com.justself.klique.ContactsBlock.ui.ConditionalBookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 
@@ -93,7 +93,7 @@ fun NavigationHost(
             )
         }
         composable("chats") { ChatListScreen(navController, chatScreenViewModel, customerId) }
-        composable("bookshelf") { BookshelfScreen(navController, chatScreenViewModel, customerId) }
+        composable("bookshelf") { ConditionalBookshelfScreen() }
         composable(
             "messageScreen/{enemyId}/{contactName}?isVerified={isVerified}",
             arguments = listOf(
@@ -278,6 +278,9 @@ fun NavigationHost(
         }
         composable("statusSelectionScreen") {
             StatusSelectionScreen(navController = navController, mediaViewModel = mediaViewModel)
+        }
+        composable("settings") {
+            SettingsScreen(navController = navController)
         }
         composable("registration") {
         }

@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,13 +30,14 @@ object AppUpdateManager {
         val sharedPreferences = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
         return sharedPreferences.getLong(EXPIRATION_DATE_KEY, 0L)
     }
-    private fun fetchRequiredVersionFromServer() {
+    fun fetchRequiredVersionFromServer() {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val params = mapOf("platform" to "android")
                 val response =
                     NetworkUtils.makeRequest("fetchRequiredVersion", KliqueHttpMethod.GET, params)
                 if (response.first) {
+                    Log.d("Minumum version", response.second)
                     val jsonObject = JSONObject(response.second)
                     val requiredVersion = jsonObject.getInt("minimumVersion")
                     val expirationDate = jsonObject.getString("expirationDate").toLong()
@@ -45,6 +47,7 @@ object AppUpdateManager {
                     saveExpirationDate(MyKliqueApp.appContext, expirationDate)
                 }
             } catch (e: Exception) {
+                Log.d("Minumum version", e.toString())
                 e.printStackTrace()
             }
         }

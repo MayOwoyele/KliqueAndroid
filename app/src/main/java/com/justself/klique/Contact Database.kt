@@ -5,10 +5,12 @@ import androidx.room.PrimaryKey
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import androidx.room.Dao
 import androidx.room.Database
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Update
 
 @Dao
 interface ContactDao {
@@ -19,6 +21,10 @@ interface ContactDao {
     suspend fun getSortedContacts(): List<ContactEntity>
     @Query("SELECT * FROM contacts WHERE customerId = :customerId LIMIT 1")
     suspend fun getContactByCustomerId(customerId: Int): ContactEntity?
+    @Delete
+    suspend fun deleteContacts(contacts: List<ContactEntity>)
+    @Update
+    suspend fun updateContacts(contacts: List<ContactEntity>)
 }
 @Database(entities = [ContactEntity::class], version = 1)
 abstract class ContactsDatabase : RoomDatabase() {

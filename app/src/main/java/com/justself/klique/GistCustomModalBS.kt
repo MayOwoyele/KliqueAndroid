@@ -50,11 +50,9 @@ fun CustomBottomSheet(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f))
+                    .background(color = MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
                     .clickable(onClick = onDismissRequest)
             )
-
-            // Bottom sheet content
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

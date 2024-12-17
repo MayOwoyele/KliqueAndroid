@@ -187,7 +187,7 @@ fun BioScreen(
                                 modifier = Modifier
                                     .size(180.dp)
                             ) {
-                                if(imagePainter != null){
+                                if (imagePainter != null) {
                                     Image(
                                         painter = imagePainter!!,
                                         contentDescription = null,
@@ -198,7 +198,7 @@ fun BioScreen(
                                             .background(backgroundColor)
                                             .border(
                                                 1.dp,
-                                                color = MaterialTheme.colorScheme.primary
+                                                color = MaterialTheme.colorScheme.onSecondary
                                             ),
                                         contentScale = ContentScale.Crop
                                     )
@@ -251,13 +251,11 @@ fun BioScreen(
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                 } else {
-                                    if (!isMyProfile) {
-                                        Text(
-                                            text = "Not your contact",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onPrimary
-                                        )
-                                    }
+                                    Text(
+                                        text = "Not your contact",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary
+                                    )
                                 }
                             }
                             var isBioExpanded by remember { mutableStateOf(false) }
@@ -340,7 +338,7 @@ fun BioScreen(
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            containerColor = MaterialTheme.colorScheme.onSecondary,
                                             contentColor = MaterialTheme.colorScheme.onPrimary
                                         ),
                                         shape = RoundedCornerShape(4.dp)
@@ -397,7 +395,6 @@ fun BioScreen(
                 ) {
                     Log.d("Animated Padding", "${animatedPadding.value.dp}")
                     item {
-                        // Name and Conditional "Saved as" Text
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -453,16 +450,26 @@ fun BioScreen(
                                 .fillMaxWidth()
                         ) {
                             items(postComments) { comment ->
-                                var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+                                var textLayoutResult by remember {
+                                    mutableStateOf<TextLayoutResult?>(
+                                        null
+                                    )
+                                }
                                 Text(
                                     text = buildAnnotatedString {
-                                        pushStringAnnotation(tag = "COMMENTER", annotation = comment.customerId.toString())
+                                        pushStringAnnotation(
+                                            tag = "COMMENTER",
+                                            annotation = comment.customerId.toString()
+                                        )
                                         withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
                                             append("${comment.name}: ")
                                         }
                                         pop()
                                         comment.replyingTo?.let { replyingTo ->
-                                            pushStringAnnotation(tag = "REPLYING_TO", annotation = comment.replyingToId.toString())
+                                            pushStringAnnotation(
+                                                tag = "REPLYING_TO",
+                                                annotation = comment.replyingToId.toString()
+                                            )
                                             withStyle(style = SpanStyle(color = Color.Red)) {
                                                 append("@$replyingTo ")
                                             }
@@ -567,7 +574,7 @@ fun BioScreen(
                                 )
                             }
                             IconButton(onClick = {
-                                if (commentText.isNotEmpty()){
+                                if (commentText.isNotEmpty()) {
                                     val comment = JSONObject().apply {
                                         put("replyingToId", replyingToId)
                                         put("replyingTo", replyingTo)
@@ -575,7 +582,14 @@ fun BioScreen(
                                         put("userId", customerId)
                                         put("commentText", commentText)
                                     }.toString()
-                                    bioViewModel.sendComment(comment, customerId, commentText, replyingTo, replyingToId)
+                                    bioViewModel.sendComment(
+                                        comment,
+                                        customerId,
+                                        commentText,
+                                        replyingTo,
+                                        replyingToId,
+                                        postId
+                                    )
                                 }
                                 commentText = ""
                                 replyingTo = null

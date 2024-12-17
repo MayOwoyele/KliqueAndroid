@@ -34,7 +34,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
     private val database: ContactsDatabase = DatabaseProvider.getContactsDatabase(context)
     private val phoneUtil = PhoneNumberUtil.getInstance()
     private fun normalizePhoneNumber(phoneNumber: String, context: Context): String? {
-        val region = SessionManager.getUserCountryCode(context)
+        val region = SessionManager.getUserCountryCode()
         return try {
             val number: Phonenumber.PhoneNumber = phoneUtil.parse(phoneNumber, region)
             phoneUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.E164)
@@ -74,16 +74,6 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         return contactList
     }
 
-    fun getUserCountryCode(context: Context): String {
-        val telephonyManager =
-            context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
-        val simCountry = telephonyManager.simCountryIso?.uppercase()
-
-        val localeCountry = Locale.getDefault().country
-        return networkCountry ?: simCountry ?: localeCountry
-    }
-
     suspend fun checkContactsOnServer(localContacts: List<Contact>): List<ServerContactResponse> {
         val jsonArray = JSONArray().apply {
             localContacts.forEach {
@@ -96,24 +86,29 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         }.toString()
         Log.d("number", jsonObject)
         val users = mutableListOf<ServerContactResponse>()
-        val response = NetworkUtils.makeRequest(
-            "fetchContacts",
-            KliqueHttpMethod.POST,
-            emptyMap(),
-            jsonBody = jsonObject
-        )
-        if (response.first) {
-            val responseJsonArray = JSONArray(response.second)
-            for (i in 0 until responseJsonArray.length()) {
-                val eachJsonObject = responseJsonArray.getJSONObject(i)
-                val phoneNumber = eachJsonObject.getString("phoneNumber")
-                val customerId = eachJsonObject.getInt("userId")
-                val thumbnailUrl = NetworkUtils.fixLocalHostUrl(eachJsonObject.getString("profilePictureUrl"))
-                val theData = ServerContactResponse(phoneNumber, customerId, thumbnailUrl)
-                users.add(theData)
+        try {
+            val response = NetworkUtils.makeRequest(
+                "fetchContacts",
+                KliqueHttpMethod.POST,
+                emptyMap(),
+                jsonBody = jsonObject
+            )
+            if (response.first) {
+                val responseJsonArray = JSONArray(response.second)
+                for (i in 0 until responseJsonArray.length()) {
+                    val eachJsonObject = responseJsonArray.getJSONObject(i)
+                    val phoneNumber = eachJsonObject.getString("phoneNumber")
+                    val customerId = eachJsonObject.getInt("userId")
+                    val thumbnailUrl =
+                        NetworkUtils.fixLocalHostUrl(eachJsonObject.getString("profilePictureUrl"))
+                    val theData = ServerContactResponse(phoneNumber, customerId, thumbnailUrl)
+                    users.add(theData)
+                }
             }
+            Log.d("number", users.toString())
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        Log.d("number", users.toString())
         return users;
     }
 
@@ -139,5 +134,13 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
 
     suspend fun getSortedContactsFromDatabase(): List<Contact> {
         return database.contactDao().getSortedContacts().map { it.toContact() }
+    }
+    suspend fun deleteContactsFromDatabase(contacts: List<Contact>) {
+        val toDelete = contacts.map { it.toContactEntity() }
+        database.contactDao().deleteContacts(toDelete)
+    }
+    suspend fun updateContactsInDatabase(contacts: List<Contact>) {
+        val toUpdate = contacts.map { it.toContactEntity() }
+        database.contactDao().updateContacts(toUpdate)
     }
 }

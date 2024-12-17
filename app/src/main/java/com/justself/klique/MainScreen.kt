@@ -11,7 +11,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,7 +29,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,7 +42,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,11 +71,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -413,7 +408,7 @@ fun MainContent(
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
             if (!WebSocketManager.isConnected.value) {
-                WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "MainScreen")
+                WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "Main")
             }
         }
     }
@@ -486,13 +481,12 @@ fun MainContent(
             navController,
             customerId
         )
-        RightDrawer(
-            rightDrawerState,
-            Modifier.align(Alignment.CenterEnd),
-            notificationViewModel,
-            navController
-        )
-
+//        RightDrawer(
+//            rightDrawerState,
+//            Modifier.align(Alignment.CenterEnd),
+//            notificationViewModel,
+//            navController
+//        )
         if (showEmojiPicker) {
             Box(
                 modifier = Modifier

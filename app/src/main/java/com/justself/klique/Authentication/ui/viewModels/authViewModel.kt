@@ -108,6 +108,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     val canResendCode: StateFlow<Boolean> = _canResendCode.asStateFlow()
     private var isServerAIMessage = false
 
+
     fun fetchAiMessageForStep(step: RegistrationStep) {
         if (isServerAIMessage) {
             isServerAIMessage = false
@@ -288,7 +289,6 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _gender.value = selectedGender.nameString
             moveToNextStep()
-            _gender.value = selectedGender.nameString
             _errorMessage.value = ""
         }
     }
@@ -325,6 +325,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         response.refreshToken!!
                     )
                     saveCountryToSharedPreferences(country.value!!)
+                    Log.d("refreshToken", "During login, ${response.refreshToken}")
                 }
                 return true
             } else {
@@ -367,6 +368,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _tempCustomerId.value?.let {
                 SessionManager.fetchCustomerDataFromSharedPreferences()
+                _registrationStep.value = RegistrationStep.PHONE_NUMBER
             } ?: run {
                 _errorMessage.value =
                     "Registration data is missing or incomplete. Please try again."

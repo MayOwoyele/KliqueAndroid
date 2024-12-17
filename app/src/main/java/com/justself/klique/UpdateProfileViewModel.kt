@@ -3,10 +3,13 @@ package com.justself.klique
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber
+import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,14 +51,19 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
 
     fun fetchProfile() {
         Log.d("UpdateProfile", "Called")
-        _loaded.value = true
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
-                val response =
-                    NetworkUtils.makeRequest("fetchUserDetails", KliqueHttpMethod.GET, params)
-                if (response.first) {
-                    val jsonObject = JSONObject(response.second)
+                val response: suspend() -> jwtHandle =
+                    {
+                        NetworkUtils.makeJwtRequest(
+                            "fetchUserDetails",
+                            KliqueHttpMethod.GET,
+                            params
+                        )
+                    }
+                val action: suspend(jwtHandle) -> Unit ={triple ->
+                    val jsonObject = JSONObject(triple.second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
                         jsonObject.getString("profileUrl").replace("127.0.0.1", "10.0.2.2")
@@ -65,10 +73,13 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
 
                     withContext(Dispatchers.Main) {
                         _tinyProfileDetails.value = tinyDetails
+                        _loaded.value = true
                     }
                     Log.d("Profile", _tinyProfileDetails.value.toString())
 
                 }
+                val error: suspend (jwtHandle) -> Unit = {}
+                JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
             } catch (e: Exception) {
                 Log.d("Profile", e.toString())
             }
@@ -85,6 +96,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
             viewModelScope.launch(Dispatchers.IO) {
                 val chatParticipantIds = chatScreenViewModel.fetchRelevantIds()
                 val byteArray = FileUtils.loadFileAsByteArray(context, newProfilePictureUri)
+                _loaded.value = false
                 if (byteArray != null) {
                     sendProfilePictureUpdateToServer(
                         byteArray,
@@ -126,10 +138,31 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
 
         viewModelScope.launch {
             try {
-                val response = NetworkUtils.makeMultipartRequest("uploadBioImage", uploadFields)
-                Log.d("UpdateProfileImage", "${ response.second }, ${response.third}")
+                _loaded.value = false
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeMultipartRequest("uploadBioImage", uploadFields)
+                    },
+                    action = { response ->
+                        _loaded.value = true
+                        Toast.makeText(
+                            appContext,
+                            "Successfully updated your image",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    errorAction = { response ->
+                        _loaded.value = true
+                        Toast.makeText(
+                            appContext,
+                            "Failed to update your image. ${response.second}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        Log.e("UpdateProfile", "Error: ${response.third} - ${response.second}")
+                    }
+                )
             } catch (e: Exception) {
-                Log.d("UpdateProfile", e.toString())
+                Log.e("UpdateProfile", "Exception: ${e.message}", e)
             }
         }
     }
@@ -139,17 +172,37 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
             put("userId", customerId)
             put("text", text)
         }.toString()
-        try {
-            viewModelScope.launch {
-                NetworkUtils.makeRequest(
-                    "updateBioText",
-                    KliqueHttpMethod.POST,
-                    emptyMap(),
-                    jsonBody = bioJson
+
+        viewModelScope.launch {
+            try {
+                performReusableNetworkCalls(
+                    response = {
+                        NetworkUtils.makeJwtRequest(
+                            "updateBioText",
+                            KliqueHttpMethod.POST,
+                            params = emptyMap(),
+                            jsonBody = bioJson
+                        )
+                    },
+                    action = {
+                        Toast.makeText(
+                            appContext,
+                            "Successfully updated your bio",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    errorAction = { response ->
+                        Toast.makeText(
+                            appContext,
+                            "Failed to update your bio. ${response.second}",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        Log.e("UpdateBio", "Error: ${response.third} - ${response.second}")
+                    }
                 )
+            } catch (e: Exception) {
+                Log.e("UpdateBio", "Exception: ${e.message}", e)
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 

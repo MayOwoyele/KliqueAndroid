@@ -188,9 +188,19 @@ fun LeftDrawer(
                         drawerState.value = false
                     }
                 )
-                /*Button(onClick = { drawerState.value = false }) {
-                    Text("Close Drawer")
-                }*/
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Rounded.Settings,
+                    contentDescription = "Settings",
+                    modifier = Modifier
+                        .align(Alignment.Start)
+                        .size(42.dp)
+                        .clickable {
+                            navController.navigate("settings")
+                            drawerState.value = false
+                        }
+                        .padding(8.dp)
+                )
             }
         }
     }
@@ -260,68 +270,68 @@ fun LeftDrawerItem(
         }
     }
 }
-
-@Composable
-fun RightDrawer(
-    drawerState: MutableState<Boolean>,
-    modifier: Modifier = Modifier,
-    notificationViewModel: NotificationViewModel,
-    navController: NavController
-) {
-    val notifications by notificationViewModel.notifications.collectAsState()
-
-    AnimatedVisibility(
-        visible = drawerState.value,
-        enter = slideInHorizontally { it },
-        exit = slideOutHorizontally { it },
-        modifier = modifier
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }) {
-                    drawerState.value = false
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        if (dragAmount.x > 50f) {
-                            drawerState.value = false
-                        }
-                        change.consume()
-                    }
-                }
-                .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
-        ) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .fillMaxHeight()
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }) {
-
-                    }
-                    .fillMaxWidth(80 / 100f)
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(16.dp)
-                ) {
-                    Text("Notifications", style = MaterialTheme.typography.displayLarge)
-                    LazyColumn {
-                        items(notifications) { notification ->
-                            NotificationItem(notification, navController, drawerState)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
+//
+//@Composable
+//fun RightDrawer(
+//    drawerState: MutableState<Boolean>,
+//    modifier: Modifier = Modifier,
+//    notificationViewModel: NotificationViewModel,
+//    navController: NavController
+//) {
+//    val notifications by notificationViewModel.notifications.collectAsState()
+//
+//    AnimatedVisibility(
+//        visible = drawerState.value,
+//        enter = slideInHorizontally { it },
+//        exit = slideOutHorizontally { it },
+//        modifier = modifier
+//    ) {
+//        Box(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .clickable(
+//                    indication = null,
+//                    interactionSource = remember { MutableInteractionSource() }) {
+//                    drawerState.value = false
+//                }
+//                .pointerInput(Unit) {
+//                    detectDragGestures { change, dragAmount ->
+//                        if (dragAmount.x > 50f) {
+//                            drawerState.value = false
+//                        }
+//                        change.consume()
+//                    }
+//                }
+//                .background(color = Color.Black.copy(alpha = if (isSystemInDarkTheme()) 0.8f else 0.2f))
+//        ) {
+//            Box(
+//                modifier = Modifier
+//                    .align(Alignment.TopEnd)
+//                    .fillMaxHeight()
+//                    .clickable(
+//                        indication = null,
+//                        interactionSource = remember { MutableInteractionSource() }) {
+//
+//                    }
+//                    .fillMaxWidth(80 / 100f)
+//                    .background(MaterialTheme.colorScheme.surface)
+//            ) {
+//                Column(
+//                    modifier = Modifier
+//                        .matchParentSize()
+//                        .padding(16.dp)
+//                ) {
+//                    Text("Notifications", style = MaterialTheme.typography.displayLarge)
+//                    LazyColumn {
+//                        items(notifications) { notification ->
+//                            NotificationItem(notification, navController, drawerState)
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+//}
 
 @Composable
 fun NotificationItem(

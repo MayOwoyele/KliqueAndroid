@@ -41,32 +41,41 @@ class UserDetailsViewModel : ViewModel() {
     suspend fun searchUsers(query: String): List<SearchUser> {
         val queryString = mapOf("query" to query)
         val users = mutableListOf<SearchUser>()
-        val result = NetworkUtils.makeRequest("searchUser", KliqueHttpMethod.GET, queryString)
-        if (result.first) {
-            withContext(Dispatchers.IO) {
-                try {
-                    Log.d("KliqueSearch", "Success: ${result.second}")
-                    val jsonArray = JSONArray(result.second)
-                    for (i in 0 until jsonArray.length()) {
-                        val jsonObject = jsonArray.getJSONObject(i)
-                        val userId = jsonObject.optInt("userId", -1)
-                        val userAlias = jsonObject.optString("userAlias", "Unknown")
-                        val profilePictureUrl = NetworkUtils.fixLocalHostUrl(jsonObject.optString("profilePictureUrl", ""))
-                        val isVerified = jsonObject.optBoolean("isVerified", false)
-                        val user = SearchUser(
-                            userId = userId,
-                            userAlias = userAlias,
-                            profilePictureUrl = profilePictureUrl,
-                            isVerified = isVerified
-                        )
-                        users.add(user)
-                        Log.d("KliqueSearch", "Success again: $users")
+        try {
+            val result = NetworkUtils.makeRequest("searchUser", KliqueHttpMethod.GET, queryString)
+            if (result.first) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        Log.d("KliqueSearch", "Success: ${result.second}")
+                        val jsonArray = JSONArray(result.second)
+                        for (i in 0 until jsonArray.length()) {
+                            val jsonObject = jsonArray.getJSONObject(i)
+                            val userId = jsonObject.optInt("userId", -1)
+                            val userAlias = jsonObject.optString("userAlias", "Unknown")
+                            val profilePictureUrl = NetworkUtils.fixLocalHostUrl(
+                                jsonObject.optString(
+                                    "profilePictureUrl",
+                                    ""
+                                )
+                            )
+                            val isVerified = jsonObject.optBoolean("isVerified", false)
+                            val user = SearchUser(
+                                userId = userId,
+                                userAlias = userAlias,
+                                profilePictureUrl = profilePictureUrl,
+                                isVerified = isVerified
+                            )
+                            users.add(user)
+                            Log.d("KliqueSearch", "Success again: $users")
+                        }
+                    } catch (e: Exception) {
+                        Log.d("KliqueSearch", "Error: $e")
+                        e.printStackTrace()
                     }
-                } catch (e: Exception) {
-                    Log.d("KliqueSearch", "Error: $e")
-                    e.printStackTrace()
                 }
             }
+        } catch (e: Exception) {
+            Log.d("search exception", e.toString())
         }
         return users
     }

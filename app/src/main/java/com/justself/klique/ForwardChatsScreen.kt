@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.text.format.DateUtils
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -230,7 +231,9 @@ fun TheChatItem(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(text = chat.lastMsgAddTime, fontSize = 12.sp)
+                val lastTime = chat.lastMsgAddTime.toLongOrNull()
+                    ?.let { DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.SECOND_IN_MILLIS)}
+                Text(text = lastTime.toString(), fontSize = 12.sp)
             }
             if (isSelectionMode) {
                 Checkbox(

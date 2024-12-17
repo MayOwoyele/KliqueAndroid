@@ -41,6 +41,7 @@ libphonenumber = "8.12.38"
 exoplayer = "2.19.1"
 uiDesktop = "1.7.0"
 uiDesktopVersion = "1.7.0"
+coreKtxVersion = "1.6.1"
 
 
 
@@ -111,6 +112,7 @@ libphonenumber = { group = "com.googlecode.libphonenumber", name = "libphonenumb
 exoplayer-core = { module = "com.google.android.exoplayer:exoplayer-core", version.ref = "exoplayer" }
 exoplayer-ui = { module = "com.google.android.exoplayer:exoplayer-ui", version.ref = "exoplayer" }
 firebase-messaging = {module = "com.google.firebase:firebase-messaging"}
+core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
 
 
 

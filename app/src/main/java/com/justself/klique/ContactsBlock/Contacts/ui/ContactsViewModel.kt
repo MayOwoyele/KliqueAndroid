@@ -28,7 +28,24 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
     fun refreshContacts(context: Context) {
         viewModelScope.launch (Dispatchers.IO){
             delay(1000)
-            Log.d("Klique Delay", "delay is over")
+            val phoneContacts = _contactsRepository.getContacts(context)
+            val databaseContacts = _contactsRepository.getSortedContactsFromDatabase()
+
+            val phoneContactNumbers = phoneContacts.map { it.phoneNumber }.toSet()
+            val deletedContacts = databaseContacts.filter { it.phoneNumber !in phoneContactNumbers }
+
+            val editedContacts = phoneContacts.filter { phoneContact ->
+                val dbContact = databaseContacts.find { it.phoneNumber == phoneContact.phoneNumber }
+                dbContact != null && dbContact.name != phoneContact.name
+            }
+            if (deletedContacts.isNotEmpty()) {
+                Log.d("Klique Deleted Contacts", "Deleted: ${deletedContacts.map { it.phoneNumber }}")
+                _contactsRepository.deleteContactsFromDatabase(deletedContacts)
+            }
+            if (editedContacts.isNotEmpty()) {
+                Log.d("Klique Edited Contacts", "Edited: ${editedContacts.map { it.phoneNumber }}")
+                _contactsRepository.updateContactsInDatabase(editedContacts)
+            }
             val localContacts = _contactsRepository.getContacts(context)
             val batchSize = 100
             val mergedContacts = mutableListOf<Contact>()

@@ -465,18 +465,18 @@ fun MessageScreenContent(
     }
     LaunchedEffect(scrollState) {
         snapshotFlow { scrollState.layoutInfo.visibleItemsInfo }.map { visibleItems ->
-                val totalItems = scrollState.layoutInfo.totalItemsCount
-                val lastVisibleItemIndex = visibleItems.lastOrNull()?.index ?: 0
-                Pair(lastVisibleItemIndex, totalItems)
-            }.distinctUntilChanged().collect { (lastVisibleItemIndex, totalItems) ->
-                val threshold = 1
-                if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!! && personalChat.size >= viewModel.pageSize) {
-                    Log.d("PersonalChats", "Load More loading")
-                    viewModel.loadPersonalChats(
-                        myId, enemyId, loadMore = true, personalChat.last().messageId
-                    )
-                }
+            val totalItems = scrollState.layoutInfo.totalItemsCount
+            val lastVisibleItemIndex = visibleItems.lastOrNull()?.index ?: 0
+            Pair(lastVisibleItemIndex, totalItems)
+        }.distinctUntilChanged().collect { (lastVisibleItemIndex, totalItems) ->
+            val threshold = 1
+            if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!! && personalChat.size >= viewModel.pageSize) {
+                Log.d("PersonalChats", "Load More loading")
+                viewModel.loadPersonalChats(
+                    myId, enemyId, loadMore = true, personalChat.last().messageId
+                )
             }
+        }
     }
     val contentHeight = remember { mutableIntStateOf(0) }
     val viewportHeight = remember { mutableIntStateOf(0) }
@@ -711,7 +711,6 @@ fun MessageScreenContent(
                         lastSeenMessageCount = personalChat.size
                     }
                 }
-
         }
         val shouldShowButton by remember {
             derivedStateOf {

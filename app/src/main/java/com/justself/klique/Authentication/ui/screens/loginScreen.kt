@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -70,7 +71,6 @@ fun RegistrationScreen(
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // AI Message Display
             Text(
                 text = aiMessage,
                 style = MaterialTheme.typography.bodyLarge,
@@ -94,11 +94,19 @@ fun RegistrationScreen(
 @Composable
 fun PhoneNumberScreen(authViewModel: AuthViewModel) {
     var phoneNumber by remember { mutableStateOf("") }
-    val defaultCountry = remember { SessionManager.getUserCountryCode(appContext) }
+    val defaultCountry = remember { SessionManager.getUserCountryCode() }
     var selectedCountry by remember { mutableStateOf(defaultCountry) }
     val countryCode = remember(selectedCountry) { getCountryCodeForRegion(selectedCountry) }
     val phoneUtil = remember { PhoneNumberUtil.getInstance() }
     val errorMessage by authViewModel.errorMessage.collectAsState()
+    var isLoading by remember {
+        mutableStateOf(false)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            isLoading = false
+        }
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text(
@@ -147,14 +155,25 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
         }
 
         Spacer(Modifier.height(16.dp))
+        if (isLoading) {
+            CircularProgressIndicator(
+                color = Color.White,
+                modifier = Modifier
+                    .size(24.dp)
+                    .align(Alignment.CenterHorizontally)
+            )
+            Spacer(Modifier.height(16.dp))
+        }
 
         Button(
             onClick = {
-                if (isValidPhoneNumber(phoneNumber, selectedCountry, phoneUtil)) {
-                    authViewModel.verifyPhoneNumber("+$countryCode$phoneNumber", selectedCountry)
+                val formattedNumber = formatPhoneNumber(phoneNumber, selectedCountry, phoneUtil)
+                if (formattedNumber != null) {
+                    isLoading = true
+                    authViewModel.verifyPhoneNumber(formattedNumber, selectedCountry)
                 }
             },
-            enabled = phoneNumber.isNotEmpty() && isValidPhoneNumber(
+            enabled = isValidPhoneNumber(
                 "+$countryCode$phoneNumber",
                 selectedCountry,
                 phoneUtil
@@ -162,6 +181,18 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
         ) {
             Text("Continue")
         }
+    }
+}
+fun formatPhoneNumber(phoneNumber: String, countryCode: String, phoneUtil: PhoneNumberUtil): String? {
+    return try {
+        val number = phoneUtil.parse(phoneNumber, countryCode)
+        if (phoneUtil.isValidNumberForRegion(number, countryCode)) {
+            phoneUtil.format(number, PhoneNumberUtil.PhoneNumberFormat.E164)
+        } else {
+            null
+        }
+    } catch (e: Exception) {
+        null
     }
 }
 
@@ -269,7 +300,6 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
 
         Spacer(Modifier.height(24.dp))
 
-        // Invisible TextField to capture input
         TextField(
             value = confirmationCode,
             onValueChange = { newCode ->

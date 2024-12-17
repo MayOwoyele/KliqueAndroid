@@ -5,6 +5,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.*
+import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -200,30 +202,34 @@ class ChatScreenViewModel(
             PrivateChatReceivingType.ACK -> {
                 val statusString = jsonObject.getString("status")
                 Log.d("RawWebsocket", statusString)
+
                 val status = when (statusString) {
                     "delivered" -> PersonalMessageStatus.DELIVERED
                     "sent" -> PersonalMessageStatus.SENT
                     else -> PersonalMessageStatus.SENT
                 }
+
                 val messageId = jsonObject.optString("messageId")
                 val timestamp = extractNumberLong(jsonObject)
+
                 viewModelScope.launch(Dispatchers.IO) {
                     personalChatDao.updateStatus(messageId, status)
-                    Log.d("ForStatus", "called with : $status; timestamp: $timestamp")
+                    Log.d("ForStatus", "called with: $status; timestamp: $timestamp")
                     val currentEnemyId = _currentChat.value
                     val updatedMessage = personalChatDao.getPersonalChatById(messageId)
 
                     if (updatedMessage != null && currentEnemyId != null) {
                         if (updatedMessage.enemyId == currentEnemyId || updatedMessage.myId == currentEnemyId) {
-                            val updatedList = _personalChats.value.toMutableList().apply {
-                                val index = indexOfFirst { it.messageId == messageId }
-                                if (index != -1) {
-                                    this[index] =
-                                        updatedMessage.copy(status = status, timeStamp = timestamp)
-                                }
-                            }.sortedByDescending { it.timeStamp }
-                            withContext(Dispatchers.Main) {
-                                _personalChats.value = updatedList
+                            _personalChats.update { currentList ->
+                                currentList.toMutableList().apply {
+                                    val index = indexOfFirst { it.messageId == messageId }
+                                    if (index != -1) {
+                                        this[index] = updatedMessage.copy(
+                                            status = status,
+                                            timeStamp = timestamp
+                                        )
+                                    }
+                                }.sortedByDescending { it.timeStamp }
                             }
                         }
                     }
@@ -231,12 +237,13 @@ class ChatScreenViewModel(
             }
 
             PrivateChatReceivingType.P_PROFILE_UPDATE -> {
+                Log.d("PProfileUpdate", "called")
                 val profileUpdate = jsonObject.getJSONArray("profileUpdates")
                 for (theIndex in 0 until profileUpdate.length()) {
                     val eachUpdate = profileUpdate.getJSONObject(theIndex)
                     val enemyId = eachUpdate.getInt("enemyId")
                     val contactName = eachUpdate.getString("fullName")
-                    val profilePhoto = eachUpdate.getString("profileUrl")
+                    val profilePhoto = NetworkUtils.fixLocalHostUrl(eachUpdate.getString("profileUrl"))
                     val isVerified = eachUpdate.getBoolean("isVerified")
                     updateProfile(enemyId, contactName, profilePhoto, isVerified)
                 }
@@ -419,15 +426,27 @@ class ChatScreenViewModel(
             PersonalMessageType.P_TEXT -> newMessage.content
         }
         val timeStamp = newMessage.timeStamp
-        Log.d("PersonalChat", "${_currentChat.value} and $enemyId")
+        Log.d("SpecialChat", "${_currentChat.value} and $enemyId: ${newMessage.content}")
         viewModelScope.launch(Dispatchers.IO) {
+            Log.d("SpecialChat", "${_currentChat.value} and $enemyId: ${newMessage.content} 2")
             if (_currentChat.value == enemyId) {
+                Log.d("SpecialChat", "${_currentChat.value} and $enemyId: ${newMessage.content} 3")
                 val updatedList = _personalChats.value.toMutableList().apply {
                     if (none { it.messageId == newMessage.messageId }) {
+                        Log.d("SpecialChat", newMessage.content)
                         val index = indexOfFirst { it.timeStamp < newMessage.timeStamp }
-                        if (index != -1 || _personalChats.value.size <= pageSize) {
-                            add(0, newMessage)
-                        }
+                            Log.d("SpecialChat 2", newMessage.content)
+                            if (index != -1 || _personalChats.value.size <= pageSize) {
+                                Log.d("SpecialChat 3", newMessage.content)
+                                if (index != -1){
+                                    add(index, newMessage)
+                                } else {
+                                    add(0, newMessage)
+                                }
+                            } else {
+                                Log.d("SpecialChat 4", newMessage.content)
+                                add(0, newMessage)
+                            }
                     } else {
                         Log.d(
                             "Websocket",
@@ -450,6 +469,7 @@ class ChatScreenViewModel(
             )
             if (!chatExists) {
                 chatDao.addChat(chat)
+                sendJsonToUpdateProfile(listOf(enemyId))
                 Log.d("isNewChat", "add chat called with $chat")
             } else {
                 Log.d("isNewChat", "add chat not called with $chat")
@@ -462,6 +482,13 @@ class ChatScreenViewModel(
             val updatedChats = getSortedChats(myUserId.value)
             _chats.value = updatedChats
         }
+    }
+    fun sendJsonToUpdateProfile(userIds: List<Int>){
+        val jsonObject = JSONObject().apply {
+            put("type", "handleMultipleProfileUpdates")
+            put("userIds", JSONArray(userIds))
+        }.toString()
+        send(jsonObject)
     }
 
     private suspend fun getSortedChats(myId: Int): List<ChatList> {
@@ -544,7 +571,7 @@ class ChatScreenViewModel(
         }
     }
 
-    suspend fun checkChatExistsSync(myId: Int, enemyId: Int): Boolean {
+    private suspend fun checkChatExistsSync(myId: Int, enemyId: Int): Boolean {
         return withContext(Dispatchers.IO) {
             chatDao.chatExists(myId, enemyId)
         }
@@ -570,9 +597,18 @@ class ChatScreenViewModel(
         profilePhoto: String,
         isVerified: Boolean
     ) {
+        Log.d("PProfileUpdate", "called")
         viewModelScope.launch(Dispatchers.IO) {
             chatDao.updateProfile(enemyId, contactName, profilePhoto, isVerified)
         }
+        val updatedChat = _chats.value.map {
+            if (it.enemyId == enemyId) {
+                it.copy(profilePhoto = profilePhoto, contactName = contactName, isVerified = isVerified)
+            } else {
+                it
+            }
+        }
+        _chats.value = updatedChat
     }
 
     fun retryPendingMessages(context: Context) {

@@ -2,10 +2,13 @@ package com.justself.klique
 
 import android.util.Log
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -36,9 +39,17 @@ fun DmList(navController: NavController, customerId: Int, dmListViewModel: DmLis
     LaunchedEffect(key1 = Unit) {
         dmListViewModel.fetchDmList(customerId)
     }
-    LazyColumn {
-        items(dmList) { dmItem ->
-            DmListItem(dmItem, navController)
+    if (dmList.isNotEmpty()){
+        LazyColumn {
+            items(dmList) { dmItem ->
+                DmListItem(dmItem, navController)
+            }
+        }
+    } else {
+        Box(modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.TopCenter){
+            Text(text = "No shots to display")
         }
     }
 }

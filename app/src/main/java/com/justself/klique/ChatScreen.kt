@@ -97,6 +97,7 @@ fun ChatListScreen(
         viewModel.loadChats(customerId)
         viewModel.setMyUserId(customerId)
         viewModel.fetchNewMessagesFromServer()
+        viewModel.checkContactUpdate()
         Log.d("loadChats", "Chat has been loaded")
     }
     LaunchedEffect(searchQuery) {
@@ -230,7 +231,6 @@ fun ChatListScreen(
             }
         }
         var menuExpanded by remember { mutableStateOf(false) }
-        // Floating Action Button at the bottom right
         Box(
             contentAlignment = Alignment.BottomEnd,
             modifier = Modifier
@@ -268,7 +268,7 @@ fun ChatListScreen(
                     ) {
                         TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
                         TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
-                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/2/Personal Shopper")})
+                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/1/Personal Shopper")})
                     }
                 }
                 AddButton(
@@ -368,8 +368,8 @@ fun ChatItem(
             modifier = Modifier
                 .fillMaxSize()
                 .background(backgroundColor)
-                .padding(16.dp), // Fill the available space
-            verticalAlignment = Alignment.CenterVertically // Ensure vertical alignment
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
                 Image(
@@ -377,7 +377,7 @@ fun ChatItem(
                     contentDescription = null,
                     modifier = Modifier
                         .size(50.dp)
-                        .clip(CircleShape), // Make the image circular
+                        .clip(CircleShape),
                     contentScale = ContentScale.Crop
                 )
                 if (chat.unreadMsgCounter > 0) {

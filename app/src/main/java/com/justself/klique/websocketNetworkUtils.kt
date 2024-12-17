@@ -16,6 +16,7 @@ import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
 import org.java_websocket.framing.Framedata
+import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONException
 import org.json.JSONObject
@@ -43,7 +44,11 @@ object WebSocketManager {
     private val listeners = mutableMapOf<String, WebSocketListener<*>>()
     private val _isConnected = MutableStateFlow(false)
     val isConnected = _isConnected.asStateFlow()
-    private var reconnectionAttempts = 0
+    private var reconnectionAttempts: Int = 0
+        set(value) {
+            println("Reconnection attempts updated: $field -> $value")
+            field = value
+        }
     private const val MAX_RECONNECT_ATTEMPTS = 10
     private const val RECONNECT_DELAY = 3000L
     private var shouldReconnect = true
@@ -57,8 +62,12 @@ object WebSocketManager {
     private var sharedCliqueViewModel: SharedCliqueViewModel? = null
     private var chatRoomViewModel: ChatRoomViewModel? = null
     var aReconnection = false
+    private var isPingPongRunning = false
+    private var isConnecting = false
+
     @Volatile
     private var isReconnecting = false
+
 
     fun <T> registerListener(listener: WebSocketListener<T>) {
         listeners[listener.listenerId] = listener
@@ -67,11 +76,13 @@ object WebSocketManager {
     fun <T> unregisterListener(listener: WebSocketListener<T>) {
         listeners.remove(listener.listenerId)
     }
+
     private fun createWebSocketClient(url: URI, context: Context): WebSocketClient {
         return object : WebSocketClient(url) {
             override fun onOpen(handshakedata: ServerHandshake?) {
                 println("WebSocket connected!")
                 _isConnected.value = true
+                shouldReconnect = true
                 lastPongTime = System.currentTimeMillis()
                 reconnectionAttempts = 0
                 startPingPong()
@@ -82,9 +93,17 @@ object WebSocketManager {
                         chatScreenViewModel?.subscribeToOnlineStatus(enemyId)
                     }
                     chatScreenViewModel?.fetchNewMessagesFromServer()
-                    chatScreenViewModel?.checkContactUpdate()
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val randomNumber = (1..100).random()
+                        if (randomNumber in 1..10) {
+                            val theIds = chatScreenViewModel?.fetchRelevantIds()
+                            if (theIds != null) {
+                                chatScreenViewModel?.sendJsonToUpdateProfile(theIds)
+                            }
+                        }
+                    }
                 }
-                if (aReconnection){
+                if (aReconnection) {
                     sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
                         CoroutineScope(Dispatchers.IO).launch {
                             sharedCliqueViewModel?.restoreGistState()
@@ -152,10 +171,30 @@ object WebSocketManager {
             }
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
-                println("WebSocket closed: Reason - $reason")
+                println("WebSocket closed: Code - $code, Reason - $reason, Remote - $remote")
                 _isConnected.value = false
+
+                when (code) {
+                    1000 -> {
+                        println("WebSocket closed normally.")
+                    }
+                    4401 -> {
+                        println("WebSocket closed due to expired token: $reason")
+                        handleUnauthorized()
+                    }
+                    4403 -> {
+                        shouldReconnect = false
+                        println("WebSocket closed due to invalid token: $reason")
+                        handleForbidden()
+                    }
+                    else -> {
+                        shouldReconnect = true
+                        println("WebSocket closed with unexpected code: $code, Reason: $reason")
+                    }
+                }
+
                 if (shouldReconnect) {
-                    CoroutineScope(Dispatchers.IO).launch{
+                    CoroutineScope(Dispatchers.IO).launch {
                         scheduleReconnect("on Close function")
                     }
                 }
@@ -177,33 +216,42 @@ object WebSocketManager {
     }
 
     fun connect(url: String, customerId: Int, fullName: String, context: Context, caller: String) {
-        println("Attempt RawWebsocket function caller $caller")
-        Log.d("RawWebsocket", "Connecting to URI caller: $caller")
+        shouldReconnect = true
+        if (isConnecting){
+            return
+        }
+        isConnecting = true
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
-
-        val uri = URI.create(url).resolve("?customer_id=$customerId&full_name=$encodedFullName")
-
+        val jwtToken =
+            JWTNetworkCaller.fetchAccessToken()?.let { URLEncoder.encode(it, "UTF-8") } ?: ""
+        val uri = URI.create(url)
+            .resolve("?customer_id=$customerId&full_name=$encodedFullName&token=$jwtToken")
         this.customerId = customerId
         this.fullName = fullName
 
-        Log.d("RawWebsocket", "Connecting to URI: $uri")
-            webSocketClient = createWebSocketClient(uri, context).apply {
-                connect()
+        Log.d("RawWebsocket", "Caller $caller, Connecting to URI: $uri")
+        webSocketClient = createWebSocketClient(uri, context).apply {
+            connect()
         }
+        isConnecting = false
     }
 
     fun setChatScreenViewModel(viewModel: ChatScreenViewModel) {
         chatScreenViewModel = viewModel
     }
-    fun setSharedCliqueViewModel(viewModel: SharedCliqueViewModel){
+
+    fun setSharedCliqueViewModel(viewModel: SharedCliqueViewModel) {
         sharedCliqueViewModel = viewModel
     }
-    fun setChatRoomViewModel(viewModel: ChatRoomViewModel){
+
+    fun setChatRoomViewModel(viewModel: ChatRoomViewModel) {
         chatRoomViewModel = viewModel
     }
-    fun clearChatRoomViewModel(){
+
+    fun clearChatRoomViewModel() {
         chatRoomViewModel = null
     }
+
     private suspend fun scheduleReconnect(caller: String) {
         if (isReconnecting) {
             return
@@ -212,24 +260,24 @@ object WebSocketManager {
         println("Reconnection attempt called again. Caller: $caller")
         aReconnection = true
         try {
-            if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+            if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS && shouldReconnect) {
                 reconnectionAttempts++
                 println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
-                delay(RECONNECT_DELAY * reconnectionAttempts) // Wait before attempting to reconnect
+                delay(RECONNECT_DELAY * reconnectionAttempts)
                 if (!_isConnected.value) {
                     connect(
                         webSocketClient!!.uri.toString(), customerId, fullName,
-                        appContext, "scheduleReconnectIf!_isConnected"
+                        appContext, "recon"
                     )
                 }
             } else {
                 println("Max reconnection attempts reached. Maintaining steady reconnect interval.")
                 while (!_isConnected.value && shouldReconnect) {
-                    delay(RECONNECT_DELAY * reconnectionAttempts) // Steady delay interval
+                    delay(RECONNECT_DELAY * reconnectionAttempts)
                     println("Attempting to reconnect at a steady interval...")
                     connect(
                         webSocketClient!!.uri.toString(), customerId, fullName,
-                        appContext, "scheduleReconnectIfisConnected"
+                        appContext, "recon 2"
                     )
                 }
             }
@@ -240,6 +288,8 @@ object WebSocketManager {
     }
 
     private fun startPingPong() {
+        if (isPingPongRunning) return
+        isPingPongRunning = true
         CoroutineScope(Dispatchers.IO).launch {
             while (_isConnected.value) {
                 try {
@@ -259,6 +309,7 @@ object WebSocketManager {
                     scheduleReconnect("StartPing Exception")
                 }
             }
+            isPingPongRunning = false
         }
     }
 
@@ -295,6 +346,8 @@ object WebSocketManager {
 
     fun close() {
         webSocketClient?.close()
+        _isConnected.value = false
+        shouldReconnect = false
     }
 
     private fun routeBinaryMessageToViewModel(prefix: String, jsonObject: JSONObject) {
@@ -322,7 +375,7 @@ object WebSocketManager {
             SharedCliqueReceivingType.entries.any { it.type == type } -> ListenerIdEnum.SHARED_CLIQUE.theId
             PrivateChatReceivingType.entries.any { it.type == type } -> ListenerIdEnum.PRIVATE_CHAT_SCREEN.theId
             ChatRoomReceivingType.entries.any { it.type == type } -> ListenerIdEnum.CHAT_ROOM_VIEW_MODEL.theId
-            DmReceivingType.entries.any{it.type == type} -> ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
+            DmReceivingType.entries.any { it.type == type } -> ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
             else -> targetId
         }
 
@@ -335,34 +388,75 @@ object WebSocketManager {
                     val enumType = SharedCliqueReceivingType.entries.find { it.type == type }
                     @Suppress("UNCHECKED_CAST")
                     enumType?.let {
-                        (listeners[id] as? WebSocketListener<SharedCliqueReceivingType>)?.onMessageReceived(it, jsonObject)
+                        (listeners[id] as? WebSocketListener<SharedCliqueReceivingType>)?.onMessageReceived(
+                            it,
+                            jsonObject
+                        )
                     } ?: println("Unknown message type: $type for SharedCliqueViewModel")
                 }
+
                 ListenerIdEnum.PRIVATE_CHAT_SCREEN.theId -> {
                     val enumType = PrivateChatReceivingType.entries.find { it.type == type }
                     @Suppress("UNCHECKED_CAST")
                     enumType?.let {
-                        (listeners[id] as? WebSocketListener<PrivateChatReceivingType>)?.onMessageReceived(it, jsonObject)
+                        (listeners[id] as? WebSocketListener<PrivateChatReceivingType>)?.onMessageReceived(
+                            it,
+                            jsonObject
+                        )
                     } ?: println("Unknown message type: $type for ChatScreenViewModel")
                 }
+
                 ListenerIdEnum.CHAT_ROOM_VIEW_MODEL.theId -> {
                     val enumType = ChatRoomReceivingType.entries.find { it.type == type }
                     @Suppress("UNCHECKED_CAST")
                     enumType?.let {
-                        (listeners[id] as? WebSocketListener<ChatRoomReceivingType>)?.onMessageReceived(it, jsonObject)
-                    }?: println("Unknown message type: $type for ChatRoomViewModel")
+                        (listeners[id] as? WebSocketListener<ChatRoomReceivingType>)?.onMessageReceived(
+                            it,
+                            jsonObject
+                        )
+                    } ?: println("Unknown message type: $type for ChatRoomViewModel")
                 }
+
                 ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId -> {
                     val enumType = DmReceivingType.entries.find { it.type == type }
                     @Suppress("UNCHECKED_CAST")
                     enumType?.let {
-                        (listeners[id] as? WebSocketListener<DmReceivingType>)?.onMessageReceived(it, jsonObject)
+                        (listeners[id] as? WebSocketListener<DmReceivingType>)?.onMessageReceived(
+                            it,
+                            jsonObject
+                        )
                     }
                 }
+
                 else -> {
                     println("Unhandled message type or target ID: $type, $targetId")
                 }
             }
+        }
+    }
+
+    private fun handleUnauthorized() {
+        CoroutineScope(Dispatchers.IO).launch {
+            Log.d("refreshToken", "Websocket, token")
+            if (JWTNetworkCaller.refreshAccessToken() == 200) {
+                connect(
+                    webSocketClient!!.uri.toString(),
+                    SessionManager.customerId.value,
+                    SessionManager.fullName.value,
+                    appContext, "unauthorized"
+                )
+                Log.d("refreshToken", "Websocket, token")
+            } else {
+                shouldReconnect = false
+                _isConnected.value = false
+                SessionManager.resetCustomerData()
+            }
+        }
+    }
+    private fun handleForbidden(){
+        CoroutineScope(Dispatchers.IO).launch {
+            SessionManager.resetCustomerData()
+            shouldReconnect = false
         }
     }
 }
