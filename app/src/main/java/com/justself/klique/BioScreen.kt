@@ -5,6 +5,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Log
+import android.widget.Space
 import android.widget.VideoView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -28,6 +29,8 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -109,6 +112,9 @@ fun BioScreen(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val isMyProfile = enemyId == customerId
+    val isOpen = remember {
+        mutableStateOf(false)
+    }
     LaunchedEffect(listState) {
         snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
             .collect { (index, scrollOffset) ->
@@ -219,7 +225,7 @@ fun BioScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                             ) {
-                                val iconWidthDp = 24.dp // Actual icon width, commonly 24 dp
+                                val iconWidthDp = 24.dp
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -227,7 +233,6 @@ fun BioScreen(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Center
                                 ) {
-                                    // Centered Name Text with Padding for Icon
                                     Text(
                                         text = profile!!.fullName,
                                         style = MaterialTheme.typography.displayLarge,
@@ -235,8 +240,6 @@ fun BioScreen(
                                             .padding(start = iconWidthDp),
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
-
-                                    // Icon placed after the text
                                     Icon(
                                         imageVector = Icons.Default.Info,
                                         contentDescription = "Information",
@@ -404,6 +407,27 @@ fun BioScreen(
                                 style = MaterialTheme.typography.displayLarge,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
+                            Spacer(modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = {
+                                    isOpen.value = !isOpen.value
+                                    val targetPadding = if (isOpen.value) 0f else 380f
+                                    coroutineScope.launch {
+                                        animatedPadding.animateTo(
+                                            targetPadding,
+                                            animationSpec = tween(durationMillis = 300)
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .padding(horizontal = 2.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isOpen.value) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
+                                    contentDescription = if (isOpen.value) "Close details" else "Open details"
+                                )
+                            }
                         }
                     }
 

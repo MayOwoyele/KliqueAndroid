@@ -22,12 +22,16 @@ object ImageUtils {
 
     @Throws(IOException::class)
     fun downscaleImage(
-        bitmap: Bitmap,
+        safeBitmap: Bitmap,
         maxSize: Int = 1080,
         shouldReturnOriginal: (Boolean) -> Unit
     ): Bitmap {
+        val bitmap = if (safeBitmap.config == Bitmap.Config.HARDWARE) {
+            safeBitmap.copy(Bitmap.Config.ARGB_8888, true)
+        } else {
+            safeBitmap
+        }
         val largerDimension = maxOf(bitmap.width, bitmap.height)
-
         if (largerDimension <= maxSize) {
             shouldReturnOriginal(true)
             return bitmap

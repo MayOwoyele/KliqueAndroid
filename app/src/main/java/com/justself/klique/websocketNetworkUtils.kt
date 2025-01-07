@@ -2,12 +2,16 @@
 package com.justself.klique
 
 import android.content.Context
+import android.se.omapi.Session
 import android.util.Base64
 import android.util.Log
+import android.widget.Toast
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +20,6 @@ import org.java_websocket.WebSocket
 import org.java_websocket.client.WebSocketClient
 import org.java_websocket.exceptions.WebsocketNotConnectedException
 import org.java_websocket.framing.Framedata
-import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.handshake.ServerHandshake
 import org.json.JSONException
 import org.json.JSONObject
@@ -64,6 +67,7 @@ object WebSocketManager {
     var aReconnection = false
     private var isPingPongRunning = false
     private var isConnecting = false
+    private var reconnectionJob: Job? = null
 
     @Volatile
     private var isReconnecting = false
@@ -103,15 +107,13 @@ object WebSocketManager {
                         }
                     }
                 }
-                if (aReconnection) {
-                    sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            sharedCliqueViewModel?.restoreGistState()
-                        }
-                        aReconnection = false
+                sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        sharedCliqueViewModel?.restoreGistState()
                     }
-                    chatRoomViewModel?.retrial()
+                    aReconnection = false
                 }
+                chatRoomViewModel?.retrial()
             }
 
             override fun onWebsocketPong(conn: WebSocket?, f: Framedata?) {
@@ -172,30 +174,29 @@ object WebSocketManager {
 
             override fun onClose(code: Int, reason: String?, remote: Boolean) {
                 println("WebSocket closed: Code - $code, Reason - $reason, Remote - $remote")
-                _isConnected.value = false
 
                 when (code) {
                     1000 -> {
+                        setIsConnectedToFalse("onClose: 1000")
                         println("WebSocket closed normally.")
                     }
+
                     4401 -> {
                         println("WebSocket closed due to expired token: $reason")
+                        if (_isConnected.value) {
+                            setIsConnectedToFalse("onClose: 4401")
+                        }
                         handleUnauthorized()
                     }
+
                     4403 -> {
-                        shouldReconnect = false
                         println("WebSocket closed due to invalid token: $reason")
                         handleForbidden()
                     }
-                    else -> {
-                        shouldReconnect = true
-                        println("WebSocket closed with unexpected code: $code, Reason: $reason")
-                    }
-                }
 
-                if (shouldReconnect) {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        scheduleReconnect("on Close function")
+                    else -> {
+                        setIsConnectedToFalse("onClose: else")
+                        println("WebSocket closed with unexpected code: $code, Reason: $reason")
                     }
                 }
             }
@@ -204,12 +205,12 @@ object WebSocketManager {
                 println("WebSocket error: ${ex.message}")
                 if (shouldReconnect) {
                     CoroutineScope(Dispatchers.IO).launch {
-                        scheduleReconnect("on Error function")
+                        setIsConnectedToFalse("onError")
                     }
                 }
             }
         }.apply {
-            if (url.scheme.equals("wss")) {
+            if ("wss".equals(url.scheme, ignoreCase = true)) {
                 setSocketFactory(sslContext.socketFactory)
             }
         }
@@ -217,7 +218,7 @@ object WebSocketManager {
 
     fun connect(url: String, customerId: Int, fullName: String, context: Context, caller: String) {
         shouldReconnect = true
-        if (isConnecting){
+        if (isConnecting) {
             return
         }
         isConnecting = true
@@ -253,6 +254,11 @@ object WebSocketManager {
     }
 
     private suspend fun scheduleReconnect(caller: String) {
+        Log.d("Reconnection", "Called")
+        if (!shouldReconnect) {
+            println("Reconnection aborted: shouldReconnect is false.")
+            return
+        }
         if (isReconnecting) {
             return
         }
@@ -260,27 +266,30 @@ object WebSocketManager {
         println("Reconnection attempt called again. Caller: $caller")
         aReconnection = true
         try {
-            if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS && shouldReconnect) {
-                reconnectionAttempts++
-                println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
-                delay(RECONNECT_DELAY * reconnectionAttempts)
-                if (!_isConnected.value) {
-                    connect(
-                        webSocketClient!!.uri.toString(), customerId, fullName,
-                        appContext, "recon"
-                    )
-                }
-            } else {
-                println("Max reconnection attempts reached. Maintaining steady reconnect interval.")
-                while (!_isConnected.value && shouldReconnect) {
+            reconnectionJob = coroutineScope.launch {
+                if (reconnectionAttempts < MAX_RECONNECT_ATTEMPTS && shouldReconnect) {
+                    reconnectionAttempts++
+                    println("Attempting to reconnect... (Attempt $reconnectionAttempts)")
                     delay(RECONNECT_DELAY * reconnectionAttempts)
-                    println("Attempting to reconnect at a steady interval...")
-                    connect(
-                        webSocketClient!!.uri.toString(), customerId, fullName,
-                        appContext, "recon 2"
-                    )
+                    if (!_isConnected.value) {
+                        connect(
+                            webSocketClient?.uri.toString(), customerId, fullName,
+                            appContext, "recon"
+                        )
+                    }
+                } else {
+                    println("Max reconnection attempts reached. Maintaining steady reconnect interval.")
+                    while (!_isConnected.value && shouldReconnect) {
+                        delay(RECONNECT_DELAY * reconnectionAttempts)
+                        println("Attempting to reconnect at a steady interval...")
+                        connect(
+                            webSocketClient?.uri.toString(), customerId, fullName,
+                            appContext, "recon 2"
+                        )
+                    }
                 }
             }
+            reconnectionJob?.join() // Wait for reconnection to finish
         } finally {
             println("This attempt function bottomed out")
             isReconnecting = false
@@ -288,44 +297,69 @@ object WebSocketManager {
     }
 
     private fun startPingPong() {
+        Log.d("Websocket", "Calling send Ping")
         if (isPingPongRunning) return
         isPingPongRunning = true
         CoroutineScope(Dispatchers.IO).launch {
             while (_isConnected.value) {
                 try {
                     Log.d("Websocket", "Sending Ping")
+                    Log.d("Websocket", "${webSocketClient != null}")
                     webSocketClient?.sendPing()
+                    Log.d("Websocket", "First Sending Ping after delay")
                     delay(PING_INTERVAL)
+                    Log.d("Websocket", "Sending Ping after delay")
 
                     if (System.currentTimeMillis() - lastPongTime > PONG_TIMEOUT) {
                         println("Pong timeout. Reconnecting...")
-                        _isConnected.value = false
-                        webSocketClient?.close()
-                        scheduleReconnect("StartPing Timeout")
+                        setIsConnectedToFalse("PingPong")
                     }
                 } catch (e: Exception) {
-                    println("Error during ping-pong: ${e.message}")
-                    _isConnected.value = false
-                    scheduleReconnect("StartPing Exception")
+                    println("Websocket Error during ping-pong: ${e.message}")
+                    setIsConnectedToFalse("PingPong exception")
                 }
             }
             isPingPongRunning = false
         }
     }
 
-    fun send(message: String) {
+    private val coroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var isSettingIsConnected: Boolean = false
+    private fun setIsConnectedToFalse(caller: String) {
+        Log.d("LifecycleOwner", caller)
+        coroutineScope.launch {
+            if (isSettingIsConnected) {
+                return@launch
+            }
+            isSettingIsConnected = true
+            webSocketClient?.close()
+            _isConnected.value = false
+            reconnectionAttempts = 0
+            shouldReconnect = true
+            scheduleReconnect("setIsConnectedToFalse")
+            isSettingIsConnected = false
+        }
+    }
+
+    fun send(message: String, showToast: Boolean = false) {
         Log.d("RawWebsocket", "outgoing $message")
+        if (!_isConnected.value && showToast) {
+            CoroutineScope(Dispatchers.Main).launch {
+                Toast.makeText(
+                    appContext,
+                    "You should try again when wifi icon changes back to pink",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
         try {
             if (webSocketClient?.isOpen == true) {
                 webSocketClient?.send(message)
             } else {
-                throw WebsocketNotConnectedException()
+                Log.e("WebSocketManager", "WebSocket is not connected. Message queued.")
             }
         } catch (e: WebsocketNotConnectedException) {
             Log.e("WebSocketManager", "WebSocket not connected: ${e.message}")
-            // Optionally handle reconnection or notify the user
-        } catch (e: Exception) {
-            Log.e("WebSocketManager", "Exception in sending message: ${e.message}")
         }
     }
 
@@ -345,28 +379,23 @@ object WebSocketManager {
     }
 
     fun close() {
-        webSocketClient?.close()
-        _isConnected.value = false
         shouldReconnect = false
+        isPingPongRunning = false
+        reconnectionJob?.cancel()
+
+        webSocketClient?.let {
+            if (it.isOpen) {
+                it.close(1000, "App closed WebSocket")
+                Log.d("WebSocketManager", "WebSocket is being closed.")
+            } else {
+                Log.d("WebSocketManager", "WebSocket was already closed or not open.")
+            }
+        }
+        _isConnected.value = false
+        Log.d("LifecycleEvent", "Called WebSocket close function.")
     }
 
     private fun routeBinaryMessageToViewModel(prefix: String, jsonObject: JSONObject) {
-//        val parts = prefix.split(":")
-//        if (parts.size == 2) {
-//            val type = parts[0].lowercase()
-//            val targetId = parts[1].trim()
-//            val listenerId = when (type) {
-//                "KImage", "KVideo", "KAudio" -> "SharedCliqueViewModel"
-//                else -> targetId
-//            }
-//
-//            listenerId.let {
-//                listeners[it]?.onMessageReceived(type, jsonObject)
-//                println("Binary message routed to listener: $listenerId, Type: $type, TargetId: $targetId")
-//            } ?: println("Unhandled binary data type or target ID: $type, $targetId")
-//        } else {
-//            println("Invalid prefix format: $prefix")
-//        }
     }
 
     private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
@@ -438,22 +467,24 @@ object WebSocketManager {
     private fun handleUnauthorized() {
         CoroutineScope(Dispatchers.IO).launch {
             Log.d("refreshToken", "Websocket, token")
-            if (JWTNetworkCaller.refreshAccessToken() == 200) {
+            val responseCode = JWTNetworkCaller.refreshAccessToken()
+            Log.d("StatusCode", responseCode.toString())
+            if (responseCode == 200) {
                 connect(
-                    webSocketClient!!.uri.toString(),
+                    webSocketClient?.uri.toString(),
                     SessionManager.customerId.value,
                     SessionManager.fullName.value,
                     appContext, "unauthorized"
                 )
                 Log.d("refreshToken", "Websocket, token")
-            } else {
-                shouldReconnect = false
-                _isConnected.value = false
+            } else if (responseCode == 403) {
+                Log.d("StatusCode", "printed")
                 SessionManager.resetCustomerData()
             }
         }
     }
-    private fun handleForbidden(){
+
+    private fun handleForbidden() {
         CoroutineScope(Dispatchers.IO).launch {
             SessionManager.resetCustomerData()
             shouldReconnect = false

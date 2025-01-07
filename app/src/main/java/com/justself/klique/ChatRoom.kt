@@ -78,7 +78,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun ChatRoom(
     navController: NavController,

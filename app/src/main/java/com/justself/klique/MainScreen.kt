@@ -3,9 +3,7 @@ package com.justself.klique
 import android.app.Application
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.Log
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -84,11 +82,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.screens.RegistrationScreen
@@ -176,14 +176,13 @@ fun MyAppTheme(
     )
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainScreen(
-    intent: Intent,
+    notificationRoute: String?,
     authViewModel: AuthViewModel = viewModel(),
-    userDetailsViewModel: UserDetailsViewModel = viewModel()
+    userDetailsViewModel: UserDetailsViewModel = viewModel(),
+    navController: NavHostController
 ) {
-    val navController = rememberNavController()
     val leftDrawerState = remember { mutableStateOf(false) }
     val rightDrawerState = remember { mutableStateOf(false) }
     val appState by authViewModel.appState.collectAsState()
@@ -203,18 +202,7 @@ fun MainScreen(
     var cannotFindUser by remember {
         mutableStateOf(false)
     }
-    val notificationViewModel: NotificationViewModel = viewModel()
-    val notifications by notificationViewModel.notifications.collectAsState()
     val context = LocalContext.current
-    LaunchedEffect(intent) {
-        val route = intent.getStringExtra("route")
-        if (!route.isNullOrEmpty()) {
-            Log.d("Firebase", "Route called is $route")
-            navController.navigate(route)
-        } else {
-            Log.e("Firebase", "Route is null or empty")
-        }
-    }
     LaunchedEffect(Unit) {
         checkAndSendToken(context)
     }
@@ -252,7 +240,6 @@ fun MainScreen(
                     CustomAppBar(
                         leftDrawerState,
                         rightDrawerState,
-                        onRightDrawer = { notificationViewModel.markNotificationsAsSeen() },
                         isSearchMode = isSearchMode,
                         onSearchModeChange = { isSearchMode = it },
                         searchText = searchText,
@@ -279,7 +266,6 @@ fun MainScreen(
                     authViewModel,
                     userDetailsViewModel,
                     imeVisible,
-                    true,
                     showEmojiPicker,
                     onEmojiPickerVisibilityChange = {
                         Log.d("EmojiVisibility", "To test visibility of: $it")
@@ -288,10 +274,10 @@ fun MainScreen(
                     onEmojiSelected = { emoji -> selectedEmoji = emoji },
                     selectedEmoji,
                     resetSelectedEmoji = { selectedEmoji = "" },
-                    notificationViewModel = notificationViewModel,
                     onDisplayTextChange = { theText, userId ->
                         gistStarterName = theText; gistStarterId = userId
-                    }
+                    },
+                    notificationRoute = notificationRoute
                 )
                 Log.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
                 if (isSearchMode && (searchResults.isNotEmpty() || cannotFindUser)) {
@@ -369,7 +355,6 @@ fun MainScreen(
     }
 }
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MainContent(
     navController: NavHostController,
@@ -379,21 +364,20 @@ fun MainContent(
     authViewModel: AuthViewModel,
     userDetailsViewModel: UserDetailsViewModel,
     imeVisible: Boolean,
-    isLoggedIn: Boolean,
     showEmojiPicker: Boolean,
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    notificationViewModel: NotificationViewModel,
-    onDisplayTextChange: (String, Int) -> Unit
+    onDisplayTextChange: (String, Int) -> Unit,
+    notificationRoute: String?
 ) {
     val customerId by SessionManager.customerId.collectAsState()
-    val fullName = userDetailsViewModel.name.collectAsState().value
+    val fullName by SessionManager.fullName.collectAsState()
     Log.d("Names", "Full Name: $fullName")
-
     val context = LocalContext.current
     val webSocketUrl = context.getString(R.string.websocket_url)
+    val lifecycleOwner = LocalLifecycleOwner.current
     Log.d("WebSocketURL", "WebSocket URL: $webSocketUrl")
     LaunchedEffect(key1 = customerId) {
         if (customerId != 0) {
@@ -410,11 +394,42 @@ fun MainContent(
             if (!WebSocketManager.isConnected.value) {
                 WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "Main")
             }
+            SessionManager.sendDeviceTokenToServer()
         }
     }
-    DisposableEffect(Unit) {
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    if (WebSocketManager.isConnected.value) {
+                        WebSocketManager.close()
+                        Log.d("LifecycleEvent", "App moved to background. WebSocket closed.")
+                    }
+                }
+
+                Lifecycle.Event.ON_START -> {
+                    // App comes to foreground
+                    if (customerId != 0 && fullName.isNotBlank() && !WebSocketManager.isConnected.value) {
+                        WebSocketManager.connect(
+                            webSocketUrl,
+                            customerId,
+                            fullName,
+                            context,
+                            "Main"
+                        )
+                        Log.d("LifecycleEvent", "App moved to foreground. WebSocket reconnected.")
+                    }
+                }
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             WebSocketManager.close()
+            Log.d("onDispose", "WebSocket closed. Composable disposed.")
         }
     }
     Log.d(
@@ -464,7 +479,7 @@ fun MainContent(
         var emojiPickerHeight by remember { mutableStateOf(0.dp) }
         NavigationHost(
             navController,
-            isLoggedIn,
+            true,
             customerId,
             fullName,
             onEmojiPickerVisibilityChange,
@@ -473,8 +488,10 @@ fun MainContent(
             application,
             sharedCliqueViewModel,
             resetSelectedEmoji,
-            onDisplayTextChange
+            onDisplayTextChange,
+            notificationRoute
         ) { height -> emojiPickerHeight = height }
+
         LeftDrawer(
             leftDrawerState,
             Modifier.align(Alignment.CenterStart),
@@ -509,7 +526,6 @@ fun MainContent(
 fun CustomAppBar(
     leftDrawerState: MutableState<Boolean>,
     rightDrawerState: MutableState<Boolean>,
-    onRightDrawer: () -> Unit,
     isSearchMode: Boolean,
     onSearchModeChange: (Boolean) -> Unit,
     searchText: String,
@@ -708,7 +724,7 @@ private fun checkAndSendToken(context: Context) {
 
     if (!token.isNullOrEmpty()) {
         Log.d("TokenCheck", "Token exists and has not been sent. Sending to server: $token")
-        sendTokenToServer(token)
+        sendDeviceTokenToServer(token)
     } else if (token.isNullOrEmpty()) {
         Log.d("TokenCheck", "No token found in SharedPreferences.")
     } else {
@@ -717,7 +733,7 @@ private fun checkAndSendToken(context: Context) {
 }
 
 // Function to send the token to the server
-private fun sendTokenToServer(token: String) {
+private fun sendDeviceTokenToServer(token: String) {
     val serviceScope = CoroutineScope(Dispatchers.IO)
     val params = mapOf("token" to token)
     serviceScope.launch {

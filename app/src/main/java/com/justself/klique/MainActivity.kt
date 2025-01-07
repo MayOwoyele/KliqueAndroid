@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
@@ -57,10 +58,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val config: Config = BundledEmojiCompatConfig(this)
         EmojiCompat.init(config)
+        val notificationRoute = intent?.getStringExtra("route")
         setContent {
+            val navController = rememberNavController()
             MyAppTheme {
                 Surface {
-                    MainScreen(intent = intent)
+                    MainScreen(notificationRoute, navController = navController)
                 }
             }
         }
@@ -71,7 +74,6 @@ class MainActivity : ComponentActivity() {
             requestPermissionLauncher.launch(requiredPermissions)
         } else {
             Log.d("Permissions", "Required permissions already granted")
-            Toast.makeText(this, "Permissions already granted", Toast.LENGTH_SHORT).show()
         }
     }
 

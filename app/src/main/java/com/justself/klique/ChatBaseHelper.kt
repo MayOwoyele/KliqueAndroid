@@ -13,7 +13,7 @@ data class ChatList(
     val profilePhoto: String,
     val myId: Int,
     val unreadMsgCounter: Int,
-    val isVerified: Boolean = true
+    val isVerified: Boolean = false
 )
 
 // Define DAO (Data Access Object) Interface

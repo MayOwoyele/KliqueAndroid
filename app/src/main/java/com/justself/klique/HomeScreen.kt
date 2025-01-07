@@ -64,7 +64,6 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun HomeScreen(
     customerId: Int,
@@ -87,8 +86,6 @@ fun HomeScreen(
     val gistCreationError by viewModel.gistCreationError.observeAsState()
     val gistState by viewModel.gistCreatedOrJoined.observeAsState()
     val gistActive = gistState != null
-
-    val density = LocalDensity.current
     val buttonPosition = remember { mutableStateOf(Offset.Zero) }
     val enterTransition: EnterTransition = slideIn(
         initialOffset = {
@@ -237,11 +234,11 @@ fun GistForm(
 ) {
     var topic by remember { mutableStateOf(TextFieldValue("")) }
     var description by remember { mutableStateOf(TextFieldValue(""))}
-    var selectedType by remember { mutableStateOf("public") } // State for selected gist type
+    var selectedType by remember { mutableStateOf("public") }
     val minTopicLength = 2
-    val maxTopicLength = 20
+    val maxTopicLength = 25
     val minDescriptionLength = 5
-    val maxDescriptionLength = 50
+    val maxDescriptionLength = 120
     var showTopicError by remember { mutableStateOf(false) }
     var showDescriptionError by remember { mutableStateOf(false)}
 

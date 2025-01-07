@@ -14,7 +14,7 @@ android {
         applicationId = "com.justself.klique"
         minSdk = 28
         targetSdk = 34
-        versionCode = 1
+        versionCode = 9
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Configure Room schema location
@@ -25,17 +25,25 @@ android {
         }
     }
 
+
     buildTypes {
         debug {
+            isMinifyEnabled = true
+            isShrinkResources = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
-            resValue("string", "base_url", "http://10.0.2.2:8080/")
-            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
-//            resValue("string", "base_url", "https://api.kliquesocial.com/")
-//            resValue("string", "websocket_url", "wss://websocket.kliquesocial.com")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+            resValue("string", "base_url", "http://192.168.0.151:8080/")
+            resValue("string", "websocket_url", "ws://192.168.0.151:3030/")
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            isDebuggable = false
+            isJniDebuggable = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -122,7 +130,7 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.messaging)
-    implementation("org.jetbrains:annotations:23.0.0") // Ensure correct annotations version
+    implementation("org.jetbrains:annotations:23.0.0")
 }
 
 configurations.all {

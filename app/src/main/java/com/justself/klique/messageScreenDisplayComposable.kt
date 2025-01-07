@@ -42,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -89,7 +90,10 @@ fun DisplayImage(
                 contentDescription = null,
                 modifier = Modifier
                     .sizeIn(maxWidth = 250.dp, maxHeight = 200.dp)
-                    .aspectRatio(bmp.width.toFloat() / bmp.height.toFloat(), matchHeightConstraintsFirst = true)
+                    .aspectRatio(
+                        bmp.width.toFloat() / bmp.height.toFloat(),
+                        matchHeightConstraintsFirst = true
+                    )
                     .clip(shape)
                     .pointerInput(Unit) {
                         detectTapGestures(

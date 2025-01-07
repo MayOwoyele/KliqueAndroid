@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
@@ -21,9 +22,8 @@ import com.justself.klique.ContactsBlock.Contacts.ui.ContactsScreen
 import com.justself.klique.ContactsBlock.ui.BookshelfScreen
 import com.justself.klique.ContactsBlock.ui.ConditionalBookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
+import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 
-
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun NavigationHost(
     navController: NavHostController,
@@ -37,6 +37,7 @@ fun NavigationHost(
     sharedCliqueViewModel: SharedCliqueViewModel,
     resetSelectedEmoji: () -> Unit,
     onDisplayTextChange: (String, Int) -> Unit,
+    notificationRoute: String?,
     emojiPickerHeight: (Dp) -> Unit
 ) {
     val profileUpdateData by ProfileRepository.profileUpdateData.observeAsState()
@@ -60,6 +61,17 @@ fun NavigationHost(
     }
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModelFactory(chatScreenViewModel)
+    )
+    val contactDao = remember { DatabaseProvider.getContactsDatabase(application).contactDao() }
+    val getGistStateDao =
+        remember { DatabaseProvider.getGistRoomCreatedBase(application).gistStateDao() }
+    val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
+        factory = SharedCliqueViewModelFactory(
+            application,
+            customerId,
+            contactDao,
+            getGistStateDao
+        )
     )
     WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
     WebSocketManager.setSharedCliqueViewModel(sharedCliqueViewModel)

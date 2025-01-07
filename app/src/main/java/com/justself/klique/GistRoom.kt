@@ -21,6 +21,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -72,6 +73,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -101,6 +103,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -129,9 +132,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-import java.time.ZonedDateTime
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun GistRoom(
     myName: String,
@@ -152,8 +153,6 @@ fun GistRoom(
     val message by viewModel.gistMessage
     val observedMessages by viewModel.messages.collectAsState()
     val context = LocalContext.current
-    val permissionGrantedImages = remember { mutableStateOf(false) }
-    val permissionGrantedVideos = remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     val keyboardController = LocalSoftwareKeyboardController.current
     val density = LocalDensity.current
@@ -478,7 +477,6 @@ fun GistRoom(
                 videoPickerLauncher = videoPickerLauncher,
                 permissionLauncherImages = permissionLauncherImages,
                 permissionLauncherVideos = permissionLauncherVideos,
-                coroutineScope = coroutineScope,
                 context = context,
                 isRecording = isRecording,
                 onStopRecording = stopRecording,
@@ -648,12 +646,49 @@ fun MessageContent(
             val shape = if (isCurrentUser) RoundedCornerShape(
                 16.dp, 0.dp, 16.dp, 16.dp
             ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-            var isExpanded by remember { mutableStateOf(false) }
             val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
+            var showDeleteDialog by remember { mutableStateOf(false) }
+            var showReportDialog by remember { mutableStateOf(false) }
+            var selectedMessageId by remember { mutableStateOf<String?>(null) }
+            val onLongPressLambda = {
+                selectedMessageId = message.id
+                if (isCurrentUser) {
+                    showDeleteDialog = true
+                } else {
+                    showReportDialog = true
+                }
+            }
+
+            // Lambda for tap action
+            val onTapLambda = {
+                when (message.messageType) {
+                    GistMessageType.K_IMAGE -> {
+                        message.localPath?.let {
+                            mediaViewModel.setBitmap(convertJpgToBitmap(context, it)!!)
+                        }
+                        navController.navigate("fullScreenImage")
+                    }
+
+                    GistMessageType.K_VIDEO -> {
+                        message.localPath?.let {
+                            navController.navigate("fullScreenVideo/${Uri.encode(it.toString())}")
+                        }
+                    }
+
+                    else -> {
+                    }
+                }
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .wrapContentWidth(if (isCurrentUser) Alignment.End else Alignment.Start)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onLongPress = { onLongPressLambda() },
+                            onTap = { onTapLambda() }
+                        )
+                    }
             ) {
                 Column(
                     modifier = Modifier
@@ -683,10 +718,6 @@ fun MessageContent(
                                     modifier = Modifier
                                         .height(200.dp)
                                         .clip(shape)
-                                        .clickable {
-                                            mediaViewModel.setBitmap(bitmap!!)
-                                            navController.navigate("fullScreenImage")
-                                        }
                                 )
                             } else if (message.externalUrl != null) {
                                 Text(
@@ -721,12 +752,7 @@ fun MessageContent(
                                     .height(200.dp)
                                     .wrapContentWidth()
                                     .aspectRatio(aspectRatio)
-                                    .clip(shape)
-                                    .clickable {
-                                        navController.navigate(
-                                            "fullScreenVideo/${Uri.encode(videoUri.toString())}"
-                                        )
-                                    }) {
+                                    .clip(shape)) {
                                     if (thumbnail != null) {
                                         Image(
                                             bitmap = thumbnail.asImageBitmap(),
@@ -804,6 +830,59 @@ fun MessageContent(
                     }
                 }
             }
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(text = "Delete Message") },
+                    text = { Text(text = "Are you sure you want to delete this message?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                selectedMessageId?.let { messageId ->
+                                    viewModel.deleteMessageById(messageId)
+                                }
+                                showDeleteDialog = false
+                            }
+                        ) {
+                            Text("Delete", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showDeleteDialog = false }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
+
+            if (showReportDialog) {
+                AlertDialog(
+                    onDismissRequest = { showReportDialog = false },
+                    title = { Text(text = "Report Message") },
+                    text = { Text(text = "Are you sure you want to report this message?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                selectedMessageId?.let { messageId ->
+                                    viewModel.reportMessageById(messageId)
+                                }
+                                showReportDialog = false
+                            }
+                        ) {
+                            Text("Report", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showReportDialog = false }
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -825,7 +904,6 @@ fun InputRow(
     videoPickerLauncher: (String) -> Unit,
     permissionLauncherImages: ManagedActivityResultLauncher<String, Boolean>,
     permissionLauncherVideos: ManagedActivityResultLauncher<String, Boolean>,
-    coroutineScope: CoroutineScope,
     context: Context,
     isRecording: MutableState<Boolean>,
     onStopRecording: (File?) -> Job?,
@@ -860,7 +938,6 @@ fun InputRow(
 
     LaunchedEffect(expandedState.value) {
         if (!expandedState.value) {
-            // Delay to allow the collapse animation to complete
             delay(100)
             transitionState.value = expandedState.value
         } else {
@@ -868,10 +945,14 @@ fun InputRow(
         }
     }
 
-    val offset by animateDpAsState(if (isRecording.value) (-0.5).dp else 0.dp)
-    val boxWidth by animateDpAsState(targetValue = if (expandedState.value) 100.dp else 5.dp)
+    val offset by animateDpAsState(if (isRecording.value) (-0.5).dp else 0.dp, label = "offset")
+    val boxWidth by animateDpAsState(targetValue = if (expandedState.value) 100.dp else 5.dp,
+        label = "boxWidth"
+    )
     val textNotEmpty = message.text.isNotEmpty()
-    val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp)
+    val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp,
+        label = "commentBoxWidth"
+    )
 
     Column(modifier = Modifier.fillMaxWidth()) {
         if (isSpeaker) {
@@ -909,8 +990,9 @@ fun InputRow(
                         val textScrollState = rememberScrollState()
                         BasicTextField(value = message,
                             onValueChange = {
-                                onMessageChange(it)
-                                coroutineScope.launch { textScrollState.scrollTo(textScrollState.maxValue) }
+                                if (it.text.length <= SessionManager.GLOBAL_CHAR_LIMIT){
+                                    onMessageChange(it)
+                                }
                                 if (it.text.isNotEmpty()) {
                                     expandedState.value = false
                                 }
@@ -1125,7 +1207,7 @@ fun handleImageUri(
     uri?.let {
         coroutineScope.launch(Dispatchers.IO) {
             try {
-                val imageByteArray = ImageUtils.processImageToByteArray(context, uri)
+                val imageByteArray = ImageUtils.processImageToByteArray(context, uri, 720)
                 Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
                 val messageId = viewModel.generateUUIDString()
@@ -1205,4 +1287,42 @@ fun convertJpgToBitmap(context: Context, uri: Uri): Bitmap? {
         e.printStackTrace()
         null
     }
+}
+@Composable
+fun showDeleteMessagePopup(
+    messageId: String,
+    onDeleteConfirmed: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = {
+            // Handle dismissal, such as closing the dialog
+            onDismiss()
+        },
+        title = {
+            Text(text = "Delete Message")
+        },
+        text = {
+            Text(text = "Are you sure you want to delete this message?")
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onDeleteConfirmed(messageId)
+                    onDismiss()
+                }
+            ) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    onDismiss()
+                }
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }

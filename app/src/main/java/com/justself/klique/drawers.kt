@@ -166,7 +166,7 @@ fun LeftDrawer(
                             contentDescription = "Klique"
                         )
                     },
-                    text = "Klique",
+                    text = "Clique",
                     onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
                 )
                 if (isChatRoomsExpanded) {
@@ -332,38 +332,3 @@ fun LeftDrawerItem(
 //        }
 //    }
 //}
-
-@Composable
-fun NotificationItem(
-    notification: Notification,
-    navController: NavController,
-    drawerState: MutableState<Boolean>
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(8.dp)
-            .clickable {
-                navController.navigate("bioScreen/${notification.userId}")
-                drawerState.value = false
-            }
-            .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    if (dragAmount.x > 20f) {
-                        drawerState.value = false
-                    }
-                    change.consume()
-                }
-            }, verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = "${notification.fullName} ${notification.contentDescription}",
-            style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            text = notification.timestamp.toString(),
-            style = MaterialTheme.typography.bodySmall
-        )
-    }
-}

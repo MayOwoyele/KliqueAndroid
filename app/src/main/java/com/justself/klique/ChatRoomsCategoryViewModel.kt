@@ -38,6 +38,7 @@ class ChatRoomsCategoryViewModel : ViewModel() {
                 )
                 Log.d("ChatRoom", "$response")
                 if (response.first) {
+                    Log.d("ChatRoomCategories", response.second)
                     val campusList = mutableListOf<ChatRoomCategory>()
                     val interestList = mutableListOf<ChatRoomCategory>()
                     val responseJson = JSONArray(response.second)

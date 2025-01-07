@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
@@ -47,7 +46,7 @@ import kotlinx.coroutines.delay
 fun FullScreenVideo(videoUri: String, navController: NavController) {
     var isOverlayVisible by remember { mutableStateOf(true) }
     val context = LocalContext.current
-    var isBuffering = remember { mutableStateOf(true) }
+    val isBuffering = remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(false)}
     var isPrepared by remember { mutableStateOf(false) }
     var duration by remember { mutableIntStateOf(0) }

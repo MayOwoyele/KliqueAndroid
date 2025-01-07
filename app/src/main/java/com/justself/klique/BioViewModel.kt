@@ -39,8 +39,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
                     val profileAssigned = Profile(
                         customerId = jsonObject.getInt("userId"),
-                        bioImage = jsonObject.getString("bioImage")
-                            .replace("127.0.0.1", "10.0.2.2"),
+                        bioImage = NetworkUtils.fixLocalHostUrl(jsonObject.getString("bioImage")),
                         fullName = jsonObject.getString("fullName"),
                         bioText = jsonObject.getString("bioText"),
                         posts = parsePosts(jsonObject.getJSONArray("posts")),
@@ -64,7 +63,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             val post = Post(
                 id = postJson.getString("id"),
                 type = postJson.getString("type"),
-                content = postJson.getString("content").replace("127.0.0.1", "10.0.2.2"),
+                content = NetworkUtils.fixLocalHostUrl(postJson.getString("content")),
                 thumbnail = postJson.optString("thumbnail", ""),
                 topComments = parseComments(postJson.getJSONArray("topComments")),
                 totalComments = postJson.getInt("totalComments"),

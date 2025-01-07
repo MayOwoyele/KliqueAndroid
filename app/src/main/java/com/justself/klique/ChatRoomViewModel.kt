@@ -257,18 +257,16 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
         updatedList.add(0, newMessage)
         _chatRoomMessages.value = updatedList
 
-        val textToSend = """
-        {
-        "type": "${ChatRoomMessageType.CTEXT.typeString}",
-        "message": "$message",
-        "chatRoomId": $chatRoomId,
-        "myId": $myId,
-        "messageId": "$messageId",
-        "timeStamp": "$timeStamp"
+        val jsonToSend = JSONObject().apply {
+            put("type", ChatRoomMessageType.CTEXT.typeString)
+            put("message", message)
+            put("chatRoomId", chatRoomId)
+            put("myId", myId)
+            put("messageId", messageId)
+            put("timeStamp", timeStamp.toString())
         }
-    """.trimIndent()
 
-        send(textToSend)
+        send(jsonToSend.toString())
     }
 
     fun send(textToSend: String) {

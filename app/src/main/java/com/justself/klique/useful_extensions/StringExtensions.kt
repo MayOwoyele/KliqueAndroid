@@ -1,17 +1,16 @@
 package com.justself.klique.useful_extensions
 
-fun String.capitalizeWords(): String{
-    return split(" ").joinToString(" ") { it.capitalize() }
-}
-
 fun String.initials(): String {
-    val parts = this.split(" ")
-
-    val initials = if (parts.size > 1) {
-        parts[0].substring(0, 1) + parts[1].substring(0, 1)
-    } else {
-        this.substring(0, 2)
+    val parts = this.trim().split(" ").filter { it.isNotEmpty() }
+    return when {
+        parts.size > 1 -> {
+            (parts[0][0].toString() + parts[1][0]).uppercase()
+        }
+        parts.size == 1 -> {
+            parts[0].take(2).uppercase()
+        }
+        else -> {
+            "?"
+        }
     }
-    return initials.uppercase()
 }
-

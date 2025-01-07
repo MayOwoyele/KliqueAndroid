@@ -288,16 +288,14 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
 
         _dmMessages.value = listOf(newMessage) + _dmMessages.value
 
-        val textToSend = """
-        {
-        "type": "${DmMessageType.DText.inString}",
-        "message": "$message",
-        "dmRoomId": $dmRoomId,
-        "messageId": "$messageId",
-        "timeStamp": "$timeStamp"
+        val jsonToSend = JSONObject().apply {
+            put("type", DmMessageType.DText.inString)
+            put("message", message)
+            put("dmRoomId", dmRoomId)
+            put("messageId", messageId)
+            put("timeStamp", timeStamp.toString())
         }
-        """.trimIndent()
-        send(textToSend)
+        send(jsonToSend.toString())
     }
     private fun updateDmMessages(newMessages: List<DmMessage>) {
         _dmMessages.value = newMessages

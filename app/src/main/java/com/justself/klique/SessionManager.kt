@@ -1,7 +1,7 @@
 package com.justself.klique
 
 import android.content.Context
-import android.telephony.TelephonyManager
+import android.util.Log
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,9 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.util.Locale
-import kotlin.random.Random
-import kotlin.time.Duration.Companion.seconds
 
 object SessionManager {
     private val _customerId = MutableStateFlow(0)
@@ -47,6 +44,7 @@ object SessionManager {
 
         _customerId.value = -1
         _fullName.value = ""
+        WebSocketManager.close()
     }
     fun saveCustomerIdToSharedPreferences(customerId: Int) {
         val sharedPreferences = appContext.getSharedPreferences(KLIQUE_APP_USER, Context.MODE_PRIVATE)
@@ -75,5 +73,51 @@ object SessionManager {
 //        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
         val savedCountry = getCountryFromSharedPreferences()
         return savedCountry
+    }
+    const val GLOBAL_CHAR_LIMIT = 5000
+    fun sendDeviceTokenToServer() {
+        val sharedPreferences = appContext.getSharedPreferences(FirebaseMessagingService.FIREBASE_PREFS_KEY, Context.MODE_PRIVATE)
+        val token = sharedPreferences.getString(FirebaseMessagingService.FIREBASE_TOKEN_KEY, null)
+
+        if (!token.isNullOrEmpty()) {
+            Log.d("Token", "Sending token to server: $token")
+
+            CoroutineScope(Dispatchers.IO).launch {
+                val userId = customerId.value
+
+                if (userId <= 0) {
+                    Log.e("SendToken", "Invalid user ID. Cannot send token to server.")
+                    return@launch
+                }
+
+                val jsonBody = JSONObject().apply {
+                    put("userId", userId)
+                    put("token", token)
+                }.toString()
+
+                try {
+                    JWTNetworkCaller.performReusableNetworkCalls(
+                        response = {
+                            NetworkUtils.makeJwtRequest(
+                                endpoint = "updateDeviceToken",
+                                method = KliqueHttpMethod.POST,
+                                params = emptyMap(),
+                                jsonBody = jsonBody
+                            )
+                        },
+                        action = { response ->
+                            Log.d("SendToken", "Token successfully sent to server: ${response.second}")
+                        },
+                        errorAction = { errorResponse ->
+                            Log.e("SendToken", "Error sending token: ${errorResponse.second}")
+                        }
+                    )
+                } catch (e: Exception) {
+                    Log.e("SendToken", "Failed to send token to server: ${e.message}")
+                }
+            }
+        } else {
+            Log.d("Token", "No token found to send to server.")
+        }
     }
 }

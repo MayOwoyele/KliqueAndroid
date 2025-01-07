@@ -80,7 +80,7 @@ object VideoUtils {
             return null
         }
 
-        if (resolution.first <= 480 && resolution.second <= 480) {
+        if (resolution.first <= 360 && resolution.second <= 360) {
             Log.i(TAG, "No downscaling needed as video is within size limits.")
             return uri
         }

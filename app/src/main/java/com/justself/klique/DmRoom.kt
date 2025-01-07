@@ -67,7 +67,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.IOException
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun DmRoom(
     navController: NavController,

@@ -6,6 +6,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.text.input.TextFieldValue
@@ -256,7 +257,7 @@ class SharedCliqueViewModel(
             "gistId": "$gistId"
             }
         """.trimIndent()
-        send(enterGistId)
+        send(enterGistId, true)
     }
 
     fun exitGist() {
@@ -266,7 +267,7 @@ class SharedCliqueViewModel(
             "gistId": "$gistId"
             }
         """.trimIndent()
-        send(exitGistId)
+        send(exitGistId, true)
     }
 
     fun floatGist(gistId: String) {
@@ -748,8 +749,8 @@ class SharedCliqueViewModel(
 
     // Additional ViewModel-specific logic
 
-    fun send(message: String) {
-        WebSocketManager.send(message)
+    fun send(message: String, showToast: Boolean = false) {
+        WebSocketManager.send(message, showToast)
     }
 
     private val _myName = mutableStateOf("")
@@ -1024,9 +1025,10 @@ class SharedCliqueViewModel(
                     },
                     action = { response ->
                         try {
+                            Log.d("Updated Description", response.second)
                             val jsonObject = JSONObject(response.second)
                             val description = jsonObject.getString("description")
-                            _gistTopRow.value = _gistTopRow.value?.copy(gistDescription = description)
+                            _gistTopRow.value = _gistTopRow.value?.copy(gistDescription = editedText)
                             Log.d("GistDescription", "Successfully updated description")
                         } catch (e: Exception) {
                             Log.e("GistDescription", "Error parsing response: ${e.message}")
@@ -1216,6 +1218,22 @@ class SharedCliqueViewModel(
                 Log.e("NetworkUtils", "Network request failed: ${e.message}")
             }
         }
+    }
+    fun deleteMessageById(messageId: String) {
+        val messageToSend = JSONObject()
+        messageToSend.apply {
+            put("type", "gistMessageDelete")
+            put("messageId", messageId)
+        }
+        send(messageToSend.toString(), true)
+    }
+    fun reportMessageById(messageId: String) {
+        val messageToSend = JSONObject()
+        messageToSend.apply {
+            put("type", "gistMessageReport")
+            put("messageId", messageId)
+        }
+        send(messageToSend.toString(), true)
     }
 }
 

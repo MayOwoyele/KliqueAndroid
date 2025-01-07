@@ -118,6 +118,7 @@ class ChatScreenViewModel(
                     PersonalMessageType.P_VIDEO.typeString -> PersonalMessageType.P_VIDEO
                     else -> PersonalMessageType.P_IMAGE
                 }
+                Log.d("PersonalUrl", contentUrl)
                 val readableDate = extractNumberLong(jsonObject)
                 Log.d("PersonalChats", "readable date: $readableDate")
                 CoroutineScope(Dispatchers.IO).launch {
@@ -150,17 +151,19 @@ class ChatScreenViewModel(
 
                                 else -> null
                             }
-                            val newMessage = PersonalChat(
-                                messageId = messageId,
-                                enemyId = enemyId,
-                                myId = myId,
-                                content = contentUrl,
-                                status = PersonalMessageStatus.DELIVERED,
-                                messageType = messageType,
-                                timeStamp = readableDate,
-                                mediaUri = mediaUri?.toString()
-                            )
-                            handleIncomingPersonalMessage(newMessage)
+                            if (mediaUri != null){
+                                val newMessage = PersonalChat(
+                                    messageId = messageId,
+                                    enemyId = enemyId,
+                                    myId = myId,
+                                    content = contentUrl,
+                                    status = PersonalMessageStatus.DELIVERED,
+                                    messageType = messageType,
+                                    timeStamp = readableDate,
+                                    mediaUri = mediaUri.toString()
+                                )
+                                handleIncomingPersonalMessage(newMessage)
+                            }
                             Log.d(
                                 "Websocket",
                                 "Media saved and acknowledgment sent for $messageId"
@@ -409,10 +412,10 @@ class ChatScreenViewModel(
             val chatExists = checkChatExistsSync(newMessage.myId, newMessage.enemyId)
             Log.d("Websocket", "Is New Incoming is ${!chatExists}")
             val messageExists = personalChatDao.getPersonalChatById(newMessage.messageId) != null
+            val acknowledgement = { sendDeliveryAcknowledgment(newMessage.messageId) }
             if (!messageExists) {
-                addAndProcessPersonalChat(newMessage, chatExists)
+                addAndProcessPersonalChat(newMessage, chatExists, acknowledgement)
             }
-            sendDeliveryAcknowledgment(newMessage.messageId)
         }
     }
 
@@ -468,8 +471,10 @@ class ChatScreenViewModel(
                 unreadMsgCounter = if (_currentChat.value != enemyId) 1 else 0
             )
             if (!chatExists) {
-                chatDao.addChat(chat)
-                sendJsonToUpdateProfile(listOf(enemyId))
+                viewModelScope.launch(Dispatchers.Main) {
+                    chatDao.addChat(chat)
+                    sendJsonToUpdateProfile(listOf(enemyId))
+                }
                 Log.d("isNewChat", "add chat called with $chat")
             } else {
                 Log.d("isNewChat", "add chat not called with $chat")
@@ -497,7 +502,7 @@ class ChatScreenViewModel(
         }
     }
 
-    private fun addAndProcessPersonalChat(personalChat: PersonalChat, chatExists: Boolean) {
+    private fun addAndProcessPersonalChat(personalChat: PersonalChat, chatExists: Boolean, acknowledgment: (() -> Unit)? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val enemyId =
                 if (personalChat.myId == myUserId.value) personalChat.enemyId else personalChat.myId
@@ -513,6 +518,7 @@ class ChatScreenViewModel(
             }
             personalChatDao.addPersonalChat(personalChat)
             updateChatListWithNewMessage(personalChat, chatExists)
+            acknowledgment?.invoke()
         }
     }
 

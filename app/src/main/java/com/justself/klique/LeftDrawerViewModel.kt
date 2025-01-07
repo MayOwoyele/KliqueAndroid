@@ -28,7 +28,7 @@ class LeftDrawerViewModel : ViewModel() {
                     val jsonObject = JSONObject(triple.second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
-                        jsonObject.getString("profileUrl").replace("127.0.0.1", "10.0.2.2")
+                        NetworkUtils.fixLocalHostUrl(jsonObject.getString("profileUrl"))
                     val name = jsonObject.getString("name")
                     val kcBalance = jsonObject.getInt("kcBalance")
                     val phoneNumber = jsonObject.getString("phoneNumber")

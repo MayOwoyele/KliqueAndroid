@@ -70,8 +70,6 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.launch
 import okio.IOException
 
-
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel) {
     var isEditing by remember { mutableStateOf(false) }
@@ -84,7 +82,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
     val gistId = gistTopRow?.gistId
     val searchResults by viewModel.searchResults.observeAsState(emptyList())
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    val minCharacterLimit = 10
+    val minCharacterLimit = 5
     val gistCreationError by viewModel.gistCreationError.observeAsState()
     BackHandler {
         navController.popBackStack()
@@ -125,7 +123,7 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
                             TextField(
                                 value = it,
                                 onValueChange = { newValue ->
-                                    if (newValue.length <= 100) {
+                                    if (newValue.length <= 150) {
                                         editedText = newValue.replace("\n", "")
                                     }
                                 },

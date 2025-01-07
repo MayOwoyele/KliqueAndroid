@@ -22,51 +22,9 @@ import javax.net.ssl.X509TrustManager
 object NetworkUtils {
     private var baseUrl: String? = null
 
-    // Flag to control certificate trusting (for easy removal later)
-    private var trustAllCertificates = true
-
     fun initialize(context: Context) {
         baseUrl = context.getString(R.string.base_url)
         Log.d("NetworkUtils", "Base URL: $baseUrl")
-
-        if (trustAllCertificates) {
-            setupTrustAllCertificates()
-        }
-    }
-
-    private fun setupTrustAllCertificates() {
-        // Create a TrustManager that blindly trusts all certificates
-        val trustAllCerts = arrayOf<TrustManager>(
-            object : X509TrustManager {
-                override fun checkClientTrusted(
-                    certs: Array<out X509Certificate>?,
-                    authType: String?
-                ) {
-                }
-
-                override fun checkServerTrusted(
-                    certs: Array<out X509Certificate>?,
-                    authType: String?
-                ) {
-                }
-
-                override fun getAcceptedIssuers(): Array<X509Certificate>? = null
-            }
-        )
-
-        // Install the TrustManager
-        try {
-            val sc = SSLContext.getInstance("SSL")
-            sc.init(null, trustAllCerts, java.security.SecureRandom())
-
-            HttpsURLConnection.setDefaultSSLSocketFactory(sc.socketFactory)
-
-            // Disable hostname verification - HIGHLY INSECURE!
-            HttpsURLConnection.setDefaultHostnameVerifier { _, _ -> true }
-
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
     suspend fun makeJwtRequest(
         endpoint: String,
@@ -179,6 +137,7 @@ object NetworkUtils {
 
                 val accessToken = JWTNetworkCaller.fetchAccessToken()
                     ?: throw IllegalStateException("Access token is null. Ensure you're logged in.")
+                Log.d("refreshToken", "make multipart: $accessToken")
                 setRequestProperty("Authorization", "Bearer $accessToken")
             }
 
@@ -209,6 +168,7 @@ object NetworkUtils {
             } finally {
                 connection.disconnect()
             }
+            Log.d("refreshToken", "multipart again: ${connection.responseCode}, $response")
 
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
             Triple(isSuccessful, response, connection.responseCode)

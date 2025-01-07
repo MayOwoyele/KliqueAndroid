@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,6 +62,7 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
     val repository = remember { ContactsRepository(context.contentResolver, context) }
     val viewModel = remember { ContactsViewModel(repository) };
     val contactList by viewModel.contacts.collectAsState()
+    val isLoading = remember { mutableStateOf(true) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -67,6 +70,9 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
         if (isGranted) {
             viewModel.refreshContacts(context)
         }
+    }
+    LaunchedEffect(contactList) {
+        isLoading.value = contactList.isEmpty()
     }
 
     LaunchedEffect(Unit) {
@@ -85,12 +91,23 @@ fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreen
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.padding(top = 56.dp)
-        ) {
-            items(contactList.size) { index ->
-                ContactTile(contact = contactList[index], navController = navController, chatScreenViewModel, customerId)
+        if (isLoading.value) {
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center)
+            )
+        } else {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.padding(top = 56.dp)
+            ) {
+                items(contactList.size) { index ->
+                    ContactTile(
+                        contact = contactList[index],
+                        navController = navController,
+                        chatScreenViewModel = chatScreenViewModel,
+                        customerId = customerId
+                    )
+                }
             }
         }
         IconButton(

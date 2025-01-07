@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -106,6 +107,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -127,7 +129,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 
-@RequiresApi(Build.VERSION_CODES.TIRAMISU)
 @Composable
 fun MessageScreen(
     navController: NavController,
@@ -236,7 +237,6 @@ fun MessageScreen(
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) imagePickerLauncher.launch("image/*")
         }
-
     val permissionLauncherVideos =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) videoPickerLauncher.launch("video/*")
@@ -563,6 +563,8 @@ fun MessageScreenContent(
                         detectTapGestures(onLongPress = { onLongPressLambda() },
                             onTap = { onTapLambda() })
                     }) {
+                    val screenWidth = LocalConfiguration.current.screenWidthDp
+                    val textMaxWidth = (screenWidth * 0.8).dp
                     Column(
                         modifier = Modifier
                             .background(Color.Gray, shape)
@@ -622,6 +624,7 @@ fun MessageScreenContent(
 
                             else -> {
                                 Box(modifier = Modifier
+                                    .widthIn(max = textMaxWidth)
                                     .wrapContentWidth()
                                     .pointerInput(Unit) {
                                         detectTapGestures(onLongPress = { onLongPressLambda() },
@@ -900,7 +903,11 @@ fun TextBoxAndMedia(
             }
 
             BasicTextField(value = textState,
-                onValueChange = { textState = it },
+                onValueChange = {
+                    if (it.text.length <= SessionManager.GLOBAL_CHAR_LIMIT) {
+                        textState = it
+                    }
+                },
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 8.dp)
