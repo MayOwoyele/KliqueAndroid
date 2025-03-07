@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import com.justself.klique.ContactsBlock.ui.BookshelfScreen
 import com.justself.klique.ContactsBlock.ui.ConditionalBookshelfScreen
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
+import kotlinx.coroutines.delay
 
 @Composable
 fun NavigationHost(
@@ -46,32 +48,21 @@ fun NavigationHost(
         remember { DatabaseProvider.getPersonalChatDatabase(application).personalChatDao() }
     val context = LocalContext.current.applicationContext as Application
     val viewModelFactory =
-        remember { ChatViewModelFactory(chatDao = chatDao, personalChatDao = personalChatDao, application = context) }
+        remember {
+            ChatViewModelFactory(
+                chatDao = chatDao,
+                personalChatDao = personalChatDao,
+                application = context
+            )
+        }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
     val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
     profileUpdateData?.let {
         Log.d("Worked", "It worked")
-//        chatScreenViewModel.updateProfile(
-//            enemyId = it.senderId,
-//            contactName = it.contactName,
-//            profilePhoto = it.profilePhoto,
-//            isVerified = it.isVerified
-//        )
         ProfileRepository.clearProfileData()
     }
     val profileViewModel: ProfileViewModel = viewModel(
         factory = ProfileViewModelFactory(chatScreenViewModel)
-    )
-    val contactDao = remember { DatabaseProvider.getContactsDatabase(application).contactDao() }
-    val getGistStateDao =
-        remember { DatabaseProvider.getGistRoomCreatedBase(application).gistStateDao() }
-    val sharedCliqueViewModel: SharedCliqueViewModel = viewModel(
-        factory = SharedCliqueViewModelFactory(
-            application,
-            customerId,
-            contactDao,
-            getGistStateDao
-        )
     )
     WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
     WebSocketManager.setSharedCliqueViewModel(sharedCliqueViewModel)

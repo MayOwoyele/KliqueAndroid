@@ -522,14 +522,16 @@ fun GistTitleRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = "Gist: $gistTopic",
-            style = MaterialTheme.typography.bodyLarge.copy(
-                fontSize = 20.sp, fontWeight = FontWeight.Bold
-            ),
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.clickable { showInfoDialog.value = true }
-        )
+        if (gistTopic != null) {
+            Text(
+                text = "Gist: ${gistTopic.take(20)}${if (gistTopic.length > 20) "..." else ""}",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontSize = 20.sp, fontWeight = FontWeight.Bold
+                ),
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.clickable { showInfoDialog.value = true }
+            )
+        }
         Box {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "$activeUserCount spectators",
@@ -658,8 +660,6 @@ fun MessageContent(
                     showReportDialog = true
                 }
             }
-
-            // Lambda for tap action
             val onTapLambda = {
                 when (message.messageType) {
                     GistMessageType.K_IMAGE -> {

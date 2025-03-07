@@ -267,8 +267,8 @@ fun ChatListScreen(
                             .animateContentSize()
                     ) {
                         TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
-                        TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
-                        TextOption("Personal Shopper", onClick = {navController.navigate("messageScreen/1/Personal Shopper")})
+//                        TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
+                        TextOption("Assistant", onClick = {navController.navigate("messageScreen/1/Assistant")})
                     }
                 }
                 AddButton(
@@ -406,13 +406,7 @@ fun ChatItem(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = chat.contactName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     if (chat.isVerified){
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = "Verified",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .size(24.dp)
-                        )
+                        VerifiedIcon(Modifier.align(Alignment.CenterVertically))
                     }
                 }
                 Text(

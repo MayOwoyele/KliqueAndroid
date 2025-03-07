@@ -5,7 +5,6 @@ import android.graphics.drawable.BitmapDrawable
 import android.media.MediaPlayer
 import android.net.Uri
 import android.util.Log
-import android.widget.Space
 import android.widget.VideoView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -81,6 +79,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
+import com.justself.klique.gists.ui.shared_composables.GistTile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -104,6 +103,7 @@ fun BioScreen(
         factory = BioViewModelFactory(contactsRepository)
     )
     val profile by bioViewModel.profile.collectAsState()
+    val bioGists by bioViewModel.gistList.collectAsState()
     val contactName by bioViewModel.checkIfContact(enemyId).observeAsState()
     var showClassSection by remember { mutableStateOf(false) }
     var expandedPostId by remember { mutableStateOf<String?>(null) }
@@ -115,20 +115,21 @@ fun BioScreen(
     val isOpen = remember {
         mutableStateOf(false)
     }
-    LaunchedEffect(listState) {
-        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-            .collect { (index, scrollOffset) ->
-                val targetPadding = if (index > 0 || scrollOffset > 0) 0f else 380f
-                coroutineScope.launch {
-                    animatedPadding.animateTo(
-                        targetPadding,
-                        animationSpec = tween(durationMillis = 300)
-                    )
-                }
-            }
-    }
+//    LaunchedEffect(listState) {
+//        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+//            .collect { (index, scrollOffset) ->
+//                val targetPadding = if (index > 0 || scrollOffset > 0) 0f else 380f
+//                coroutineScope.launch {
+//                    animatedPadding.animateTo(
+//                        targetPadding,
+//                        animationSpec = tween(durationMillis = 300)
+//                    )
+//                }
+//            }
+//    }
     LaunchedEffect(key1 = Unit) {
         bioViewModel.fetchProfile(enemyId, customerId)
+        bioViewModel.fetchMyGists(enemyId)
     }
     var backgroundColor by remember { mutableStateOf(Color.Transparent) }
     var imagePainter by remember { mutableStateOf<BitmapPainter?>(null) }
@@ -210,15 +211,7 @@ fun BioScreen(
                                     )
                                 }
                                 if (profile!!.isVerified) {
-                                    Icon(
-                                        imageVector = Icons.Default.CheckCircle,
-                                        contentDescription = "Verified",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .padding(bottom = 8.dp, end = 8.dp)
-                                            .size(16.dp)
-                                            .align(Alignment.BottomEnd)
-                                    )
+                                    VerifiedIcon(Modifier.align(Alignment.BottomEnd), paddingFigure = 8)
                                 }
                             }
                             Column(
@@ -430,7 +423,20 @@ fun BioScreen(
                             }
                         }
                     }
-
+                    items(bioGists) { gist ->
+                        val newImage = NetworkUtils.fixLocalHostUrl(gist.image)
+                        GistTile(
+                            gistId = gist.gistId,
+                            enemyId,
+                            title = gist.topic,
+                            description = gist.description,
+                            image = newImage,
+                            activeSpectators = gist.activeSpectators,
+                            onTap = {bioViewModel.joinGist(gist.gistId); navigateToHome(navController)},
+                            onHoldClick = {bioViewModel.floatGist(gist.gistId)},
+                            lastPostList = gist.lastGistComments
+                        )
+                    }
                     items(profile!!.posts) { post ->
                         PostItem(
                             post = post,

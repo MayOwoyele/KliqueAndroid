@@ -79,7 +79,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
 
                 }
                 val error: suspend (jwtHandle) -> Unit = {}
-                JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
+                performReusableNetworkCalls(response, action, error)
             } catch (e: Exception) {
                 Log.d("Profile", e.toString())
             }

@@ -2,7 +2,6 @@ package com.justself.klique
 
 import android.app.Application
 import android.content.Context
-import android.content.Intent
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -97,6 +96,7 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModelFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
@@ -203,6 +203,16 @@ fun MainScreen(
         mutableStateOf(false)
     }
     val context = LocalContext.current
+    val navigationRoute by NotificationIntentManager.navigationRoute.collectAsState()
+    LaunchedEffect(navigationRoute) {
+        Log.d("Navigated", "Navigated")
+        if (navigationRoute != null) {
+            delay(1000)
+            val navigationLambda =
+                { navController.navigate(navigationRoute!!) }
+            NotificationIntentManager.executeNavigation(navigationLambda)
+        }
+    }
     LaunchedEffect(Unit) {
         checkAndSendToken(context)
     }
@@ -346,7 +356,7 @@ fun MainScreen(
         }
 
         AppState.LoggedOut -> {
-            RegistrationScreen(navController = navController)
+            RegistrationScreen()
         }
 
         AppState.UpdateRequired -> {
@@ -392,7 +402,7 @@ fun MainContent(
                 "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
             )
             if (!WebSocketManager.isConnected.value) {
-                WebSocketManager.connect(webSocketUrl, customerId, fullName, context, "Main")
+                WebSocketManager.connect(customerId, fullName, context, "Main")
             }
             SessionManager.sendDeviceTokenToServer()
         }
@@ -406,12 +416,9 @@ fun MainContent(
                         Log.d("LifecycleEvent", "App moved to background. WebSocket closed.")
                     }
                 }
-
                 Lifecycle.Event.ON_START -> {
-                    // App comes to foreground
                     if (customerId != 0 && fullName.isNotBlank() && !WebSocketManager.isConnected.value) {
                         WebSocketManager.connect(
-                            webSocketUrl,
                             customerId,
                             fullName,
                             context,
@@ -498,12 +505,6 @@ fun MainContent(
             navController,
             customerId
         )
-//        RightDrawer(
-//            rightDrawerState,
-//            Modifier.align(Alignment.CenterEnd),
-//            notificationViewModel,
-//            navController
-//        )
         if (showEmojiPicker) {
             Box(
                 modifier = Modifier

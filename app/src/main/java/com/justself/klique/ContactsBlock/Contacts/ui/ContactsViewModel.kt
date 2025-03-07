@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class ContactsViewModel(private val _contactsRepository: ContactsRepository) : ViewModel() {
-    // Create a stateflow for our contacts ui.
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts
 
@@ -27,7 +26,9 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
     }
     fun refreshContacts(context: Context) {
         viewModelScope.launch (Dispatchers.IO){
-            delay(1000)
+            if (_contacts.value.isNotEmpty()) {
+                delay(1000)
+            }
             val phoneContacts = _contactsRepository.getContacts(context)
             val databaseContacts = _contactsRepository.getSortedContactsFromDatabase()
 
@@ -47,7 +48,7 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
                 _contactsRepository.updateContactsInDatabase(editedContacts)
             }
             val localContacts = _contactsRepository.getContacts(context)
-            val batchSize = 100
+            val batchSize = 1000
             val mergedContacts = mutableListOf<Contact>()
             localContacts.chunked(batchSize).forEach { batch ->
                 val serverContacts = _contactsRepository.checkContactsOnServer(batch)
@@ -58,5 +59,8 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
             _contacts.value = _contactsRepository.getSortedContactsFromDatabase()
         }
     }
+    fun updateContactFromHomeScreen(appContext: Context) {
+        loadContactsFromDatabase()
+        refreshContacts(appContext)
+    }
 }
-

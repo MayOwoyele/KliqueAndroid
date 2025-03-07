@@ -2,10 +2,16 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
+import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
+import com.justself.klique.MyKliqueApp.Companion.appContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.InputStream
@@ -16,8 +22,13 @@ object ImageUtils {
 
     @Throws(IOException::class)
     fun getImageFromDevice(context: Context, uri: Uri): Bitmap? {
-        val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-        return BitmapFactory.decodeStream(inputStream)
+        return try {
+            val source = ImageDecoder.createSource(context.contentResolver, uri)
+            ImageDecoder.decodeBitmap(source)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
     }
 
     @Throws(IOException::class)
@@ -61,6 +72,9 @@ object ImageUtils {
     }
 
     private fun lanczosResample(src: Bitmap, newWidth: Int, newHeight: Int, a: Float): Bitmap {
+        CoroutineScope(Dispatchers.Main).launch {
+            Toast.makeText(appContext, "Image processing and will be sent in background, please continue your activities...", Toast.LENGTH_SHORT).show()
+        }
         val dst = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888)
         val scaleX = src.width.toFloat() / newWidth
         val scaleY = src.height.toFloat() / newHeight
@@ -107,9 +121,8 @@ object ImageUtils {
         maxSize: Int = 1080,
         inputBitmap: Bitmap? = null
     ): ByteArray {
-        val bitmap = inputBitmap ?: getImageFromDevice(context, inputUri!!)
-        ?: throw IOException("Failed to decode bitmap from URI: $inputUri")
-        val correctedBitmap = inputUri?.let { correctBitmapOrientation(context, it, bitmap) } ?: bitmap
+        val correctedBitmap = inputBitmap ?: getImageFromDevice(context, inputUri!!)
+        ?: throw IOException("Failed to decode correcteditmap from URI: $inputUri")
 
         var shouldReturnOriginal = false
         val downscaledBitmap = downscaleImage(correctedBitmap, maxSize) {
@@ -127,20 +140,18 @@ object ImageUtils {
             downscaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteArrayOutputStream)
             val byteArray = byteArrayOutputStream.toByteArray()
 
-            if (downscaledBitmap != bitmap && downscaledBitmap != correctedBitmap) {
+            if (downscaledBitmap != correctedBitmap) {
                 downscaledBitmap.recycle()
             }
-            if (correctedBitmap != bitmap) {
-                correctedBitmap.recycle()
-            }
-            bitmap.recycle()
+            correctedBitmap.recycle()
 
             Log.d("ImageLoad", "Image size is ${byteArray.size}")
             byteArray
         }
     }
 
-    private fun correctBitmapOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+    fun correctBitmapOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
+        Log.d("bitmapDimensions", "Width: ${bitmap.width}, Height: ${bitmap.height}")
         val inputStream = context.contentResolver.openInputStream(uri)
         val exif = inputStream?.let { ExifInterface(it) }
         inputStream?.close()
@@ -157,6 +168,7 @@ object ImageUtils {
             ExifInterface.ORIENTATION_FLIP_VERTICAL -> rotationMatrix.preScale(1f, -1f)
         }
 
+        // Use the original bitmap's dimensions without swapping
         return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, rotationMatrix, true)
     }
 

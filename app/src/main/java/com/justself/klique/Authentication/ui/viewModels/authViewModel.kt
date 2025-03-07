@@ -51,8 +51,7 @@ enum class AppState {
     Loading
 }
 
-class AuthViewModel(application: Application) : AndroidViewModel(application) {
-    private val context = getApplication<Application>()
+class AuthViewModel : ViewModel() {
     val appState: StateFlow<AppState> =
         combine(customerId, updateDismissedFlow) { customerId, updateDismissedFlow ->
             val updateRequired = isUpdateRequired(appContext) && !updateDismissedFlow
@@ -81,6 +80,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val maxRetries = 5
 
     private val _tempCustomerId = MutableStateFlow<Int?>(null)
+    private val _tempName = MutableStateFlow<String?>(null)
 
     private var _phoneNumber = MutableStateFlow<String?>(null)
     private val phoneNumber: StateFlow<String?> = _phoneNumber.asStateFlow()
@@ -317,10 +317,9 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             if (response.isSuccess) {
                 response.customerId?.let {
                     _tempCustomerId.value = it
-                    saveCustomerIdToSharedPreferences(it)
-                    saveNameToSharedPreferences(response.name!!)
+                    _tempName.value = response.name
                     JWTNetworkCaller.saveTokens(
-                        context,
+                        appContext,
                         response.accessToken!!,
                         response.refreshToken!!
                     )
@@ -367,6 +366,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     fun completeRegistration() {
         viewModelScope.launch {
             _tempCustomerId.value?.let {
+                saveCustomerIdToSharedPreferences(it)
+                _tempName.value?.let { it1 -> saveNameToSharedPreferences(it1) }
                 SessionManager.fetchCustomerDataFromSharedPreferences()
                 _registrationStep.value = RegistrationStep.PHONE_NUMBER
             } ?: run {
@@ -391,13 +392,3 @@ data class SignUpServerResponse(
     val accessToken: String? = null,
     val name: String? = null
 )
-
-class ViewModelProviderFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        @Suppress("UNCHECKED_CAST")
-        if (modelClass.isAssignableFrom(AuthViewModel::class.java)) {
-            return AuthViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}

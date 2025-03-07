@@ -2,7 +2,6 @@
 package com.justself.klique
 
 import android.content.Context
-import android.se.omapi.Session
 import android.util.Base64
 import android.util.Log
 import android.widget.Toast
@@ -68,6 +67,8 @@ object WebSocketManager {
     private var isPingPongRunning = false
     private var isConnecting = false
     private var reconnectionJob: Job? = null
+    var isGistFormVisible = false
+    private var websocketBuffer = mutableListOf<String>()
 
     @Volatile
     private var isReconnecting = false
@@ -114,6 +115,7 @@ object WebSocketManager {
                     aReconnection = false
                 }
                 chatRoomViewModel?.retrial()
+                sendTheBuffer()
             }
 
             override fun onWebsocketPong(conn: WebSocket?, f: Framedata?) {
@@ -147,18 +149,27 @@ object WebSocketManager {
                 println("Received binary message")
                 CoroutineScope(Dispatchers.Main).launch {
                     try {
-                        val prefixBytes = ByteArray(12) // Adjust the prefix length as needed
+                        if (bytes.remaining() < 12) {
+                            println("Error: ByteBuffer does not have enough bytes for the prefix")
+                            return@launch
+                        }
+
+                        val prefixBytes = ByteArray(12)
                         bytes.get(prefixBytes)
                         val prefix = String(prefixBytes, Charsets.UTF_8).trim()
+
+                        if (bytes.remaining() <= 0) {
+                            println("Error: No binary data found after prefix")
+                            return@launch
+                        }
+
                         val binaryData = ByteArray(bytes.remaining())
                         bytes.get(binaryData)
 
-                        val jsonObject = JSONObject()
-                        jsonObject.put("prefix", prefix)
-                        jsonObject.put(
-                            "binaryData",
-                            Base64.encodeToString(binaryData, Base64.DEFAULT)
-                        )
+                        val jsonObject = JSONObject().apply {
+                            put("prefix", prefix)
+                            put("binaryData", Base64.encodeToString(binaryData, Base64.DEFAULT))
+                        }
 
                         println("Routing binary message: Prefix: $prefix")
                         routeBinaryMessageToViewModel(prefix, jsonObject)
@@ -216,11 +227,12 @@ object WebSocketManager {
         }
     }
 
-    fun connect(url: String, customerId: Int, fullName: String, context: Context, caller: String) {
+    fun connect(customerId: Int, fullName: String, context: Context, caller: String) {
         shouldReconnect = true
         if (isConnecting) {
             return
         }
+        val url = context.getString(R.string.websocket_url)
         isConnecting = true
         val encodedFullName = URLEncoder.encode(fullName, "UTF-8")
         val jwtToken =
@@ -273,7 +285,7 @@ object WebSocketManager {
                     delay(RECONNECT_DELAY * reconnectionAttempts)
                     if (!_isConnected.value) {
                         connect(
-                            webSocketClient?.uri.toString(), customerId, fullName,
+                            customerId, fullName,
                             appContext, "recon"
                         )
                     }
@@ -283,13 +295,13 @@ object WebSocketManager {
                         delay(RECONNECT_DELAY * reconnectionAttempts)
                         println("Attempting to reconnect at a steady interval...")
                         connect(
-                            webSocketClient?.uri.toString(), customerId, fullName,
+                            customerId, fullName,
                             appContext, "recon 2"
                         )
                     }
                 }
             }
-            reconnectionJob?.join() // Wait for reconnection to finish
+            reconnectionJob?.join()
         } finally {
             println("This attempt function bottomed out")
             isReconnecting = false
@@ -341,7 +353,7 @@ object WebSocketManager {
         }
     }
 
-    fun send(message: String, showToast: Boolean = false) {
+    fun send(message: String, showToast: Boolean = false, saveToBuffer: Boolean = false) {
         Log.d("RawWebsocket", "outgoing $message")
         if (!_isConnected.value && showToast) {
             CoroutineScope(Dispatchers.Main).launch {
@@ -356,6 +368,9 @@ object WebSocketManager {
             if (webSocketClient?.isOpen == true) {
                 webSocketClient?.send(message)
             } else {
+                if (saveToBuffer) {
+                    saveMessageToBuffer(message)
+                }
                 Log.e("WebSocketManager", "WebSocket is not connected. Message queued.")
             }
         } catch (e: WebsocketNotConnectedException) {
@@ -372,7 +387,6 @@ object WebSocketManager {
             }
         } catch (e: WebsocketNotConnectedException) {
             Log.e("WebSocketManager", "WebSocket not connected: ${e.message}")
-            // Optionally handle reconnection or notify the user
         } catch (e: Exception) {
             Log.e("WebSocketManager", "Exception in sending binary data: ${e.message}")
         }
@@ -407,9 +421,6 @@ object WebSocketManager {
             DmReceivingType.entries.any { it.type == type } -> ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
             else -> targetId
         }
-
-        println("Routing text message to listener: $listenerId, Type: $type, TargetId: $targetId")
-        println("Raw JSON data from server: $jsonObject")
 
         listenerId.let { id ->
             when (id) {
@@ -463,6 +474,17 @@ object WebSocketManager {
             }
         }
     }
+    private fun sendTheBuffer(){
+        if (websocketBuffer.isNotEmpty() && isGistFormVisible){
+            for (message in websocketBuffer) {
+                send(message)
+            }
+        }
+        websocketBuffer.clear()
+    }
+    private fun saveMessageToBuffer(message: String){
+        websocketBuffer.add(message)
+    }
 
     private fun handleUnauthorized() {
         CoroutineScope(Dispatchers.IO).launch {
@@ -471,7 +493,6 @@ object WebSocketManager {
             Log.d("StatusCode", responseCode.toString())
             if (responseCode == 200) {
                 connect(
-                    webSocketClient?.uri.toString(),
                     SessionManager.customerId.value,
                     SessionManager.fullName.value,
                     appContext, "unauthorized"

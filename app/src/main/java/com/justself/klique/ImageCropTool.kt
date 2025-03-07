@@ -1,22 +1,14 @@
 package com.justself.klique
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.RectF
-import android.media.ExifInterface
-import android.net.Uri
 import android.util.Log
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
@@ -30,7 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,7 +47,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import kotlin.math.abs
 
 @Composable
 fun ImageCropTool(
@@ -405,7 +395,7 @@ fun ImageCropTool(
                         )
                         .clickable {
                             bitmap?.let { originalBitmap ->
-                                croppedBitmap.value = cropBitmap(context, originalBitmap, toCropImageUri ?: "", cropRect.value)
+                                croppedBitmap.value = cropBitmap(originalBitmap, toCropImageUri ?: "", cropRect.value)
                                 isCropping.value = false
                             }
                         }
@@ -419,41 +409,14 @@ fun ImageCropTool(
 }
 
 
-fun cropBitmap(context: Context, bitmap: Bitmap, uriString: String, cropRect: RectF): Bitmap? {
-    val imageUri = Uri.parse(uriString)
-    val exif = ExifInterface(context.contentResolver.openInputStream(imageUri)!!)
-    val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-    val correctedBitmap = when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> rotateBitmap(bitmap, 90)
-        ExifInterface.ORIENTATION_ROTATE_180 -> rotateBitmap(bitmap, 180)
-        ExifInterface.ORIENTATION_ROTATE_270 -> rotateBitmap(bitmap, 270)
-        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> flipBitmap(bitmap, horizontal = true)
-        ExifInterface.ORIENTATION_FLIP_VERTICAL -> flipBitmap(bitmap, horizontal = false)
-        else -> bitmap
-    }
-
+fun cropBitmap(bitmap: Bitmap, uriString: String, cropRect: RectF): Bitmap {
+//    val imageUri = Uri.parse(uriString)
     val left = cropRect.left.toInt()
     val top = cropRect.top.toInt()
     val width = cropRect.width().toInt()
     val height = cropRect.height().toInt()
 
-    return Bitmap.createBitmap(correctedBitmap, left, top, width, height)
-}
-
-fun rotateBitmap(source: Bitmap, angle: Int): Bitmap {
-    val matrix = Matrix().apply { postRotate(angle.toFloat()) }
-    return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
-}
-
-fun flipBitmap(source: Bitmap, horizontal: Boolean): Bitmap {
-    val matrix = Matrix().apply {
-        if (horizontal) {
-            postScale(-1f, 1f)
-        } else {
-            postScale(1f, -1f)
-        }
-    }
-    return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+    return Bitmap.createBitmap(bitmap, left, top, width, height)
 }
 
 enum class SourceScreen {

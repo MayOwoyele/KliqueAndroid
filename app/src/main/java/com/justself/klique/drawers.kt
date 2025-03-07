@@ -148,7 +148,6 @@ fun LeftDrawer(
                             Icon(Icons.Rounded.Wallet, contentDescription = "Profile")
                             Text(text = "${profileDetails.kcBalance}KC")
                         }
-
                     },
                     onClick = {navController.navigate("updateProfile"); drawerState.value = false}
                 )
@@ -158,22 +157,22 @@ fun LeftDrawer(
                     text = "Me",
                     onClick = {navController.navigate("BioScreen/$customerId"); drawerState.value = false}
                 )
-                LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-                    leading = {
-                        Icon(
-                            Icons.Rounded.MarkChatUnread,
-                            contentDescription = "Klique"
-                        )
-                    },
-                    text = "Clique",
-                    onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
-                )
-                if (isChatRoomsExpanded) {
-                    ExpandableChatroomOptions(
-                        navController,
-                        onDeExpansion = { drawerState.value = false })
-                }
+//                LeftDrawerItem(
+//                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+//                    leading = {
+//                        Icon(
+//                            Icons.Rounded.MarkChatUnread,
+//                            contentDescription = "Klique"
+//                        )
+//                    },
+//                    text = "Clique",
+//                    onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
+//                )
+//                if (isChatRoomsExpanded) {
+//                    ExpandableChatroomOptions(
+//                        navController,
+//                        onDeExpansion = { drawerState.value = false })
+//                }
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = {
@@ -206,33 +205,33 @@ fun LeftDrawer(
     }
 }
 
-@Composable
-fun ExpandableChatroomOptions(navController: NavController, onDeExpansion: () -> Unit) {
-    Column(
-        modifier = Modifier.padding(start = 32.dp) // Indentation for sub-items
-    ) {
-        LeftDrawerItem(
-            modifier = Modifier.padding(vertical = 4.dp),
-            leading = { Icon(Icons.Rounded.School, contentDescription = "Campuses") },
-            text = "Campuses",
-            onClick = {
-                navController.navigate("campuses")
-                onDeExpansion()
-                Log.d("Navigation Trigger", "Navigation triggered")
-            }
-        )
-        LeftDrawerItem(
-            modifier = Modifier.padding(vertical = 4.dp),
-            leading = { Icon(Icons.Rounded.Interests, contentDescription = "Interests") },
-            text = "Interests",
-            onClick = {
-                navController.navigate("interests")
-                onDeExpansion()
-                Log.d("Navigation Trigger", "Navigation interest triggered")
-            }
-        )
-    }
-}
+//@Composable
+//fun ExpandableChatroomOptions(navController: NavController, onDeExpansion: () -> Unit) {
+//    Column(
+//        modifier = Modifier.padding(start = 32.dp) // Indentation for sub-items
+//    ) {
+//        LeftDrawerItem(
+//            modifier = Modifier.padding(vertical = 4.dp),
+//            leading = { Icon(Icons.Rounded.School, contentDescription = "Campuses") },
+//            text = "Campuses",
+//            onClick = {
+//                navController.navigate("campuses")
+//                onDeExpansion()
+//                Log.d("Navigation Trigger", "Navigation triggered")
+//            }
+//        )
+//        LeftDrawerItem(
+//            modifier = Modifier.padding(vertical = 4.dp),
+//            leading = { Icon(Icons.Rounded.Interests, contentDescription = "Interests") },
+//            text = "Interests",
+//            onClick = {
+//                navController.navigate("interests")
+//                onDeExpansion()
+//                Log.d("Navigation Trigger", "Navigation interest triggered")
+//            }
+//        )
+//    }
+//}
 
 @Composable
 fun LeftDrawerItem(

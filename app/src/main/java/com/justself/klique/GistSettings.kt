@@ -94,12 +94,12 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
         }
     }
     LaunchedEffect(key1 = searchQuery) {
-        if (searchQuery.length > 1){
+        if (searchQuery.length > 1) {
             viewModel.doTheSearch(searchQuery)
         }
     }
 
-    Box (modifier = Modifier.fillMaxSize()){
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -272,13 +272,25 @@ fun GistSettings(navController: NavController, viewModel: SharedCliqueViewModel)
             val listOfOwners by viewModel.listOfOwners.collectAsState()
             val listOfSpeakers by viewModel.listOfSpeakers.collectAsState()
             val searchPerformed by viewModel.searchPerformed.observeAsState(false)
+            val isListEmpty =
+                listOfSpeakers.isEmpty() && listOfOwners.isEmpty() && listOfContactMembers.isEmpty() && listOfNonContactMembers.isEmpty()
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(2f)
                     .background(MaterialTheme.colorScheme.background)
             ) {
-                if (isSearchMode) {
+                if (isListEmpty) {
+                    item {
+                        Text(
+                            text = "Network issue, please reload page",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
+                }
+                else if (isSearchMode) {
                     if (searchPerformed && searchResults.isEmpty()) {
                         item {
                             Text(
@@ -340,8 +352,9 @@ fun MyMembersList(member: Members, viewModel: SharedCliqueViewModel) {
         .fillMaxWidth()
         .height(50.dp)
         .padding(horizontal = 20.dp)
-        .clickable { showMenu = true }) {
-        Text(text = member.fullName)
+        .clickable { showMenu = true },
+        contentAlignment = Alignment.Center) {
+        Text(text = member.fullName, style = MaterialTheme.typography.displayLarge)
 
         Box(modifier = Modifier.align(Alignment.BottomStart)) {
             DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
@@ -389,7 +402,7 @@ fun Headers(text: String) {
             .padding(bottom = 50.dp),
         horizontalArrangement = Arrangement.Center
     ) {
-        Text(text = text, style = MaterialTheme.typography.displayLarge)
+        Text(text = text, style = MaterialTheme.typography.bodyLarge)
     }
 }
 

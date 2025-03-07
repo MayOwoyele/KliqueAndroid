@@ -54,7 +54,7 @@ object JWTNetworkCaller {
             else -> errorAction(theResponse)
         }
     }
-    //the part of reissuing the token up here
+
     private suspend fun tokenIssue(
         action: suspend (Triple<Boolean, String, Int>) -> Unit,
         response: suspend () -> Triple<Boolean, String, Int>,

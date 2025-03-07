@@ -112,7 +112,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
         return users;
     }
 
-    suspend fun mergeContacts(
+    fun mergeContacts(
         localContacts: List<Contact>,
         serverContacts: List<ServerContactResponse>
     ): List<Contact> {

@@ -174,6 +174,7 @@ fun DisplayVideo(
         }
     }
 }
+
 @Composable
 fun DisplayAudio(
     mediaUri: String?,
@@ -240,7 +241,57 @@ fun DisplayGistInvite(
                 style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary), // Pink color
                 modifier = Modifier
                     .align(Alignment.End)
-                    .clickable(onClick = { onJoinClick() })
+                    .clickable(onClick = {
+                        if (!isSelectionMode) {
+                            onJoinClick()
+                        }
+                    })
+            )
+        }
+    }
+}
+
+@Composable
+fun DisplayGistCreator(
+    gist: String?,
+    shape: Shape,
+    onLongPressLambda: () -> Unit,
+    isSelectionMode: Boolean,
+    onTapLambda: () -> Unit,
+    onJoinClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onLongPress = { onLongPressLambda() },
+                    onTap = { onTapLambda() }
+                )
+            }
+    ) {
+        Column(
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.background, shape)
+                .padding(8.dp)
+        ) {
+            if (gist != null) {
+                Text(
+                    text = "Create gist with me message: $gist",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+            Text(
+                text = "Start gist",
+                style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary),
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .clickable(onClick = {
+                        if (!isSelectionMode) {
+                            onJoinClick()
+                        }
+                    })
             )
         }
     }

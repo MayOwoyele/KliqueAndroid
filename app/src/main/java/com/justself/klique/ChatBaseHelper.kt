@@ -72,7 +72,8 @@ data class PersonalChat(
     val timeStamp: String,
     val mediaUri: String? = null,
     val gistId: String? = null,
-    val topic: String? = null
+    val topic: String? = null,
+    val inviteId: String? = null
 )
 
 @Dao
@@ -200,7 +201,8 @@ enum class PersonalMessageType(val typeString: String){
     P_TEXT("PText"),
     P_VIDEO("PVideo"),
     P_AUDIO("PAudio"),
-    P_GIST_INVITE("PGistInvite")
+    P_GIST_INVITE("PGistInvite"),
+    P_GIST_CREATION("PGistCreation")
 }
 enum class PersonalMessageStatus {
     PENDING,

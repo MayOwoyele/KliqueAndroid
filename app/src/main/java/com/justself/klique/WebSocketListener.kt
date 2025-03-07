@@ -24,7 +24,10 @@ enum class SharedCliqueReceivingType(val type: String) {
     MEMBERS_LIST("membersList"),
     MEMBER_LEFT("memberLeft"),
     SUBSCRIBER_ROLE_UPDATE("subscriberRoleUpdate"),
-    MEMBER_JOINED("memberJoined")
+    MEMBER_JOINED("memberJoined"),
+    ONLINE_CONTACTS("onlineContacts"),
+    CONTACT_ONLINE("contactOnline"),
+    CONTACT_OFFLINE("contactOffline"),
 }
 
 enum class PrivateChatReceivingType(val type: String) {

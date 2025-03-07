@@ -1,15 +1,13 @@
 package com.justself.klique.Authentication.ui.screens
 
-import android.app.Application
+import android.util.Log
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavHostController
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
@@ -18,16 +16,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,22 +39,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.lifecycle.ViewModelProvider
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
-import com.justself.klique.Authentication.ui.viewModels.ViewModelProviderFactory
-import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.SessionManager
 import java.util.Calendar
 import java.util.Locale
 
 @Composable
 fun RegistrationScreen(
-    navController: NavHostController,
-    authViewModel: AuthViewModel = viewModel(factory = ViewModelProviderFactory(LocalContext.current.applicationContext as Application))
+    authViewModel: AuthViewModel = viewModel()
 ) {
     val registrationStep by authViewModel.registrationStep.collectAsState()
     val aiMessage by authViewModel.aiMessage.collectAsState()
@@ -78,7 +76,6 @@ fun RegistrationScreen(
             )
             Spacer(Modifier.height(16.dp))
 
-            // Render appropriate screen content based on registration step
             when (registrationStep) {
                 RegistrationStep.PHONE_NUMBER -> PhoneNumberScreen(authViewModel)
                 RegistrationStep.CONFIRMATION_CODE -> ConfirmationCodeScreen(authViewModel)
@@ -145,7 +142,7 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
                 )
             )
         }
-        if (errorMessage.isNotEmpty()){
+        if (errorMessage.isNotEmpty()) {
             Text(
                 text = errorMessage,
                 color = Color.Red,
@@ -183,7 +180,12 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
         }
     }
 }
-fun formatPhoneNumber(phoneNumber: String, countryCode: String, phoneUtil: PhoneNumberUtil): String? {
+
+fun formatPhoneNumber(
+    phoneNumber: String,
+    countryCode: String,
+    phoneUtil: PhoneNumberUtil
+): String? {
     return try {
         val number = phoneUtil.parse(phoneNumber, countryCode)
         if (phoneUtil.isValidNumberForRegion(number, countryCode)) {
@@ -203,12 +205,13 @@ fun CountryCodePicker(selectedCountry: String, onCountrySelected: (String) -> Un
     }.sortedBy { it.first }
 
     var expanded by remember { mutableStateOf(false) }
-    Box {
+    Box(Modifier.wrapContentSize().background(MaterialTheme.colorScheme.onPrimary)) {
         Text(
             text = "+${getCountryCodeForRegion(selectedCountry)}",
             modifier = Modifier
-                .clickable { expanded = true } // Open the dropdown on click
-                .padding(16.dp)
+                .clickable { expanded = true }
+                .padding(16.dp),
+            color = MaterialTheme.colorScheme.background
         )
 
         DropdownMenu(
@@ -268,11 +271,11 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
         )
 
         // Display confirmation code in separate boxes
-        Row(
-            horizontalArrangement = Arrangement.Center,
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
-        ) {
-            repeat(6) { index ->
+        )  {
+            items(6) { index ->
                 Box(
                     modifier = Modifier
                         .size(48.dp)
@@ -290,11 +293,10 @@ fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
                 ) {
                     Text(
                         text = confirmationCode.getOrNull(index)?.toString() ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
             }
         }
 
@@ -361,7 +363,7 @@ fun NameScreen(authViewModel: AuthViewModel) {
     var name by remember { mutableStateOf("") }
     val isNameValid = remember(name) { name.length in 2..30 }
     val errorMessage by authViewModel.errorMessage.collectAsState()
-    LaunchedEffect(Unit){
+    LaunchedEffect(Unit) {
         authViewModel.setErrorMessageToNull()
     }
 
@@ -417,7 +419,7 @@ fun NameScreen(authViewModel: AuthViewModel) {
 @Composable
 fun GenderScreen(authViewModel: AuthViewModel) {
     var gender by remember { mutableStateOf<Gender?>(null) }
-    LaunchedEffect(Unit){
+    LaunchedEffect(Unit) {
         authViewModel.setErrorMessageToNull()
     }
 
@@ -500,7 +502,7 @@ fun YearOfBirthScreen(authViewModel: AuthViewModel) {
                 .clip(RoundedCornerShape(12.dp))
                 .fillMaxWidth()
         )
-        if(errorMessage.isNotEmpty()) {
+        if (errorMessage.isNotEmpty()) {
             Text(
                 text = errorMessage,
                 color = MaterialTheme.colorScheme.background,
@@ -581,16 +583,88 @@ fun DatePickerDialogSample(
 
 @Composable
 fun RegistrationCompleteScreen(authViewModel: AuthViewModel) {
-    Button(
-        onClick = {
-            authViewModel.completeRegistration()
-        }
+    var checkedState by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
+
+    Box(
+        Modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
-        Text("Continue")
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+        ) {
+            Text(
+                text = EULA_TEXT,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(bottom = 16.dp)
+            )
+
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                ) {
+                    Checkbox(
+                        checked = checkedState,
+                        onCheckedChange = {
+                            Log.d("Eula", "Checkbox clicked: $it")
+                            checkedState = it
+                        }
+                    )
+                    Text("I agree to the terms")
+                }
+
+                Button(
+                    onClick = { authViewModel.completeRegistration() },
+                    enabled = checkedState,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Continue")
+                }
+            }
+        }
     }
 }
+
 enum class Gender(val nameString: String) {
     MALE("Male"),
     FEMALE("Female"),
     OTHER("Other")
+}
+
+const val EULA_TEXT = """
+Welcome to Klique!
+
+By proceeding, you agree to the following terms:
+
+1. No Objectionable Content:
+   - Klique has a zero-tolerance policy for objectionable content. Any content deemed abusive, harmful, or offensive will result in immediate account suspension or termination.
+
+2. Respectful Behavior:
+   - You agree to treat all users with respect. Harassment, bullying, or abusive behavior is strictly prohibited.
+
+3. Compliance with Laws:
+   - All activity on Klique must comply with applicable laws and regulations.
+
+By agreeing to these terms, you help create a safe and welcoming environment for everyone.
+
+Thank you for being part of Klique!
+"""
+@Preview
+@Composable
+fun PreviewRegistrationCompleteScreen() {
+    RegistrationCompleteScreen(authViewModel = AuthViewModel())
+}
+@Preview
+@Composable
+fun PreviewRegistration(){
+    RegistrationScreen()
 }

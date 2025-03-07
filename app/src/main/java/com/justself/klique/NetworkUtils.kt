@@ -109,11 +109,6 @@ object NetworkUtils {
             }
             Log.d("NetworkUtils", "HTTP $method Response Code: ${connection.responseCode}")
 
-            val responseCode = connection.responseCode
-
-            if (responseCode != HttpURLConnection.HTTP_OK && responseCode != HttpURLConnection.HTTP_UNAUTHORIZED && responseCode != HttpURLConnection.HTTP_FORBIDDEN) {
-                throw IOException("Unexpected HTTP response code: $responseCode. Response: $response")
-            }
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
             Log.d("NetworkUtils", "response is $response, $isSuccessful")
             Triple(isSuccessful, response, connection.responseCode)

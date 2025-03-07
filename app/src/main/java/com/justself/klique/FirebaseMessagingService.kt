@@ -28,7 +28,6 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             handleNotificationWithData(remoteMessage.notification!!, remoteMessage.data)
             return
         }
-
         if (remoteMessage.data.isNotEmpty()) {
             Log.d("Firebase", "Data Message Received: ${remoteMessage.data}")
             handleDataMessage(remoteMessage.data)
@@ -49,7 +48,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             "chats" -> "chats"
             "shots" -> "dmList"
             "home" -> "home"
-            else -> "home"
+            else -> "chats"
         }
 
         val intent = Intent(this, MainActivity::class.java).apply {

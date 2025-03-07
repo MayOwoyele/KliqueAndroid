@@ -2,25 +2,24 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.jetbrainsKotlinAndroid)
     alias(libs.plugins.serialization)
-    alias(libs.plugins.ksp) // Use KSP for annotation processing
+    alias(libs.plugins.ksp)
     id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.justself.klique"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.justself.klique"
         minSdk = 28
-        targetSdk = 34
-        versionCode = 9
+        targetSdk = 35
+        versionCode = 16
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // Configure Room schema location
         javaCompileOptions {
             annotationProcessorOptions {
-                arguments["room.schemaLocation"] = "$projectDir/schemas".toString()
+                arguments["room.schemaLocation"] = "$projectDir/schemas"
             }
         }
     }
@@ -36,8 +35,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "base_url", "http://192.168.0.151:8080/")
-            resValue("string", "websocket_url", "ws://192.168.0.151:3030/")
+            resValue("string", "base_url", "http://10.0.2.2:8080/")
+            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
         }
         release {
             isMinifyEnabled = true
@@ -118,7 +117,7 @@ dependencies {
     implementation(libs.compose.foundation.layout)
     implementation(libs.emoji.compat)
     implementation(libs.emoji.compat.bundled)
-    ksp(libs.room.compiler) // Use KSP for Room compiler
+    ksp(libs.room.compiler)
     implementation (libs.emoji2)
     implementation (libs.emoji2.views)
     implementation (libs.emoji2.views.helper)
@@ -136,7 +135,6 @@ dependencies {
 configurations.all {
     resolutionStrategy {
         force("org.jetbrains:annotations:23.0.0")
-
         eachDependency {
             if (requested.group == "com.intellij" && requested.name == "annotations") {
                 useVersion("12.0")

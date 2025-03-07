@@ -176,7 +176,7 @@ object FileUtils {
         }
     }
 
-    fun saveToPublicDirectoryLegacy(
+    private fun saveToPublicDirectoryLegacy(
         context: Context,
         data: ByteArray,
         fileName: String,
@@ -223,7 +223,6 @@ enum class MediaType(val type: String) {
     VIDEO("video"),
     AUDIO("audio");
 
-    // Helper to get the correct public directory based on the media type
     fun getPublicDirectory(): String {
         return when (this) {
             IMAGE -> Environment.DIRECTORY_PICTURES + File.separator + "klique images"
@@ -232,7 +231,6 @@ enum class MediaType(val type: String) {
         }
     }
 
-    // Helper to get the correct content URI for MediaStore
     fun getContentUri(): Uri {
         return when (this) {
             IMAGE -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI

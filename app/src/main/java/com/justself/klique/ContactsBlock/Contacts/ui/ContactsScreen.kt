@@ -35,6 +35,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,41 +56,43 @@ import com.justself.klique.ChatScreenViewModel
 import com.justself.klique.useful_extensions.initials
 
 @Composable
-fun ContactsScreen(navController: NavController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
-    Log.d("Check", "Check")
-    Log.d("Check Permissions", "Check")
+fun ContactsScreen(
+    navController: NavController,
+    chatScreenViewModel: ChatScreenViewModel,
+    customerId: Int
+) {
     val context = LocalContext.current
     val repository = remember { ContactsRepository(context.contentResolver, context) }
-    val viewModel = remember { ContactsViewModel(repository) };
+    val viewModel = remember { ContactsViewModel(repository) }
     val contactList by viewModel.contacts.collectAsState()
     val isLoading = remember { mutableStateOf(true) }
 
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
+    // Local state to track permission status
+    var hasPermission by remember { mutableStateOf(false) }
+
+    // Use the reusable CheckContactsPermission composable.
+    CheckContactsPermission(
+        onPermissionResult = { granted ->
+            hasPermission = granted
+        },
+        onPermissionGranted = {
             viewModel.refreshContacts(context)
         }
-    }
+    )
+
     LaunchedEffect(contactList) {
         isLoading.value = contactList.isEmpty()
     }
 
-    LaunchedEffect(Unit) {
-        Log.d("Check Permissions", "Check")
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) -> {
-                viewModel.refreshContacts(context)
-                Log.d("Check Permissions", "Check")
-            }
-
-            else -> {
-                permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-                Log.d("Check Permissions", "Check")
-            }
+    // If no permission, display an error message and exit
+    if (!hasPermission) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Contacts permission is required.")
         }
+        return
     }
 
+    // Your regular ContactsScreen UI below
     Box(modifier = Modifier.fillMaxSize()) {
         if (isLoading.value) {
             CircularProgressIndicator(
@@ -236,6 +239,29 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
                     )
                 }
             }
+        }
+    }
+}
+@Composable
+fun CheckContactsPermission(
+    onPermissionResult: (Boolean) -> Unit,
+    onPermissionGranted: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            onPermissionGranted()
+        }
+        onPermissionResult(isGranted)
+    }
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+            onPermissionGranted()
+            onPermissionResult(true)
+        } else {
+            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         }
     }
 }

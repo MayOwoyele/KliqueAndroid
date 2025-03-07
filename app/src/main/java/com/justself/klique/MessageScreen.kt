@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.support.annotation.RequiresApi
+import android.text.format.DateUtils
 import android.util.Log
 import android.view.MotionEvent
 import android.widget.Toast
@@ -22,7 +23,11 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -126,8 +131,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import okhttp3.internal.format
 import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MessageScreen(
@@ -291,7 +300,8 @@ fun MessageScreen(
                     contactName = contactName,
                     enemyId = enemyId,
                     viewModel = viewModel,
-                    onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange
+                    onEmojiPickerVisibilityChange = onEmojiPickerVisibilityChange,
+                    isVerified = isVerified
                 )
             }
             Box(
@@ -379,7 +389,8 @@ fun CustomTopAppBar(
     contactName: String,
     enemyId: Int,
     viewModel: ChatScreenViewModel,
-    onEmojiPickerVisibilityChange: (Boolean) -> Unit
+    onEmojiPickerVisibilityChange: (Boolean) -> Unit,
+    isVerified: Boolean
 ) {
     val onlineStatuses by viewModel.onlineStatuses.collectAsState()
     val isOnline = onlineStatuses[enemyId] ?: false
@@ -414,6 +425,9 @@ fun CustomTopAppBar(
                         onEmojiPickerVisibilityChange(false)
                     })
             )
+            if (isVerified) {
+                VerifiedIcon()
+            }
             Box(
                 modifier = Modifier
                     .padding(start = 20.dp)
@@ -504,9 +518,10 @@ fun MessageScreenContent(
     val scrollBarOffset = remember {
         derivedStateOf {
             if (contentHeight.intValue > 0) {
-                (scrollState.firstVisibleItemIndex.toFloat() / (personalChat.size - 1).toFloat() * (viewportHeight.value - scrollBarHeight.value)).coerceIn(
-                    0f, viewportHeight.intValue - scrollBarHeight.value
-                )
+                ((personalChat.size - 1 - scrollState.firstVisibleItemIndex).toFloat() /
+                        maxOf(1f, (personalChat.size - 1).toFloat()) *
+                        maxOf(0f, viewportHeight.intValue - scrollBarHeight.value)
+                        ).coerceIn(0f, maxOf(0f, viewportHeight.intValue - scrollBarHeight.value))
             } else {
                 0f
             }
@@ -540,7 +555,7 @@ fun MessageScreenContent(
                             PersonalMessageType.P_IMAGE -> {
                                 message.mediaUri?.let {
                                     mediaViewModel.setBitmapFromUri(
-                                        it, context
+                                        Uri.parse(it), context
                                     )
                                 }
                                 navController.navigate("fullScreenImage")
@@ -565,95 +580,119 @@ fun MessageScreenContent(
                     }) {
                     val screenWidth = LocalConfiguration.current.screenWidthDp
                     val textMaxWidth = (screenWidth * 0.8).dp
-                    Column(
-                        modifier = Modifier
-                            .background(Color.Gray, shape)
-                            .padding(8.dp),
-                        horizontalAlignment = alignment
-                    ) {
-                        when (message.messageType) {
-                            PersonalMessageType.P_IMAGE -> {
-                                DisplayImage(
-                                    message.mediaUri,
-                                    shape,
-                                    navController,
-                                    mediaViewModel,
-                                    onLongPressLambda,
-                                    isSelectionMode,
-                                    onTapLambda
-                                )
-                            }
-
-                            PersonalMessageType.P_VIDEO -> {
-                                Log.d("isSelectionMode", "is now $isSelectionMode")
-                                DisplayVideo(
-                                    message.mediaUri,
-                                    shape,
-                                    navController,
-                                    onLongPressLambda,
-                                    isSelectionMode,
-                                    onTapLambda
-                                )
-                            }
-
-                            PersonalMessageType.P_AUDIO -> {
-                                Log.d("isSelectionMode", "is now $isSelectionMode")
-                                DisplayAudio(
-                                    message.mediaUri,
-                                    context,
-                                    onLongPressLambda,
-                                    isSelectionMode,
-                                    onTapLambda
-                                )
-                            }
-
-                            PersonalMessageType.P_GIST_INVITE -> {
-                                DisplayGistInvite(
-                                    topic = message.topic,
-                                    shape = shape,
-                                    onLongPressLambda = onLongPressLambda,
-                                    isSelectionMode = isSelectionMode,
-                                    onTapLambda = onTapLambda
-                                ) {
-                                    message.gistId?.let {
-                                        viewModel.joinGist(it)
+                    Row{
+                        if (!isCurrentUser) {
+                            MessageTimeStamp(message, false, isSelectionMode)
+                        }
+                        Box{
+                            Column(
+                                modifier = Modifier
+                                    .background(Color.Gray, shape)
+                                    .padding(8.dp),
+                                horizontalAlignment = alignment
+                            ) {
+                                when (message.messageType) {
+                                    PersonalMessageType.P_IMAGE -> {
+                                        DisplayImage(
+                                            message.mediaUri,
+                                            shape,
+                                            navController,
+                                            mediaViewModel,
+                                            onLongPressLambda,
+                                            isSelectionMode,
+                                            onTapLambda
+                                        )
                                     }
-                                    navController.navigate("home")
-                                }
-                            }
 
-                            else -> {
-                                Box(modifier = Modifier
-                                    .widthIn(max = textMaxWidth)
-                                    .wrapContentWidth()
-                                    .pointerInput(Unit) {
-                                        detectTapGestures(onLongPress = { onLongPressLambda() },
-                                            onTap = { onTapLambda() })
-                                    }) {
-                                    ClickableMessageText(
-                                        message.content,
-                                        isSelectionMode,
-                                        onLongPressLambda,
-                                        onTapLambda
+                                    PersonalMessageType.P_VIDEO -> {
+                                        Log.d("isSelectionMode", "is now $isSelectionMode")
+                                        DisplayVideo(
+                                            message.mediaUri,
+                                            shape,
+                                            navController,
+                                            onLongPressLambda,
+                                            isSelectionMode,
+                                            onTapLambda
+                                        )
+                                    }
+
+                                    PersonalMessageType.P_AUDIO -> {
+                                        Log.d("isSelectionMode", "is now $isSelectionMode")
+                                        DisplayAudio(
+                                            message.mediaUri,
+                                            context,
+                                            onLongPressLambda,
+                                            isSelectionMode,
+                                            onTapLambda
+                                        )
+                                    }
+                                    PersonalMessageType.P_GIST_INVITE -> {
+                                        DisplayGistInvite(
+                                            topic = message.topic,
+                                            shape = shape,
+                                            onLongPressLambda = onLongPressLambda,
+                                            isSelectionMode = isSelectionMode,
+                                            onTapLambda = onTapLambda
+                                        ) {
+                                            message.gistId?.let {
+                                                viewModel.joinGist(it)
+                                            }
+                                            navigateToHome(navController)
+                                        }
+                                    }
+
+                                    PersonalMessageType.P_TEXT -> {
+                                        Box(modifier = Modifier
+                                            .widthIn(max = textMaxWidth)
+                                            .wrapContentWidth()
+                                            .pointerInput(Unit) {
+                                                detectTapGestures(onLongPress = { onLongPressLambda() },
+                                                    onTap = { onTapLambda() })
+                                            }) {
+                                            ClickableMessageText(
+                                                message.content,
+                                                isSelectionMode,
+                                                onLongPressLambda,
+                                                onTapLambda
+                                            )
+                                        }
+                                    }
+                                    PersonalMessageType.P_GIST_CREATION -> {
+                                        DisplayGistCreator(
+                                            gist = message.content,
+                                            shape = shape,
+                                            onLongPressLambda = onLongPressLambda,
+                                            isSelectionMode = isSelectionMode,
+                                            onTapLambda = onTapLambda,
+                                            onJoinClick = {
+                                                message.inviteId?.let {
+                                                    viewModel.createGistForFriend(message.inviteId, message.content, enemyId, navController)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+
+                                if (isCurrentUser) {
+                                    Icon(
+                                        imageVector = getPersonChatStatusIcon(status = message.status),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp),
+                                        tint = MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
+                            if (isSelectionMode && selectedMessages.contains(message.messageId)) {
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.5f))
+                                )
+                            }
                         }
                         if (isCurrentUser) {
-                            Icon(
-                                imageVector = getPersonChatStatusIcon(status = message.status),
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
+                            MessageTimeStamp(message, true, isSelectionMode)
                         }
-                    }
-                    if (isSelectionMode && selectedMessages.contains(message.messageId)) {
-                        Box(
-                            modifier = Modifier
-                                .matchParentSize()
-                                .background(MaterialTheme.colorScheme.onSecondary.copy(alpha = 0.5f))
-                        )
                     }
                 }
 
@@ -1080,4 +1119,64 @@ fun MessageContextMenu(
             }
         }
     }
+}
+
+@Composable
+fun MessageTimeStamp(
+    message: PersonalChat,
+    isCurrentUser: Boolean,
+    isSelectionMode: Boolean
+) {
+    val time = message.timeStamp
+    val relativeTime = time.toLongOrNull()?.let {
+        DateUtils.getRelativeTimeSpanString(
+            it,
+            System.currentTimeMillis(),
+            DateUtils.DAY_IN_MILLIS
+        ).toString()
+    } ?: ""
+    val formattedTime = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(time.toLong()))
+    val thePadding = 2.dp
+
+    val parts = relativeTime.split(",")
+    AnimatedVisibility(
+        visible = isSelectionMode,
+        enter = slideInHorizontally(initialOffsetX = { if (isCurrentUser) it / 2 else -it / 2 }),
+        exit = slideOutHorizontally(targetOffsetX = { if (isCurrentUser) it / 2 else -it / 2 })
+    ){
+        Column(
+            modifier = Modifier
+                .padding(
+                    start = if (isCurrentUser) thePadding else 0.dp,
+                    end = if (isCurrentUser) 0.dp else thePadding
+                )
+        ) {
+            Text(
+                text = formattedTime,
+                color = MaterialTheme.colorScheme.onPrimary,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (parts.size > 1) {
+                Text(
+                    parts[0],
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    parts[1].trim(),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Text(
+                    relativeTime,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+fun navigateToHome(navController: NavController) {
+    navController.navigate("home")
 }

@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
+import com.justself.klique.gists.data.models.GistModel
+import com.justself.klique.gists.ui.viewModel.parseGistsFromResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -23,6 +25,8 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
     private val _profile = MutableStateFlow<Profile?>(null)
     val profile = _profile.asStateFlow()
+    private val _gistList = MutableStateFlow<List<GistModel>>(emptyList())
+    val gistList = _gistList.asStateFlow()
     fun fetchProfile(bioUserId: Int, spectatorUserId: Int) {
         val params = mapOf(
             "bioUserId" to "$bioUserId",
@@ -52,6 +56,25 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                 }
             } catch (e: Exception) {
                 Log.d("CommentStatus", e.toString())
+            }
+        }
+    }
+    fun fetchMyGists(userId: Int) {
+        viewModelScope.launch {
+            try {
+                val endpoint = "gists/my"
+                val method = KliqueHttpMethod.GET
+                val params = mapOf("userId" to userId.toString())
+
+                val response = NetworkUtils.makeRequest(
+                    endpoint = endpoint,
+                    method = method,
+                    params = params
+                ).second
+                val gists = parseGistsFromResponse(response)
+                _gistList.value = gists
+            } catch (e: Exception) {
+                Log.e("fetchGists", "Exception is $e")
             }
         }
     }
@@ -92,6 +115,25 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
     private fun colorFromHex(hex: String): Color {
         val androidColorInt = AndroidColor.parseColor(hex)
         return Color(androidColorInt)
+    }
+    fun joinGist(gistId: String) {
+        val joinGistJson = """
+            {
+            "type": "joinGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        WebSocketManager.send(joinGistJson, showToast = true)
+        Log.d("Join Gist", "Join gist id is $gistId")
+    }
+    fun floatGist(gistId: String) {
+        val floatGistId = """
+            {
+            "type": "floatGist",
+            "gistId": "$gistId"
+            }
+        """.trimIndent()
+        WebSocketManager.send(floatGistId, showToast = true)
     }
 
     fun leaveSeat(enemyId: Int, customerId: Int) {

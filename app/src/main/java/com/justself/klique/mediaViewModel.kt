@@ -5,6 +5,7 @@ import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -71,12 +72,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _bitmap.value = bitmap
     }
 
-    fun setBitmapFromUri(uri: String, context: Context) {
+    fun setBitmapFromUri(uri: Uri, context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
             val bitmap = loadBitmapFromUri(uri, context)
             withContext(Dispatchers.Main) {
                 _bitmap.value = bitmap
-                _toCropImageUri.value = uri
+                _toCropImageUri.value = uri.toString()
             }
         }
     }
@@ -84,13 +85,12 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
         _toCropImageUri.value = null
     }
 
-    private fun loadBitmapFromUri(uri: String, context: Context): Bitmap? {
+    private fun loadBitmapFromUri(uri: Uri, context: Context): Bitmap? {
         return try {
-            val parsedUri = Uri.parse(uri)
-            val source = ImageDecoder.createSource(context.contentResolver, parsedUri)
-            ImageDecoder.decodeBitmap(source)
+            val bitmap = ImageUtils.getImageFromDevice(context, uri)!!
+            bitmap
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.d("StackTrace", e.toString())
             null
         }
     }

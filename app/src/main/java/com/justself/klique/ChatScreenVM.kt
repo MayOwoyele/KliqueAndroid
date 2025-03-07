@@ -4,8 +4,13 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.lifecycle.*
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +28,28 @@ import java.net.URL
 import java.nio.ByteBuffer
 import java.time.Instant
 import java.util.UUID
+import kotlin.collections.ArrayList
+import kotlin.collections.List
+import kotlin.collections.Map
+import kotlin.collections.distinct
+import kotlin.collections.emptyList
+import kotlin.collections.emptyMap
+import kotlin.collections.filterNot
+import kotlin.collections.firstOrNull
+import kotlin.collections.forEach
+import kotlin.collections.indexOfFirst
+import kotlin.collections.isNotEmpty
+import kotlin.collections.lastOrNull
+import kotlin.collections.listOf
+import kotlin.collections.map
+import kotlin.collections.mutableListOf
+import kotlin.collections.none
+import kotlin.collections.plus
+import kotlin.collections.set
+import kotlin.collections.sortedByDescending
+import kotlin.collections.toMutableList
+import kotlin.collections.toMutableMap
+
 
 class ChatScreenViewModel(
     private val chatDao: ChatDao,
@@ -151,7 +178,7 @@ class ChatScreenViewModel(
 
                                 else -> null
                             }
-                            if (mediaUri != null){
+                            if (mediaUri != null) {
                                 val newMessage = PersonalChat(
                                     messageId = messageId,
                                     enemyId = enemyId,
@@ -246,7 +273,8 @@ class ChatScreenViewModel(
                     val eachUpdate = profileUpdate.getJSONObject(theIndex)
                     val enemyId = eachUpdate.getInt("enemyId")
                     val contactName = eachUpdate.getString("fullName")
-                    val profilePhoto = NetworkUtils.fixLocalHostUrl(eachUpdate.getString("profileUrl"))
+                    val profilePhoto =
+                        NetworkUtils.fixLocalHostUrl(eachUpdate.getString("profileUrl"))
                     val isVerified = eachUpdate.getBoolean("isVerified")
                     updateProfile(enemyId, contactName, profilePhoto, isVerified)
                 }
@@ -427,6 +455,7 @@ class ChatScreenViewModel(
             PersonalMessageType.P_AUDIO -> "Audio"
             PersonalMessageType.P_GIST_INVITE -> "Gist Invite..."
             PersonalMessageType.P_TEXT -> newMessage.content
+            PersonalMessageType.P_GIST_CREATION -> "Gist Creation..."
         }
         val timeStamp = newMessage.timeStamp
         Log.d("SpecialChat", "${_currentChat.value} and $enemyId: ${newMessage.content}")
@@ -438,18 +467,18 @@ class ChatScreenViewModel(
                     if (none { it.messageId == newMessage.messageId }) {
                         Log.d("SpecialChat", newMessage.content)
                         val index = indexOfFirst { it.timeStamp < newMessage.timeStamp }
-                            Log.d("SpecialChat 2", newMessage.content)
-                            if (index != -1 || _personalChats.value.size <= pageSize) {
-                                Log.d("SpecialChat 3", newMessage.content)
-                                if (index != -1){
-                                    add(index, newMessage)
-                                } else {
-                                    add(0, newMessage)
-                                }
+                        Log.d("SpecialChat 2", newMessage.content)
+                        if (index != -1 || _personalChats.value.size <= pageSize) {
+                            Log.d("SpecialChat 3", newMessage.content)
+                            if (index != -1) {
+                                add(index, newMessage)
                             } else {
-                                Log.d("SpecialChat 4", newMessage.content)
                                 add(0, newMessage)
                             }
+                        } else {
+                            Log.d("SpecialChat 4", newMessage.content)
+                            add(0, newMessage)
+                        }
                     } else {
                         Log.d(
                             "Websocket",
@@ -474,6 +503,7 @@ class ChatScreenViewModel(
                 viewModelScope.launch(Dispatchers.Main) {
                     chatDao.addChat(chat)
                     sendJsonToUpdateProfile(listOf(enemyId))
+                    loadChats(myUserId.value)
                 }
                 Log.d("isNewChat", "add chat called with $chat")
             } else {
@@ -488,7 +518,8 @@ class ChatScreenViewModel(
             _chats.value = updatedChats
         }
     }
-    fun sendJsonToUpdateProfile(userIds: List<Int>){
+
+    fun sendJsonToUpdateProfile(userIds: List<Int>) {
         val jsonObject = JSONObject().apply {
             put("type", "handleMultipleProfileUpdates")
             put("userIds", JSONArray(userIds))
@@ -502,7 +533,11 @@ class ChatScreenViewModel(
         }
     }
 
-    private fun addAndProcessPersonalChat(personalChat: PersonalChat, chatExists: Boolean, acknowledgment: (() -> Unit)? = null) {
+    private fun addAndProcessPersonalChat(
+        personalChat: PersonalChat,
+        chatExists: Boolean,
+        acknowledgment: (() -> Unit)? = null
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val enemyId =
                 if (personalChat.myId == myUserId.value) personalChat.enemyId else personalChat.myId
@@ -609,7 +644,11 @@ class ChatScreenViewModel(
         }
         val updatedChat = _chats.value.map {
             if (it.enemyId == enemyId) {
-                it.copy(profilePhoto = profilePhoto, contactName = contactName, isVerified = isVerified)
+                it.copy(
+                    profilePhoto = profilePhoto,
+                    contactName = contactName,
+                    isVerified = isVerified
+                )
             } else {
                 it
             }
@@ -660,8 +699,75 @@ class ChatScreenViewModel(
                             }
                         }
                     }
+                    PersonalMessageType.P_GIST_CREATION ->{
+                        message.inviteId?.let {
+                            sendGistCreation(
+                                inviteId = it,
+                                enemyId = message.enemyId,
+                                myId = message.myId,
+                                theMessageId = message.messageId,
+                                messageContent = message.content
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    fun sendGistCreation(inviteId: String, enemyId: Int, myId: Int, messageContent: String, theMessageId: String? = null) {
+        val jsonLambda = { messageId: String ->
+            val json = JSONObject().apply {
+                put("type", "sendGistCreation")
+                put("inviteId", inviteId)
+                put("enemyId", enemyId)
+                put("messageId", messageId)
+            }
+            json.toString()
+        }
+        val theExecution: (String) -> Unit = { messageId ->
+            val readableTimeStamp = getReadableTimestamp()
+            val personalChat = PersonalChat(
+                messageId = messageId,
+                enemyId = enemyId,
+                myId = myId,
+                content = messageContent,
+                status = PersonalMessageStatus.PENDING,
+                messageType = PersonalMessageType.P_GIST_CREATION,
+                timeStamp = readableTimeStamp,
+                mediaUri = null,
+                inviteId = inviteId
+            )
+            viewModelScope.launch(Dispatchers.IO) {
+                val chatExists = chatDao.chatExists(myId, enemyId)
+                addAndProcessPersonalChat(personalChat, chatExists)
+            }
+        }
+        messageTypeJsonSender(theMessageId, theExecution, jsonLambda)
+    }
+    fun createGistForFriend(inviteId: String, messageContent: String, enemyId: Int, navController: NavController) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val response: suspend () -> jwtHandle = {
+                val theJson = JSONObject().apply {
+                    put("inviteId", inviteId)
+                    put("content", messageContent)
+                    put("gistOwner", enemyId)
+                }.toString()
+                NetworkUtils.makeJwtRequest(
+                    "createGistForFriend",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    theJson
+                )
+            }
+            val action: (jwtHandle) -> Unit = { jwtTriple ->
+                val returnedJson = JSONObject(jwtTriple.second)
+                val gistId = returnedJson.getString("gistId")
+                joinGist(gistId)
+                navigateToHome(navController)
+            }
+            val onError: (jwtHandle) -> Unit = {}
+            JWTNetworkCaller.performReusableNetworkCalls(response, action, onError)
         }
     }
 
@@ -715,6 +821,7 @@ class ChatScreenViewModel(
     suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
         chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
     }
+
     fun handleRecordedAudio(
         file: File,
         enemyId: Int,
@@ -744,9 +851,33 @@ class ChatScreenViewModel(
         }
     }
 
-    fun sendTextMessage(message: String, enemyId: Int, myId: Int, theMessageId: String? = null) {
-        val messageId = theMessageId ?: generateMessageId()
-        if (theMessageId == null) {
+    fun sendTextMessage(
+        message: String,
+        enemyId: Int,
+        myId: Int,
+        theMessageId: String? = null
+    ) {
+        val jsonLambda = { messageId: String ->
+            val messageJson = """
+            {
+                "type": "${PersonalMessageType.P_TEXT.typeString}",
+                "enemyId": $enemyId,
+                "content": "${
+                message.replace("\\", "\\\\")
+                    .replace("\"", "\\\"")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                    .replace("\t", "\\t")
+                    .replace("\b", "\\b")
+            }",
+                "messageId": "$messageId"
+            }
+        """.trimIndent()
+            messageJson
+        }
+
+        // Lambda for additional processing if no message ID was provided (i.e. creating a PersonalChat)
+        val executionLambda: (String) -> Unit = { messageId ->
             Log.d("PersonalChat", "Message Id causing crash?: $messageId")
             val readableTimeStamp = getReadableTimestamp()
             val personalChat = PersonalChat(
@@ -763,21 +894,10 @@ class ChatScreenViewModel(
                 addAndProcessPersonalChat(personalChat, chatExists)
             }
         }
-        val messageJson = """
-            {
-            "type": "${PersonalMessageType.P_TEXT.typeString}",
-            "enemyId": $enemyId,
-            "content": "${
-            message.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-                .replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
-        }",
-            "messageId": "$messageId"
-            }
-        """.trimIndent()
-        Log.d("RawWebsocket", "send Text json $messageJson")
-        send(messageJson)
-    }
 
+        // Use the common wrapper to handle message ID generation, extra processing, JSON creation, and sending.
+        messageTypeJsonSender(theMessageId, executionLambda, jsonLambda)
+    }
 
     fun searchChats(query: String) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -836,6 +956,9 @@ class ChatScreenViewModel(
                                 it, enemyId, myId
                             )
                         }
+                        PersonalMessageType.P_GIST_CREATION -> message.inviteId?.let {
+                            sendGistCreation(message.inviteId, enemyId, myId, messageContent = message.content)
+                        }
                     }
                 }
             }
@@ -843,15 +966,29 @@ class ChatScreenViewModel(
         }
     }
 
-    private fun sendGistInvite(
+    fun sendGistInvite(
         topic: String,
         gistId: String,
         enemyId: Int,
         myId: Int,
         theMessageId: String? = null
     ) {
-        val messageId = theMessageId ?: generateMessageId()
-        if (theMessageId == null) {
+        val jsonLambda = { messageId: String ->
+            val gistInviteJson = """
+        {
+        "type": "PGistInvite",
+        "enemyId": $enemyId,
+        "content": "${
+                topic.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+                    .replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
+            }",
+        "gistId": "$gistId",
+        "messageId": "$messageId"
+        }
+    """.trimIndent()
+            gistInviteJson
+        }
+        val theExecution: (String) -> Unit = { messageId ->
             val readableTimeStamp = getReadableTimestamp()
             val personalChat = PersonalChat(
                 messageId = messageId,
@@ -870,21 +1007,20 @@ class ChatScreenViewModel(
                 addAndProcessPersonalChat(personalChat, chatExists)
             }
         }
-        val gistInviteJson = """
-        {
-        "type": "PGistInvite",
-        "enemyId": $enemyId,
-        "content": "${
-            topic.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
-                .replace("\r", "\\r").replace("\t", "\\t").replace("\b", "\\b")
-        }",
-        "gistId": "$gistId",
-        "messageId": "$messageId"
-        }
-    """.trimIndent()
+        messageTypeJsonSender(theMessageId, theExecution, jsonLambda)
+    }
 
-        Log.d("RawWebsocket", "send GistInvite json $gistInviteJson")
-        send(gistInviteJson)
+    private fun messageTypeJsonSender(
+        theMessageId: String? = null,
+        theFunction: (String) -> Unit,
+        json: (String) -> String
+    ) {
+        val theSpecificMessageId = theMessageId ?: generateMessageId()
+        if (theMessageId == null) {
+            theFunction(theSpecificMessageId)
+        }
+        val finalJson = json(theSpecificMessageId)
+        send(finalJson)
     }
 
     // Remember to implement an onMessage to attach people to gists
@@ -898,6 +1034,7 @@ class ChatScreenViewModel(
         send(joinGistJson)
         Log.d("Join Gist", "Join gist id is $gistId")
     }
+
     private fun send(message: String) {
         WebSocketManager.send(message)
         Log.d("send", message)

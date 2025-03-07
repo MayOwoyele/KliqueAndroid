@@ -88,7 +88,9 @@ fun UpdateProfileScreen(
         ProfilePictureSection(
             profilePictureUrl = profilePictureUrl,
             onImageChange = { uri ->
-                mediaViewModel.setBitmapFromUri(uri.toString(), context)
+                if (uri != null) {
+                    mediaViewModel.setBitmapFromUri(uri, context)
+                }
                 navController.navigate("imageEditScreen/${SourceScreen.PROFILE.name}")
             },
             newProfilePictureUri = newProfilePictureUri

@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import com.justself.klique.NetworkUtils
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.shared_composables.GistTile
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
@@ -16,25 +17,24 @@ import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 fun MyGists(myGists: List<GistModel>, customerId: Int, viewModel: SharedCliqueViewModel) {
     if (myGists.isEmpty()) {
         Text(
-            text = "You haven't created a gist. Click on the plus icon below to do so. Note that you can't own more than 5 gists",
+            text = "You don't yet have any interactions with any gists",
             color = MaterialTheme.colorScheme.onPrimary,
             style = MaterialTheme.typography.bodyLarge
         )
     } else {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp)) {
             items(myGists) { gist ->
+                val newImage = NetworkUtils.fixLocalHostUrl(gist.image)
                 GistTile(
                     gist.gistId,
                     customerId,
                     gist.topic,
                     gist.description,
-                    gist.image,
+                    newImage,
                     gist.activeSpectators,
                     onTap = { viewModel.enterGist(gist.gistId)},
-                    onHoldClick = {
-                        viewModel.floatGist(gist.gistId)
-                        Log.d("Float Gist", "Gist floated")
-                    }
+                    onHoldClick = null,
+                    gist.lastGistComments
                 )
             }
         }

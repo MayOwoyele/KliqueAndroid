@@ -97,7 +97,7 @@ fun ImagePickerScreen(navController: NavController, mediaViewModel: MediaViewMod
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            mediaViewModel.setBitmapFromUri(uri.toString(), context)
+            mediaViewModel.setBitmapFromUri(uri, context)
             navController.navigate("imageEditScreen/${SourceScreen.STATUS.name}")
         }
     }

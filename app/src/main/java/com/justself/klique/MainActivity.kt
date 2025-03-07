@@ -18,7 +18,10 @@ import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
 import androidx.navigation.compose.rememberNavController
-import com.google.firebase.FirebaseApp
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+
+
 
 class MainActivity : ComponentActivity() {
 
@@ -56,9 +59,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val config: Config = BundledEmojiCompatConfig(this)
+        val executor: Executor = Executors.newSingleThreadExecutor() // 4 threads in the pool
+        val config: Config = BundledEmojiCompatConfig(this, executor)
         EmojiCompat.init(config)
         val notificationRoute = intent?.getStringExtra("route")
+        if (notificationRoute != null) {
+            NotificationIntentManager.updateNavigationRoute(notificationRoute)
+        }
         setContent {
             val navController = rememberNavController()
             MyAppTheme {

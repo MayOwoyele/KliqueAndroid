@@ -1,6 +1,7 @@
 package com.justself.klique
 
 import android.content.Context
+import android.telephony.TelephonyManager
 import android.util.Log
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.CoroutineScope
@@ -69,10 +70,13 @@ object SessionManager {
         return sharedPreferences.getString(COUNTRY_KEY, "") ?: ""
     }
     fun getUserCountryCode(): String {
-//        val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-//        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
-        val savedCountry = getCountryFromSharedPreferences()
-        return savedCountry
+        val telephonyManager = appContext.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        val networkCountry = telephonyManager.networkCountryIso?.uppercase()
+        val savedPreferences = getCountryFromSharedPreferences()
+        val savedCountry = savedPreferences.ifEmpty {
+            "NG"
+        }
+        return networkCountry ?: savedCountry
     }
     const val GLOBAL_CHAR_LIMIT = 5000
     fun sendDeviceTokenToServer() {

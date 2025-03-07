@@ -46,7 +46,9 @@ class SettingsViewModel : ViewModel() {
                         Toast.makeText(appContext, "Temporary issues with deleting your account", Toast.LENGTH_LONG).show()
                     }
                 }
-                val error: suspend (jwtHandle) -> Unit = {}
+                val error: suspend (jwtHandle) -> Unit = {
+                    onFailure("Unknown error occurred")
+                }
                 JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
             } catch (e: Exception) {
                 onFailure(e.message ?: "Unknown error occurred")
