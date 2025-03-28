@@ -9,7 +9,6 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.widget.Toast
 import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +36,7 @@ import com.arthenica.mobileffmpeg.FFmpeg
 import kotlinx.coroutines.launch
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.unit.max
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 
 object VideoUtils {
@@ -160,7 +155,6 @@ fun VideoTrimmingScreen(
     uri: Uri,
     onCancel: () -> Unit,
     sourceScreen: String,
-    mediaViewModel: MediaViewModel,
     navController: NavController
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -168,12 +162,18 @@ fun VideoTrimmingScreen(
     var startMs by remember { mutableLongStateOf(0L) }
     var endMs by remember { mutableLongStateOf(30000L) } // 30 seconds by default
     val maxTrimDuration = 30000L // 30 seconds
-    val minTrimDuration = 1000L // 1 second
+    val minTrimDuration = 1000L
     var isPlaying by remember { mutableStateOf(false)}
     val handler = Handler(Looper.getMainLooper())
+    val decodedPath = Uri.decode(uri.toString())
     val videoView = remember {
         VideoView(appContext).apply {
-            setVideoURI(uri)
+            setVideoURI(Uri.parse(decodedPath))
+            setOnErrorListener { mp, what, extra ->
+                Log.e("VideoTrimmingScreen", "Error playing video: what=$what, extra=$extra")
+                Log.d("VideoTrimmingScreen", "URI: $uri")
+                true
+            }
             setOnPreparedListener { mp ->
                 videoDuration = mp.duration.toLong()
                 endMs = minOf(
@@ -337,12 +337,12 @@ fun VideoTrimmingScreen(
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
-        // Trim Button
+
         Button(
             onClick = {
                 coroutineScope.launch {
                     launch {
-                        mediaViewModel.preparePerformTrimmingAndDownscaling(
+                        MediaVM.preparePerformTrimmingAndDownscaling(
                             appContext,
                             uri,
                             startMs,
@@ -360,7 +360,6 @@ fun VideoTrimmingScreen(
             Text(text = "Trim and Send", color = onPrimaryColor)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        // Cancel Button
         Button(
             onClick = { onCancel() },
             colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)

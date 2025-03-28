@@ -34,12 +34,12 @@ object JWTNetworkCaller {
         return prefs.getString(ACCESS_TOKEN_KEY, null)
     }
 
-    /* action should be the action you want to take if response 200
+    /** action should be the action you want to take if response 200
         response itself should be your network attempt, since it returns a response of type Triple
         errorAction should be the action you want to take when there's not a token problem, but
         still an error
         just put each of these actions in the lambda body, calling performReusableNetworkCalls with them
-         */
+         **/
     suspend fun performReusableNetworkCalls(
         response: suspend () -> Triple<Boolean, String, Int>,
         action: suspend (Triple<Boolean, String, Int>) -> Unit,

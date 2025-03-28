@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
             val navController = rememberNavController()
             MyAppTheme {
                 Surface {
-                    MainScreen(notificationRoute, navController = navController)
+                    MainScreen(navController = navController)
                 }
             }
         }

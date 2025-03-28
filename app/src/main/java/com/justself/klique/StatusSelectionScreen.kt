@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 
 @Composable
-fun StatusSelectionScreen(navController: NavController, mediaViewModel: MediaViewModel) {
+fun StatusSelectionScreen(navController: NavController) {
     val color = MaterialTheme.colorScheme.primary
     Box(modifier = Modifier.fillMaxSize()) {
         Column(

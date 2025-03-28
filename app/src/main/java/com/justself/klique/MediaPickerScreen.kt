@@ -23,20 +23,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.runtime.DisposableEffect
 import androidx.core.content.ContextCompat
 
 @Composable
-fun MediaPickerScreen(navController: NavController, source: String, mediaViewModel: MediaViewModel, customerId: Int) {
+fun MediaPickerScreen(navController: NavController, source: String, customerId: Int) {
     when (source) {
-        "video" -> VideoPickerScreen(navController = navController, customerId = customerId, mediaViewModel)
-        "image" -> ImagePickerScreen(navController = navController, mediaViewModel = mediaViewModel)
+        "video" -> VideoPickerScreen(navController = navController, customerId = customerId)
+        "image" -> ImagePickerScreen(navController = navController)
     }
 }
 
 @Composable
-fun VideoPickerScreen(navController: NavController, customerId: Int, mediaViewModel: MediaViewModel) {
-    mediaViewModel.setCustomerId(customerId)
+fun VideoPickerScreen(navController: NavController, customerId: Int) {
+    MediaVM.setCustomerId(customerId)
     val context = LocalContext.current
     val videoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -91,13 +90,13 @@ fun VideoPickerScreen(navController: NavController, customerId: Int, mediaViewMo
     }
 }
 @Composable
-fun ImagePickerScreen(navController: NavController, mediaViewModel: MediaViewModel) {
+fun ImagePickerScreen(navController: NavController) {
     val context = LocalContext.current
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            mediaViewModel.setBitmapFromUri(uri, context)
+            MediaVM.setBitmapFromUri(uri, context)
             navController.navigate("imageEditScreen/${SourceScreen.STATUS.name}")
         }
     }

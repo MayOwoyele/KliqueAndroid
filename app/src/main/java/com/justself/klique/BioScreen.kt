@@ -8,13 +8,25 @@ import android.util.Log
 import android.widget.VideoView
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
-import androidx.navigation.NavController
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,7 +62,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,6 +84,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Popup
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.ImageLoader
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
@@ -102,31 +114,21 @@ fun BioScreen(
     val bioViewModel: BioViewModel = viewModel(
         factory = BioViewModelFactory(contactsRepository)
     )
+    val paddingFloat = 370f
     val profile by bioViewModel.profile.collectAsState()
     val bioGists by bioViewModel.gistList.collectAsState()
     val contactName by bioViewModel.checkIfContact(enemyId).observeAsState()
     var showClassSection by remember { mutableStateOf(false) }
     var expandedPostId by remember { mutableStateOf<String?>(null) }
     val postComments by bioViewModel.postComments.collectAsState()
-    val animatedPadding = remember { Animatable(initialValue = 370f) }
+    val animatedPadding = remember { Animatable(initialValue = paddingFloat) }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val isMyProfile = enemyId == customerId
     val isOpen = remember {
         mutableStateOf(false)
     }
-//    LaunchedEffect(listState) {
-//        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
-//            .collect { (index, scrollOffset) ->
-//                val targetPadding = if (index > 0 || scrollOffset > 0) 0f else 380f
-//                coroutineScope.launch {
-//                    animatedPadding.animateTo(
-//                        targetPadding,
-//                        animationSpec = tween(durationMillis = 300)
-//                    )
-//                }
-//            }
-//    }
+    val cachedMedia by GlobalEventBus.cachedMediaPaths.collectAsState()
     LaunchedEffect(key1 = Unit) {
         bioViewModel.fetchProfile(enemyId, customerId)
         bioViewModel.fetchMyGists(enemyId)
@@ -211,7 +213,10 @@ fun BioScreen(
                                     )
                                 }
                                 if (profile!!.isVerified) {
-                                    VerifiedIcon(Modifier.align(Alignment.BottomEnd), paddingFigure = 8)
+                                    VerifiedIcon(
+                                        Modifier.align(Alignment.BottomEnd),
+                                        paddingFigure = 8
+                                    )
                                 }
                             }
                             Column(
@@ -276,7 +281,12 @@ fun BioScreen(
                                         modifier = Modifier
                                             .size(24.dp)
                                             .align(Alignment.CenterVertically)
-                                            .clickable { navController.navigate("dmChatScreen/${profile!!.customerId}/${profile!!.fullName}") },
+                                            .clickable {
+                                                Screen.DmChatScreen.navigate(
+                                                    navController,
+                                                    profile!!.customerId, profile!!.fullName
+                                                )
+                                            },
                                         tint = MaterialTheme.colorScheme.onPrimary
                                     )
                                 }
@@ -379,6 +389,9 @@ fun BioScreen(
                 modifier = Modifier
                     .wrapContentSize()
             ) {
+                LaunchedEffect(bioGists) {
+                    GlobalEventBus.fetchGistBackground(bioGists)
+                }
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
@@ -404,7 +417,7 @@ fun BioScreen(
                             IconButton(
                                 onClick = {
                                     isOpen.value = !isOpen.value
-                                    val targetPadding = if (isOpen.value) 0f else 380f
+                                    val targetPadding = if (isOpen.value) 0f else paddingFloat
                                     coroutineScope.launch {
                                         animatedPadding.animateTo(
                                             targetPadding,
@@ -424,17 +437,23 @@ fun BioScreen(
                         }
                     }
                     items(bioGists) { gist ->
-                        val newImage = NetworkUtils.fixLocalHostUrl(gist.image)
+                        val newImage = gist.image?.let { NetworkUtils.fixLocalHostUrl(it) }
+                        val mediaPaths = cachedMedia[gist.gistId]
                         GistTile(
-                            gistId = gist.gistId,
                             enemyId,
                             title = gist.topic,
                             description = gist.description,
                             image = newImage,
                             activeSpectators = gist.activeSpectators,
-                            onTap = {bioViewModel.joinGist(gist.gistId); navigateToHome(navController)},
-                            onHoldClick = {bioViewModel.floatGist(gist.gistId)},
-                            lastPostList = gist.lastGistComments
+                            onTap = {
+                                bioViewModel.joinGist(gist.gistId); Screen.Home.navigate(
+                                navController
+                            )
+                            },
+                            onHoldClick = { bioViewModel.floatGist(gist.gistId) },
+                            lastPostList = gist.lastGistComments,
+                            postImage = mediaPaths?.postImage,
+                            postVideo = mediaPaths?.postVideo
                         )
                     }
                     items(profile!!.posts) { post ->

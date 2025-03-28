@@ -1,7 +1,6 @@
 package com.justself.klique
 
 import android.graphics.Bitmap
-import android.graphics.Matrix
 import android.graphics.RectF
 import android.util.Log
 import androidx.compose.foundation.BorderStroke
@@ -50,13 +49,12 @@ import androidx.navigation.NavController
 
 @Composable
 fun ImageCropTool(
-    viewModel: MediaViewModel,
     navController: NavController,
     sourceScreen: SourceScreen = SourceScreen.STATUS,
     customerId: Int
 ) {
-    val bitmap by viewModel.bitmap.observeAsState()
-    val toCropImageUri by viewModel.toCropImageURi.collectAsState()
+    val bitmap by MediaVM.bitmap.observeAsState()
+    val toCropImageUri by MediaVM.toCropImageURi.collectAsState()
     val scale = remember { mutableFloatStateOf(1f) }
     val offsetX = remember { mutableFloatStateOf(0f) }
     val offsetY = remember { mutableFloatStateOf(0f) }
@@ -65,7 +63,7 @@ fun ImageCropTool(
     var aspectRatio by remember { mutableFloatStateOf(1f) }
     val cropRect = remember { mutableStateOf(RectF()) }
     val context = LocalContext.current
-    val isUploading by viewModel.isUploading.collectAsState()
+    val isUploading by MediaVM.isUploading.collectAsState()
     bitmap?.let {
         if (cropRect.value.isEmpty) {
             val bitmapWidthPx = it.width.toFloat()
@@ -98,10 +96,10 @@ fun ImageCropTool(
     }
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.clearBitmap()
-            viewModel.clearCroppedBitmap()
-            viewModel.setIsUploading(false)
-            viewModel.resetToCropImageUri()
+            MediaVM.clearBitmap()
+            MediaVM.clearCroppedBitmap()
+            MediaVM.setIsUploading(false)
+            MediaVM.resetToCropImageUri()
         }
     }
     LaunchedEffect(key1 = bitmap) {
@@ -363,8 +361,8 @@ fun ImageCropTool(
                                     when (sourceScreen) {
                                         SourceScreen.STATUS -> {
                                             isCropping.value = false
-                                            viewModel.setIsUploading(true)
-                                            viewModel.uploadCroppedImage(
+                                            MediaVM.setIsUploading(true)
+                                            MediaVM.uploadCroppedImage(
                                                 context,
                                                 bitmap,
                                                 customerId
@@ -373,7 +371,7 @@ fun ImageCropTool(
                                         }
 
                                         SourceScreen.PROFILE -> {
-                                            viewModel.setCroppedBitmap(bitmap)
+                                            MediaVM.setCroppedBitmap(bitmap)
                                             navController.popBackStack()
                                         }
                                     }

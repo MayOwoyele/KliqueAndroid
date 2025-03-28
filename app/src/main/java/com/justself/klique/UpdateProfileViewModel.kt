@@ -7,7 +7,6 @@ import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.google.i18n.phonenumbers.Phonenumber.PhoneNumber
 import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.Dispatchers
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 
 data class TinyProfileDetails(
@@ -54,7 +52,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
-                val response: suspend() -> jwtHandle =
+                val response: suspend() -> networkTriple =
                     {
                         NetworkUtils.makeJwtRequest(
                             "fetchUserDetails",
@@ -62,7 +60,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                             params
                         )
                     }
-                val action: suspend(jwtHandle) -> Unit ={triple ->
+                val action: suspend(networkTriple) -> Unit ={ triple ->
                     val jsonObject = JSONObject(triple.second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
@@ -78,7 +76,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                     Log.d("Profile", _tinyProfileDetails.value.toString())
 
                 }
-                val error: suspend (jwtHandle) -> Unit = {}
+                val error: suspend (networkTriple) -> Unit = {}
                 performReusableNetworkCalls(response, action, error)
             } catch (e: Exception) {
                 Log.d("Profile", e.toString())

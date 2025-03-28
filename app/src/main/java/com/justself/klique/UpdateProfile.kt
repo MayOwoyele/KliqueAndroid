@@ -1,6 +1,5 @@
 package com.justself.klique
 
-import ImageUtils
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -47,14 +46,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
 
 @Composable
 fun UpdateProfileScreen(
     navController: NavController,
-    mediaViewModel: MediaViewModel,
     customerId: Int,
     viewModel: ProfileViewModel
 ) {
@@ -67,13 +64,13 @@ fun UpdateProfileScreen(
     var newProfilePictureUri: Uri? by remember { mutableStateOf(null) }
     var bioChanged by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val isDownscaling by mediaViewModel.isDownScalingImageForUpdateProfile.collectAsState()
-    val croppedBitmap by mediaViewModel.croppedBitmap.observeAsState()
+    val isDownscaling by MediaVM.isDownScalingImageForUpdateProfile.collectAsState()
+    val croppedBitmap by MediaVM.croppedBitmap.observeAsState()
     croppedBitmap?.let { bitmap ->
         val byteArray = FileUtils.bitmapToByteArray(bitmap)
         val uri = FileUtils.saveImage(context, byteArray, true)
-        mediaViewModel.clearCroppedBitmap()
-        mediaViewModel.setIsDownScalingImageForUpdateProfile(false)
+        MediaVM.clearCroppedBitmap()
+        MediaVM.setIsDownScalingImageForUpdateProfile(false)
         uri?.let {
             newProfilePictureUri = uri
         } ?: run {
@@ -89,7 +86,7 @@ fun UpdateProfileScreen(
             profilePictureUrl = profilePictureUrl,
             onImageChange = { uri ->
                 if (uri != null) {
-                    mediaViewModel.setBitmapFromUri(uri, context)
+                    MediaVM.setBitmapFromUri(uri, context)
                 }
                 navController.navigate("imageEditScreen/${SourceScreen.PROFILE.name}")
             },

@@ -1,10 +1,17 @@
 package com.justself.klique.ContactsBlock.Contacts.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.with
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,22 +20,31 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldColors
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -39,6 +55,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,6 +70,7 @@ import coil.size.Size
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ChatScreenViewModel
+import com.justself.klique.Screen
 import com.justself.klique.useful_extensions.initials
 
 @Composable
@@ -67,10 +85,11 @@ fun ContactsScreen(
     val contactList by viewModel.contacts.collectAsState()
     val isLoading = remember { mutableStateOf(true) }
 
-    // Local state to track permission status
     var hasPermission by remember { mutableStateOf(false) }
 
-    // Use the reusable CheckContactsPermission composable.
+    var isSearching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+
     CheckContactsPermission(
         onPermissionResult = { granted ->
             hasPermission = granted
@@ -84,64 +103,132 @@ fun ContactsScreen(
         isLoading.value = contactList.isEmpty()
     }
 
-    // If no permission, display an error message and exit
     if (!hasPermission) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Contacts permission is required.")
         }
         return
     }
-
-    // Your regular ContactsScreen UI below
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (isLoading.value) {
-            CircularProgressIndicator(
-                modifier = Modifier.align(Alignment.Center)
-            )
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(top = 56.dp)
-            ) {
-                items(contactList.size) { index ->
-                    ContactTile(
-                        contact = contactList[index],
-                        navController = navController,
-                        chatScreenViewModel = chatScreenViewModel,
-                        customerId = customerId
-                    )
+    val filteredContacts = if (searchQuery.isEmpty()) {
+        contactList
+    } else {
+        contactList.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.phoneNumber.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    Box {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (isLoading.value) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        items(filteredContacts.size) { index ->
+                            ContactTile(
+                                contact = filteredContacts[index],
+                                navController = navController,
+                                chatScreenViewModel = chatScreenViewModel,
+                                customerId = customerId
+                            )
+                        }
+                    }
                 }
             }
         }
-        IconButton(
-            onClick = { navController.popBackStack() },
-            modifier = Modifier.align(Alignment.TopStart)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Transparent)
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            IconButton(onClick = { navController.popBackStack() }) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                )
+            }
+            Crossfade(
+                targetState = isSearching,
+                animationSpec = tween(durationMillis = 300),
+                modifier = Modifier.weight(1f)
+            ) { targetIsSearching ->
+                if (targetIsSearching) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search contacts") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedIndicatorColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            focusedContainerColor = MaterialTheme.colorScheme.background,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.background
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxWidth())
+                }
+            }
+            IconButton(onClick = {
+                if (isSearching) {
+                    isSearching = false
+                    searchQuery = ""
+                } else {
+                    isSearching = true
+                }
+            }) {
+                Icon(
+                    imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = if (isSearching) "Close search" else "Search contacts",
+                    modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                )
+            }
         }
     }
 }
 
 @Composable
-fun ContactTile(contact: Contact, navController: NavController, chatScreenViewModel: ChatScreenViewModel, customerId: Int) {
+fun ContactTile(
+    contact: Contact,
+    navController: NavController,
+    chatScreenViewModel: ChatScreenViewModel,
+    customerId: Int
+) {
+    val context = LocalContext.current
     val isClickable = contact.isAppUser
+    var showInviteDialog by remember { mutableStateOf(false) }
+    val additionalDetail = if (contact.isAppUser) {
+        "is on klique"
+    } else {
+        "invite to klique"
+    }
+
+    // Define what happens on tapping the contact tile
     val onTap: () -> Unit = {
         if (isClickable) {
-            navController.navigate("messageScreen/${contact.customerId}/${contact.name}")
+            contact.customerId?.let {
+                navController.navigate(Screen.MessageScreen.createRoute(contact.customerId))
+            }
+        } else {
+            showInviteDialog = true
         }
     }
+
     LaunchedEffect(Unit) {
         chatScreenViewModel.setMyUserId(customerId)
     }
+
     Surface(
         modifier = Modifier
-            .let {
-                if (isClickable) {
-                    it.clickable { onTap() }
-                } else {
-                    it
-                }
-            }
+            .clickable { onTap() }
             .height(100.dp)
             .border(
                 1.dp,
@@ -166,23 +253,26 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
                             .crossfade(true)
                             .size(Size(50, 50)) // Adjust the size as needed
                             .memoryCachePolicy(CachePolicy.ENABLED)
-                            .listener(onStart = {
-                                Log.d(
-                                    "Contact Tile",
-                                    "Image loading started for ${contact.thumbnailUrl}"
-                                )
-                            },
+                            .listener(
+                                onStart = {
+                                    Log.d(
+                                        "Contact Tile",
+                                        "Image loading started for ${contact.thumbnailUrl}"
+                                    )
+                                },
                                 onSuccess = { _, _ ->
                                     Log.d(
                                         "Contact Tile",
                                         "Image successfully loaded for ${contact.thumbnailUrl}"
                                     )
-                                }, onError = { _, result ->
+                                },
+                                onError = { _, result ->
                                     Log.e(
                                         "Contact Tile",
                                         "Image loading failed for ${contact.thumbnailUrl}, ${result.throwable}"
                                     )
-                                })
+                                }
+                            )
                             .build()
                     )
                     Image(
@@ -231,17 +321,68 @@ fun ContactTile(contact: Contact, navController: NavController, chatScreenViewMo
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (contact.isAppUser) {
-                    Text(
-                        text = "is on klique",
-                        style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.secondary),
-                        modifier = Modifier.padding(top = 4.dp)
-                    )
-                }
+
+                Text(
+                    text = additionalDetail,
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.secondary),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }
+
+    if (showInviteDialog) {
+        InviteContactDialog(
+            contact = contact,
+            onDismiss = { showInviteDialog = false },
+            onInvite = {
+                val shareText =
+                    "Hey ${contact.name}, let's gist on klique klique. Join the app at app.kliquesocial.com"
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, shareText)
+                }
+                val chooserIntent = Intent.createChooser(shareIntent, "Invite via")
+                context.startActivity(chooserIntent)
+                showInviteDialog = false
+            }
+        )
+    }
 }
+
+@Composable
+fun InviteContactDialog(
+    contact: Contact,
+    onDismiss: () -> Unit,
+    onInvite: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Invite ${contact.name} to Klique Klique?",
+                style = MaterialTheme.typography.displayLarge
+            )
+        },
+        text = {
+            Text(
+                "Would you like to invite ${contact.name} to join the klique klique app?",
+                style = MaterialTheme.typography.bodyLarge
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onInvite) {
+                Text("Invite")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
+}
+
 @Composable
 fun CheckContactsPermission(
     onPermissionResult: (Boolean) -> Unit,
@@ -257,7 +398,11 @@ fun CheckContactsPermission(
         onPermissionResult(isGranted)
     }
     LaunchedEffect(Unit) {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
             onPermissionGranted()
             onPermissionResult(true)
         } else {

@@ -2,6 +2,8 @@ package com.justself.klique
 
 import android.content.Context
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 // ChatList Database Management
 @Entity(tableName = "chats")
@@ -54,13 +56,16 @@ interface ChatDao {
 
     @Query("SELECT * FROM chats WHERE (myId = :myId AND contactName LIKE :query) OR (enemyId = :myId AND contactName LIKE :query)")
     fun searchChats(myId: Int, query: String): List<ChatList>
+    @Query("SELECT * FROM chats WHERE enemyId = :enemyId LIMIT 1")
+    suspend fun getChatByEnemyId(enemyId: Int): ChatList?
 }
 
 // Define Database Class
-@Database(entities = [ChatList::class], version = 1)  // Keeping version 1
+@Database(entities = [ChatList::class], version = 1)
 abstract class ChatListDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
 }
+
 @Entity(tableName = "personalChats")
 data class PersonalChat(
     @PrimaryKey val messageId: String,
@@ -84,7 +89,8 @@ interface PersonalChatDao {
     @Query("DELETE FROM personalChats WHERE messageId = :messageId")
     suspend fun deletePersonalChat(messageId: String)
 
-    @Query("""
+    @Query(
+        """
     SELECT * FROM personalChats 
     WHERE ((myId = :myId AND enemyId = :enemyId) 
        OR (myId = :enemyId AND enemyId = :myId))
@@ -95,7 +101,8 @@ interface PersonalChatDao {
       )
     ORDER BY timeStamp DESC 
     LIMIT :pageSize
-""")
+"""
+    )
     suspend fun getPersonalChatsBefore(
         myId: Int,
         enemyId: Int,
@@ -117,6 +124,7 @@ interface PersonalChatDao {
 
     @Query("UPDATE personalChats SET status = :newStatus WHERE messageId = :messageId")
     suspend fun updateStatus(messageId: String, newStatus: PersonalMessageStatus)
+
     @Query("SELECT * FROM personalChats WHERE (myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId) ORDER BY timeStamp DESC LIMIT :pageSize")
     suspend fun getInitialPersonalChats(
         myId: Int,
@@ -128,7 +136,7 @@ interface PersonalChatDao {
     suspend fun insert(personalChat: PersonalChat)
 }
 
-@Database(entities = [PersonalChat::class], version = 1)
+@Database(entities = [PersonalChat::class], version = 2)
 abstract class PersonalChatDatabase : RoomDatabase() {
     abstract fun personalChatDao(): PersonalChatDao
 }
@@ -168,19 +176,25 @@ object DatabaseProvider {
         return CONTACTS_INSTANCE!!
     }
 
-    private var PERSONALCHAT_DATABASE_INSTANCE: PersonalChatDatabase? = null
+    private val MIGRATION_1_2 = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE personalChats ADD COLUMN inviteId TEXT DEFAULT NULL")
+        }
+    }
+
+    private var PERSONAL_CHAT_DATABASE_INSTANCE: PersonalChatDatabase? = null
     fun getPersonalChatDatabase(context: Context): PersonalChatDatabase {
-        if (PERSONALCHAT_DATABASE_INSTANCE == null) {
+        if (PERSONAL_CHAT_DATABASE_INSTANCE == null) {
             synchronized(PersonalChatDatabase::class) {
-                PERSONALCHAT_DATABASE_INSTANCE = Room.databaseBuilder(
+                PERSONAL_CHAT_DATABASE_INSTANCE = Room.databaseBuilder(
                     context.applicationContext,
                     PersonalChatDatabase::class.java,
                     "personal_chats.db"
-                ).fallbackToDestructiveMigration()
+                ).addMigrations(MIGRATION_1_2)
                     .build()
             }
         }
-        return PERSONALCHAT_DATABASE_INSTANCE!!
+        return PERSONAL_CHAT_DATABASE_INSTANCE!!
     }
 
     private var GIST_STATE_DATABASE: GistRoomCreatedBase? = null
@@ -196,7 +210,8 @@ object DatabaseProvider {
         return GIST_STATE_DATABASE!!
     }
 }
-enum class PersonalMessageType(val typeString: String){
+
+enum class PersonalMessageType(val typeString: String) {
     P_IMAGE("PImage"),
     P_TEXT("PText"),
     P_VIDEO("PVideo"),
@@ -204,6 +219,7 @@ enum class PersonalMessageType(val typeString: String){
     P_GIST_INVITE("PGistInvite"),
     P_GIST_CREATION("PGistCreation")
 }
+
 enum class PersonalMessageStatus {
     PENDING,
     SENT,

@@ -1,13 +1,11 @@
 package com.justself.klique
 
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,17 +14,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,28 +37,22 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 @Composable
 fun DisplayImage(
     mediaUri: String?,
     shape: Shape,
-    navController: NavController,
-    mediaViewModel: MediaViewModel,
     onLongPressLambda: () -> Unit,
-    isSelectionMode: Boolean,
     onTapLambda: () -> Unit
 ) {
     mediaUri?.let {
@@ -84,7 +73,6 @@ fun DisplayImage(
             }
         }
         bitmap?.let { bmp ->
-            Log.d("isSelectionMode", "isSelectionModeImageLogger if Bitmap: $isSelectionMode")
             Image(
                 bitmap = bmp.asImageBitmap(),
                 contentDescription = null,
@@ -99,14 +87,13 @@ fun DisplayImage(
                         detectTapGestures(
                             onLongPress = { onLongPressLambda() },
                             onTap = {
-                                Log.d("isSelectionMode", "Image Selected $isSelectionMode")
                                 onTapLambda()
                             }
                         )
                     }
             )
         } ?: Text(
-            text = "Image not available",
+            text = "Issues displaying the image",
             color = MaterialTheme.colorScheme.onPrimary
         )
     }
@@ -116,7 +103,6 @@ fun DisplayImage(
 fun DisplayVideo(
     mediaUri: String?,
     shape: Shape,
-    navController: NavController,
     onLongPressLambda: () -> Unit,
     isSelectionMode: Boolean,
     onTapLambda: () -> Unit
@@ -172,13 +158,12 @@ fun DisplayVideo(
                 tint = MaterialTheme.colorScheme.primary
             )
         }
-    }
+    } ?: Text(text = "Issues displaying the video", color = MaterialTheme.colorScheme.onPrimary)
 }
 
 @Composable
 fun DisplayAudio(
     mediaUri: String?,
-    context: Context,
     onLongPressLambda: () -> Unit,
     isSelectionMode: Boolean,
     onTapLambda: () -> Unit
@@ -200,7 +185,7 @@ fun DisplayAudio(
             isSelectionMode = isSelectionMode
         )
     } ?: Text(
-        text = "Audio not available",
+        text = "Issues displaying the audio",
         color = MaterialTheme.colorScheme.onPrimary
     )
 }
@@ -258,7 +243,8 @@ fun DisplayGistCreator(
     onLongPressLambda: () -> Unit,
     isSelectionMode: Boolean,
     onTapLambda: () -> Unit,
-    onJoinClick: () -> Unit
+    onJoinClick: () -> Unit,
+    iSentTheMessage: Boolean
 ) {
     Box(
         modifier = Modifier
@@ -282,21 +268,22 @@ fun DisplayGistCreator(
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
-            Text(
-                text = "Start gist",
-                style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary),
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .clickable(onClick = {
-                        if (!isSelectionMode) {
-                            onJoinClick()
-                        }
-                    })
-            )
+            if (!iSentTheMessage) {
+                Text(
+                    text = "Start gist",
+                    style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.primary),
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .clickable(onClick = {
+                            if (!isSelectionMode) {
+                                onJoinClick()
+                            }
+                        })
+                )
+            }
         }
     }
 }
-
 @Composable
 fun ClickableMessageText(
     messageText: String,
@@ -305,74 +292,121 @@ fun ClickableMessageText(
     onTapLambda: () -> Unit
 ) {
     val context = LocalContext.current
-    val annotatedString = createAnnotatedString(messageText)
+    // Pass isSelectionMode so the annotated string is rebuilt accordingly.
+    val annotatedString = createAnnotatedString(messageText, isSelectionMode)
     val defaultTextStyle = MaterialTheme.typography.bodyLarge.copy(
         color = MaterialTheme.colorScheme.background,
         textDecoration = TextDecoration.None
     )
+    val clipboardManager = LocalClipboardManager.current
 
     var layoutResult: TextLayoutResult? = remember { null }
 
     Text(
         text = annotatedString,
         style = defaultTextStyle,
-        modifier = Modifier.pointerInput(Unit) {
-            detectTapGestures(
-                onLongPress = {
-                    onLongPressLambda()
-                    Log.d("Websocket", "Long press detected")
-                },
-                onTap = { offset ->
-                    layoutResult?.let { textLayoutResult ->
-                        val position = textLayoutResult.getOffsetForPosition(offset)
-                        if (isSelectionMode) {
-                            onTapLambda()
-                        } else {
-                            annotatedString.getStringAnnotations("URL", position, position)
-                                .firstOrNull()?.let { annotation ->
-                                    val url = if (annotation.item.startsWith("https")) {
-                                        annotation.item
-                                    } else {
-                                        "https://${annotation.item}"
-                                    }
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                    context.startActivity(
-                                        Intent.createChooser(
-                                            intent,
-                                            "Open link with"
-                                        )
-                                    )
-                                } ?: run {
+        modifier = Modifier
+            // Adding isSelectionMode as a key to force re-creation of the pointerInput block when it changes.
+            .pointerInput(isSelectionMode) {
+                detectTapGestures(
+                    onLongPress = { offset ->
+                        layoutResult?.let { textLayoutResult ->
+                            val position = textLayoutResult.getOffsetForPosition(offset)
+                            if (isSelectionMode) {
+                                onLongPressLambda()
+                            } else {
+                                annotatedString.getStringAnnotations("PHONE", position, position)
+                                    .firstOrNull()?.let { annotation ->
+                                        val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
+                                        clipboardManager.setText(AnnotatedString(phoneNumber))
+                                        Toast.makeText(context, "Copied phone number", Toast.LENGTH_SHORT).show()
+                                    } ?: run {
+                                    onLongPressLambda()
+                                }
+                            }
+                        }
+                    },
+                    onTap = { offset ->
+                        layoutResult?.let { textLayoutResult ->
+                            val position = textLayoutResult.getOffsetForPosition(offset)
+                            if (isSelectionMode) {
                                 onTapLambda()
+                            } else {
+                                annotatedString.getStringAnnotations("URL", position, position)
+                                    .firstOrNull()?.let { annotation ->
+                                        val url = if (annotation.item.startsWith("http")) {
+                                            annotation.item
+                                        } else {
+                                            "https://${annotation.item}"
+                                        }
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                        context.startActivity(
+                                            Intent.createChooser(
+                                                intent,
+                                                "Open link with"
+                                            )
+                                        )
+                                    }
+                                    ?: annotatedString.getStringAnnotations("PHONE", position, position)
+                                        .firstOrNull()?.let { annotation ->
+                                            val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
+                                            val intent = Intent(
+                                                Intent.ACTION_DIAL,
+                                                Uri.parse("tel:$phoneNumber")
+                                            )
+                                            context.startActivity(intent)
+                                        }
+                                    ?: run {
+                                        onTapLambda()
+                                    }
                             }
                         }
                     }
-                }
-            )
-        },
-        onTextLayout = { layoutResult = it } // Capture the TextLayoutResult
+                )
+            },
+        onTextLayout = { layoutResult = it }
     )
 }
 
 @Composable
-fun createAnnotatedString(text: String): AnnotatedString {
-    val urlRegex = Regex("(https://[a-zA-Z0-9./?=_-]+|[a-zA-Z0-9_-]+\\.com)")
+fun createAnnotatedString(text: String, isSelectionMode: Boolean): AnnotatedString {
+    if (isSelectionMode) {
+        // Just plain text when selection mode is active.
+        return AnnotatedString(text)
+    }
+
+    val urlRegex = Regex("((https?://)?(www\\.)?([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(?:/[a-zA-Z0-9./?=_-]*)?)")
+    val phoneRegex = Regex("""\d+""")
+
     return buildAnnotatedString {
         append(text)
-        val matches = urlRegex.findAll(text)
-        matches.forEach { match ->
+        val urlMatches = urlRegex.findAll(text)
+        urlMatches.forEach { match ->
             val start = match.range.first
             val end = match.range.last + 1
-
             addStyle(
-                style = SpanStyle(
-                    color = MaterialTheme.colorScheme.secondary
-                ),
+                style = SpanStyle(color = MaterialTheme.colorScheme.secondary),
                 start = start,
                 end = end
             )
             addStringAnnotation(
                 tag = "URL",
+                annotation = match.value,
+                start = start,
+                end = end
+            )
+        }
+        val phoneMatches = phoneRegex.findAll(text)
+        phoneMatches.forEach { match ->
+            val start = match.range.first
+            val end = match.range.last + 1
+            addStyle(
+                style = SpanStyle(color = MaterialTheme.colorScheme.secondary),
+                start = start,
+                end = end
+            )
+            addStringAnnotation(
+                tag = "PHONE",
                 annotation = match.value,
                 start = start,
                 end = end

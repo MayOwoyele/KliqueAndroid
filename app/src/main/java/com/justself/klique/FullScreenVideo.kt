@@ -54,11 +54,9 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
 
     val videoView = remember {
         VideoView(context).apply {
-            setVideoURI(Uri.parse(videoUri))
+            setVideoURI(Uri.parse(Uri.decode(videoUri)))
             setOnErrorListener { _, what, extra ->
-                // Log error or show a message to the user
                 Log.e("VideoView", "Error occurred: what=$what, extra=$extra")
-                // Return true if the error was handled
                 true
             }
             setOnInfoListener { _, what, _ ->

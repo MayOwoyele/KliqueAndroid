@@ -15,7 +15,6 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -46,6 +45,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -82,7 +82,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -105,6 +107,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -132,6 +135,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 
 @Composable
 fun GistRoom(
@@ -144,7 +148,6 @@ fun GistRoom(
     onNavigateToTrimScreen: (String) -> Unit,
     navController: NavController,
     resetSelectedEmoji: () -> Unit,
-    mediaViewModel: MediaViewModel,
     emojiPickerHeight: (Dp) -> Unit,
     chatScreenViewModel: ChatScreenViewModel,
     onDisplayTextChange: (String, Int) -> Unit
@@ -160,7 +163,7 @@ fun GistRoom(
     val focusRequester = remember { FocusRequester() }
     val isFocused = remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    val homeScreenUri by mediaViewModel.homeScreenUri.observeAsState()
+    val homeScreenUri by MediaVM.homeScreenUri.observeAsState()
     viewModel.setMyName(myName)
     val imagePickerLauncher14Plus = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
@@ -255,11 +258,14 @@ fun GistRoom(
         homeScreenUri?.let {
             Log.d("onTrim", "ontrim 2 triggered again with value $homeScreenUri")
             viewModel.handleTrimmedVideo(it)
-            mediaViewModel.clearUris()
+            MediaVM.clearUris()
         }
     }
     DisposableEffect(Unit) {
-        onDisplayTextChange("gist started by ${viewModel.gistTopRow.value?.startedBy}", viewModel.gistTopRow.value?.startedById ?: 0)
+        onDisplayTextChange(
+            "gist started by ${viewModel.gistTopRow.value?.startedBy}",
+            viewModel.gistTopRow.value?.startedById ?: 0
+        )
         onDispose { onDisplayTextChange("", 0) }
     }
     val scrollState = rememberLazyListState()
@@ -280,7 +286,6 @@ fun GistRoom(
             .collect { (lastVisibleItemIndex, totalItems) ->
                 val threshold = 1
                 if (lastVisibleItemIndex >= totalItems - threshold) {
-                    // Fetch older messages
                     if (oldestMessageId != null) {
                         if (gistId != null) {
                             viewModel.loadOlderMessages(oldestMessageId!!, gistId)
@@ -423,7 +428,7 @@ fun GistRoom(
                     .fillMaxWidth(),
                 navController = navController,
                 viewModel = viewModel,
-                mediaViewModel = mediaViewModel
+                userStatus = userStatus
             )
             Spacer(modifier = Modifier.height(5.dp))
 
@@ -486,7 +491,8 @@ fun GistRoom(
                     viewModel.fetchGistComments(userId = customerId)
                 }
                 },
-                isSpeaker = userStatus.isSpeaker
+                isSpeaker = userStatus.isSpeaker,
+                viewModel = viewModel
             )
         }
 
@@ -633,8 +639,22 @@ fun MessageContent(
     modifier: Modifier = Modifier,
     navController: NavController,
     viewModel: SharedCliqueViewModel,
-    mediaViewModel: MediaViewModel
+    userStatus: UserStatus
 ) {
+    val currentTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60 * 1000L)
+            currentTime.longValue = System.currentTimeMillis()
+        }
+    }
+
+    // State for controlling the options dialog and confirmation dialogs
+    var showOptionsDialog by remember { mutableStateOf(false) }
+    var selectedMessage by remember { mutableStateOf<GistMessage?>(null) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+    var showReportConfirmation by remember { mutableStateOf(false) }
+
     LazyColumn(
         state = scrollState,
         reverseLayout = true,
@@ -645,40 +665,36 @@ fun MessageContent(
             Log.d("ChatRoom", "Rendering message: ${message.localPath}")
             val isCurrentUser = message.senderId == customerId
             val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
-            val shape = if (isCurrentUser) RoundedCornerShape(
-                16.dp, 0.dp, 16.dp, 16.dp
-            ) else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
+            val shape = if (isCurrentUser)
+                RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp)
+            else
+                RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
             val onPrimaryColor = MaterialTheme.colorScheme.onPrimary.toArgb()
-            var showDeleteDialog by remember { mutableStateOf(false) }
-            var showReportDialog by remember { mutableStateOf(false) }
-            var selectedMessageId by remember { mutableStateOf<String?>(null) }
+
             val onLongPressLambda = {
-                selectedMessageId = message.id
-                if (isCurrentUser) {
-                    showDeleteDialog = true
-                } else {
-                    showReportDialog = true
-                }
+                selectedMessage = message
+                showOptionsDialog = true
             }
             val onTapLambda = {
                 when (message.messageType) {
                     GistMessageType.K_IMAGE -> {
                         message.localPath?.let {
-                            mediaViewModel.setBitmap(convertJpgToBitmap(context, it)!!)
+                            MediaVM.setBitmap(convertJpgToBitmap(context, it)!!)
                         }
-                        navController.navigate("fullScreenImage")
+                        Screen.FullScreenImage.navigate(navController)
                     }
-
                     GistMessageType.K_VIDEO -> {
                         message.localPath?.let {
-                            navController.navigate("fullScreenVideo/${Uri.encode(it.toString())}")
+                            Screen.FullScreenVideo.navigate(
+                                navController,
+                                Uri.encode(it.toString())
+                            )
                         }
                     }
-
-                    else -> {
-                    }
+                    else -> { /* No action for text or audio */ }
                 }
             }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -693,16 +709,19 @@ fun MessageContent(
                 Column(
                     modifier = Modifier
                         .background(Color.Gray, shape)
+                        .background(getUserOverlayColor(message.senderId).copy(alpha = 0.2f), shape)
                         .padding(8.dp),
                     horizontalAlignment = alignment
                 ) {
                     if (!isCurrentUser) {
-                        Text(text = message.senderName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSecondary,
-                            modifier = Modifier
-                                .padding(bottom = 4.dp)
-                                .clickable { navController.navigate("bioScreen/${message.senderId}") })
+                        val userInfo = viewModel.users.collectAsState().value[message.senderId]
+                        ProfileThumbnailAndName(
+                            userId = message.senderId,
+                            profileImageUrl = userInfo?.profileImageUrl,
+                            senderName = message.senderName,
+                            viewModel = viewModel,
+                            navController = navController
+                        )
                     }
                     when (message.messageType) {
                         GistMessageType.K_IMAGE -> {
@@ -731,7 +750,6 @@ fun MessageContent(
                                 )
                             }
                         }
-
                         GistMessageType.K_VIDEO -> {
                             var videoUri by remember { mutableStateOf<Uri?>(null) }
                             LaunchedEffect(message.localPath) {
@@ -748,11 +766,13 @@ fun MessageContent(
                                 val aspectRatio = thumbnail?.let {
                                     it.width.toFloat() / it.height.toFloat()
                                 } ?: 1f
-                                Box(modifier = Modifier
-                                    .height(200.dp)
-                                    .wrapContentWidth()
-                                    .aspectRatio(aspectRatio)
-                                    .clip(shape)) {
+                                Box(
+                                    modifier = Modifier
+                                        .height(200.dp)
+                                        .wrapContentWidth()
+                                        .aspectRatio(aspectRatio)
+                                        .clip(shape)
+                                ) {
                                     if (thumbnail != null) {
                                         Image(
                                             bitmap = thumbnail.asImageBitmap(),
@@ -787,11 +807,8 @@ fun MessageContent(
                                 )
                             }
                         }
-
                         GistMessageType.K_AUDIO -> {
-                            var audioUri by remember {
-                                mutableStateOf<Uri?>(null)
-                            }
+                            var audioUri by remember { mutableStateOf<Uri?>(null) }
                             LaunchedEffect(message.localPath) {
                                 audioUri = message.localPath
                             }
@@ -813,80 +830,123 @@ fun MessageContent(
                                 )
                             }
                         }
-
                         GistMessageType.K_TEXT -> {
                             Text(
-                                text = message.content, color = MaterialTheme.colorScheme.background
+                                text = message.content,
+                                color = MaterialTheme.colorScheme.background
                             )
                         }
                     }
-                    if (isCurrentUser) {
-                        Icon(
-                            imageVector = getStatusIcon(message.status),
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                    Row(modifier = Modifier.align(Alignment.End)) {
+                        Text(
+                            text = getCustomRelativeTimeSpanString(
+                                message.timeStamp.toLong(),
+                                currentTime.longValue
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.background
                         )
+                        if (isCurrentUser) {
+                            Icon(
+                                imageVector = getStatusIcon(message.status),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
             }
-            if (showDeleteDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialog = false },
-                    title = { Text(text = "Delete Message") },
-                    text = { Text(text = "Are you sure you want to delete this message?") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                selectedMessageId?.let { messageId ->
-                                    viewModel.deleteMessageById(messageId)
-                                }
-                                showDeleteDialog = false
-                            }
-                        ) {
-                            Text("Delete", color = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = { showDeleteDialog = false }
-                        ) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
-
-            if (showReportDialog) {
-                AlertDialog(
-                    onDismissRequest = { showReportDialog = false },
-                    title = { Text(text = "Report Message") },
-                    text = { Text(text = "Are you sure you want to report this message?") },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                selectedMessageId?.let { messageId ->
-                                    viewModel.reportMessageById(messageId)
-                                }
-                                showReportDialog = false
-                            }
-                        ) {
-                            Text("Report", color = MaterialTheme.colorScheme.error)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = { showReportDialog = false }
-                        ) {
-                            Text("Cancel")
-                        }
-                    }
-                )
-            }
         }
     }
-}
 
+    // Options Dialog for message actions
+    if (showOptionsDialog && selectedMessage != null) {
+        AlertDialog(
+            onDismissRequest = { showOptionsDialog = false },
+            title = { Text("Message Options", style = MaterialTheme.typography.displayLarge) },
+            text = {
+                Column {
+                    if (selectedMessage?.senderId == customerId) {
+                        // For current user's messages: show delete option
+                        TextButton(onClick = {
+                            showOptionsDialog = false
+                            showDeleteConfirmation = true
+                        }) {
+                            Text("Delete Message", color = MaterialTheme.colorScheme.error)
+                        }
+                    } else {
+                        // For messages not from current user: show report option
+                        TextButton(onClick = {
+                            showOptionsDialog = false
+                            showReportConfirmation = true
+                        }) {
+                            Text("Report Message", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    // "Set Gist Background" option remains available to owners for media messages
+                    if (userStatus.isOwner &&
+                        (selectedMessage?.messageType == GistMessageType.K_IMAGE ||
+                                selectedMessage?.messageType == GistMessageType.K_VIDEO)
+                    ) {
+                        TextButton(onClick = {
+                            selectedMessage?.let { viewModel.setGistBackground(it.id) }
+                            showOptionsDialog = false
+                        }) {
+                            Text("Set Gist Background")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOptionsDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    if (showDeleteConfirmation && selectedMessage != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Confirm Delete", style = MaterialTheme.typography.displayLarge) },
+            text = { Text("Are you sure you want to delete this message?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedMessage?.let { viewModel.deleteMessageById(it.id) }
+                    showDeleteConfirmation = false
+                }) {
+                    Text("Yes", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
+    if (showReportConfirmation && selectedMessage != null) {
+        AlertDialog(
+            onDismissRequest = { showReportConfirmation = false },
+            title = { Text("Confirm Report", style = MaterialTheme.typography.displayLarge) },
+            text = { Text("Are you sure you want to report this message?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    selectedMessage?.let { viewModel.reportMessageById(it.id) }
+                    showReportConfirmation = false
+                }) {
+                    Text("Yes", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReportConfirmation = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+}
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun InputRow(
@@ -909,12 +969,14 @@ fun InputRow(
     onStopRecording: (File?) -> Job?,
     audioPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>,
     onShowBottomSheet: () -> Unit,
-    isSpeaker: Boolean
+    isSpeaker: Boolean,
+    viewModel: SharedCliqueViewModel
 ) {
     val expandedState = remember { mutableStateOf(false) }
     val showClipIcon = remember(message) { mutableStateOf(message.text.isEmpty()) }
     var recordingDuration by remember { mutableIntStateOf(0) }
-    val maxRecordingDuration = 2 * 60 * 1000 // 2 minutes in milliseconds
+    val maxRecordingDuration = 2 * 60 * 1000
+    val commentCount by viewModel.commentCount.collectAsState()
 
     LaunchedEffect(message.text) {
         showClipIcon.value = message.text.isEmpty()
@@ -946,11 +1008,13 @@ fun InputRow(
     }
 
     val offset by animateDpAsState(if (isRecording.value) (-0.5).dp else 0.dp, label = "offset")
-    val boxWidth by animateDpAsState(targetValue = if (expandedState.value) 100.dp else 5.dp,
+    val boxWidth by animateDpAsState(
+        targetValue = if (expandedState.value) 100.dp else 5.dp,
         label = "boxWidth"
     )
     val textNotEmpty = message.text.isNotEmpty()
-    val commentBoxWidth by animateDpAsState(targetValue = if (textNotEmpty) 100.dp else 0.dp,
+    val commentBoxWidth by animateDpAsState(
+        targetValue = if (textNotEmpty) 100.dp else 0.dp,
         label = "commentBoxWidth"
     )
 
@@ -990,7 +1054,7 @@ fun InputRow(
                         val textScrollState = rememberScrollState()
                         BasicTextField(value = message,
                             onValueChange = {
-                                if (it.text.length <= SessionManager.GLOBAL_CHAR_LIMIT){
+                                if (it.text.length <= SessionManager.GLOBAL_CHAR_LIMIT) {
                                     onMessageChange(it)
                                 }
                                 if (it.text.isNotEmpty()) {
@@ -1074,12 +1138,7 @@ fun InputRow(
                             .height(48.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onShowBottomSheet) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Comment,
-                                    contentDescription = "Comment"
-                                )
-                            }
+                            CommentIconButtonBox(commentCount, onShowBottomSheet)
                             IconButton(onClick = {
                                 if (isRecording.value) {
                                     val recordedFile = AudioRecorder.stopRecording(context)
@@ -1113,12 +1172,7 @@ fun InputRow(
                             .height(48.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = onShowBottomSheet) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Comment,
-                                    contentDescription = "Comment"
-                                )
-                            }
+                            CommentIconButtonBox(commentCount, onShowBottomSheet)
                             IconButton(onClick = {
                                 onSendMessage()
                             }) {
@@ -1139,16 +1193,10 @@ fun InputRow(
                     .imePadding()
                     .offset(y = offset), verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onShowBottomSheet) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Comment,
-                        contentDescription = "Comment"
-                    )
-                }
+                CommentIconButtonBox(commentCount, onShowBottomSheet)
             }
         }
 
-        // Recording timer placed below the input row
         if (isRecording.value) {
             Text(
                 text = "Recording: ${recordingDuration / 1000}s",
@@ -1269,11 +1317,18 @@ suspend fun getUriFromByteArray(
     mediaType: GistMediaType
 ): Uri {
     return withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, mediaType.getFileName())
+        val mediaCacheDir = File(context.cacheDir, gistMediaCacheDir)
+        if (!mediaCacheDir.exists()) {
+            mediaCacheDir.mkdirs()
+        }
+        val file = File(mediaCacheDir, mediaType.getFileName())
         file.writeBytes(byteArray)
         FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
     }
 }
+
+const val gistMediaCacheDir = "gistMedia"
+
 
 fun convertJpgToBitmap(context: Context, uri: Uri): Bitmap? {
     return try {
@@ -1288,41 +1343,108 @@ fun convertJpgToBitmap(context: Context, uri: Uri): Bitmap? {
         null
     }
 }
+
 @Composable
-fun showDeleteMessagePopup(
-    messageId: String,
-    onDeleteConfirmed: (String) -> Unit,
-    onDismiss: () -> Unit
+fun ProfileThumbnailAndName(
+    userId: Int,
+    profileImageUrl: String?,
+    senderName: String,
+    viewModel: SharedCliqueViewModel,
+    navController: NavController
 ) {
-    AlertDialog(
-        onDismissRequest = {
-            // Handle dismissal, such as closing the dialog
-            onDismiss()
-        },
-        title = {
-            Text(text = "Delete Message")
-        },
-        text = {
-            Text(text = "Are you sure you want to delete this message?")
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    onDeleteConfirmed(messageId)
-                    onDismiss()
+    val currentUser by SessionManager.customerId.collectAsState()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.clickable { Screen.BioScreen.navigate(navController, userId) }) {
+        val thumbnailBitmap by produceState<Bitmap?>(
+            initialValue = null,
+            key1 = userId,
+            key2 = profileImageUrl
+        ) {
+            value = if (userId == currentUser) {
+                null
+            } else {
+                profileImageUrl?.let { url ->
+                    val newUrl = NetworkUtils.fixLocalHostUrl(url)
+                    viewModel.getOrDownloadThumbnail(
+                        userId,
+                        newUrl,
+                        targetWidth = 100,
+                        targetHeight = 100
+                    )
                 }
-            ) {
-                Text("Delete", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = {
-                    onDismiss()
-                }
-            ) {
-                Text("Cancel")
             }
         }
-    )
+        val size = 20.dp
+        if (thumbnailBitmap != null) {
+            Image(
+                bitmap = thumbnailBitmap!!.asImageBitmap(),
+                contentDescription = "Profile Thumbnail",
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = senderName,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onPrimary
+        )
+    }
+}
+
+@Composable
+fun CommentIconButtonBox(
+    commentCount: Int,
+    onClick: (() -> Unit)
+) {
+    val padding = 4.dp
+    Box(
+        contentAlignment = Alignment.Center
+    ) {
+        IconButton(
+            onClick = { onClick() }
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.Comment,
+                contentDescription = "Comment",
+                tint = MaterialTheme.colorScheme.onPrimary,
+            )
+        }
+        if (commentCount > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+            ) {
+                Text(
+                    text = formatCount(commentCount),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+fun getUserOverlayColor(userId: Int): Color {
+    val hue = (userId * 137) % 360
+    return Color.hsv(hue.toFloat(), 0.6f, 0.9f, alpha = 0.2f)
+}
+fun formatCount(count: Int): String {
+    return if (count < 1_000) {
+        count.toString()
+    } else if (count < 1_000_000) {
+        String.format(Locale.US, "%.1fK", count / 1_000f).removeSuffix(".0K")
+    } else {
+        String.format(Locale.US, "%.1fM", count / 1_000_000f).removeSuffix(".0M")
+    }
 }

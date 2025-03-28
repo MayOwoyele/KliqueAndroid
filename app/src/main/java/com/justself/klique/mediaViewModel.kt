@@ -1,33 +1,26 @@
 package com.justself.klique
 
 import ImageUtils
-import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.ImageDecoder
-import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewModelScope
 import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
-import java.nio.ByteBuffer
 
-class MediaViewModel(application: Application) : AndroidViewModel(application) {
+object MediaVM {
+    val scope = CoroutineScope(Dispatchers.IO)
     private var _textStatusSubmissionResult = MutableStateFlow<Boolean?>(null)
     val textStatusSubmissionResult = _textStatusSubmissionResult.asStateFlow()
 
@@ -60,7 +53,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun valueOfHomeScreenUri() {
-        viewModelScope.launch {
+        scope.launch {
             while (true) {
                 delay(3000)
                 Log.d("HomeScreenUri", "current value $_homeScreenUri")
@@ -70,10 +63,11 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setBitmap(bitmap: Bitmap) {
         _bitmap.value = bitmap
+        Log.d("BitmapSet", "Bitmap Set")
     }
 
     fun setBitmapFromUri(uri: Uri, context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             val bitmap = loadBitmapFromUri(uri, context)
             withContext(Dispatchers.Main) {
                 _bitmap.value = bitmap
@@ -108,7 +102,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     fun preparePerformTrimmingAndDownscaling(
         context: Context, uri: Uri, startMs: Long, endMs: Long, sourceScreen: String
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             Log.d("Video Status", "This function called")
             performTrimmingAndDownscaling(context, uri, startMs, endMs, sourceScreen)
         }
@@ -158,7 +152,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             val videoBytes = FileUtils.loadFileAsByteArray(context, uri)
 
             videoBytes?.let {
-                viewModelScope.launch {
+                scope.launch {
                     try {
                         val userIdField = MultipartField(
                             name = "userId",
@@ -217,7 +211,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun uploadCroppedImage(context: Context, bitmap: Bitmap, customerId: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             try {
                 val byteArray = ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
                 val fields = listOf(
@@ -270,7 +264,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun uploadAudioFile(context: Context, uri: Uri) {
         Log.d("Audio", "Called")
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch(Dispatchers.IO) {
             try {
                 val byteArray = FileUtils.loadFileAsByteArray(context, uri)
                 if (byteArray != null) {
@@ -334,7 +328,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
             "theText": "$text"
             }
         """.trimIndent()
-        viewModelScope.launch()
+        scope.launch()
         {
             try {
                 performReusableNetworkCalls(
@@ -355,7 +349,7 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setCroppedBitmap(bitmap: Bitmap) {
-        viewModelScope.launch(Dispatchers.IO) {
+        scope.launch {
             setIsDownScalingImageForUpdateProfile(true)
             val safeBitmap = if (bitmap.config == Bitmap.Config.HARDWARE) {
                 bitmap.copy(Bitmap.Config.ARGB_8888, false) // Copy to a compatible config
@@ -382,14 +376,5 @@ class MediaViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetSubmissionResult() {
         _textStatusSubmissionResult.value = null
-    }
-}
-
-class MediaViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(MediaViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST") return MediaViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

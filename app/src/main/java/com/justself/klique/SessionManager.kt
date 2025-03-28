@@ -80,8 +80,8 @@ object SessionManager {
     }
     const val GLOBAL_CHAR_LIMIT = 5000
     fun sendDeviceTokenToServer() {
-        val sharedPreferences = appContext.getSharedPreferences(FirebaseMessagingService.FIREBASE_PREFS_KEY, Context.MODE_PRIVATE)
-        val token = sharedPreferences.getString(FirebaseMessagingService.FIREBASE_TOKEN_KEY, null)
+        val sharedPreferences = appContext.getSharedPreferences(KliqueFirebaseMessagingService.FIREBASE_PREFS_KEY, Context.MODE_PRIVATE)
+        val token = sharedPreferences.getString(KliqueFirebaseMessagingService.FIREBASE_TOKEN_KEY, null)
 
         if (!token.isNullOrEmpty()) {
             Log.d("Token", "Sending token to server: $token")

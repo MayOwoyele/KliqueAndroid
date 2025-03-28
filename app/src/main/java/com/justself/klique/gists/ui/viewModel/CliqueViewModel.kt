@@ -4,10 +4,14 @@ package com.justself.klique.gists.ui.viewModel
 import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -15,6 +19,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import com.justself.klique.ChatScreenViewModel
 import com.justself.klique.ContactDao
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
@@ -32,23 +37,24 @@ import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.ListenerIdEnum
 import com.justself.klique.Members
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.NetworkUtils
 import com.justself.klique.Reply
+import com.justself.klique.Screen
 import com.justself.klique.SessionManager
 import com.justself.klique.SharedCliqueReceivingType
-import com.justself.klique.User
 import com.justself.klique.UserStatus
 import com.justself.klique.WebSocketListener
 import com.justself.klique.WebSocketManager
 import com.justself.klique.deEscapeContent
 import com.justself.klique.downloadFromUrl
 import com.justself.klique.getUriFromByteArray
+import com.justself.klique.gistMediaCacheDir
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.GistUiState
 import com.justself.klique.gists.ui.shared_composables.LastGistComments
-import com.justself.klique.jwtHandle
+import com.justself.klique.networkTriple
 import com.justself.klique.toContact
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -60,8 +66,11 @@ import kotlinx.serialization.json.put
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.nio.ByteBuffer
+import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -75,7 +84,7 @@ class SharedCliqueViewModel(
     AndroidViewModel(application), WebSocketListener<SharedCliqueReceivingType> {
     override val listenerId: String = ListenerIdEnum.SHARED_CLIQUE.theId
     private val _uiState =
-        MutableStateFlow(GistUiState(myGists = emptyList(), trendingGists = emptyList()))
+        MutableStateFlow(GistUiState(interactions = emptyList(), trendingGists = emptyList()))
     val uiState: StateFlow<GistUiState> = _uiState
 
     private val _gistCreatedOrJoined = MutableLiveData<GistState?>()
@@ -93,6 +102,13 @@ class SharedCliqueViewModel(
 
     private val _gistMessage = mutableStateOf(TextFieldValue(""))
     val gistMessage: State<TextFieldValue> = _gistMessage
+
+    data class UserInfo(val userId: Int, val profileImageUrl: String?)
+
+    private var lastFetchedUserIds: Set<Int> = emptySet()
+
+    private val _users = MutableStateFlow<Map<Int, UserInfo>>(emptyMap())
+    val users: StateFlow<Map<Int, UserInfo>> = _users
 
     private val _listOfContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfNonContactMembers = MutableStateFlow<List<Members>>(emptyList())
@@ -117,93 +133,27 @@ class SharedCliqueViewModel(
     val searchPerformed: LiveData<Boolean> = _searchPerformed
 
     private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
-    private val _users = MutableStateFlow<List<User>>(emptyList())
-    val users = _users.asStateFlow()
     private val _onlineContacts = MutableStateFlow<List<Int>>(emptyList())
     val onlineContacts = _onlineContacts.asStateFlow()
-    val unsortedUsers = listOf(
-        User(1, "John Doe"),
-        User(2, "Jane Doe"),
-        User(3, "Michael Smith"),
-        User(4, "Emily Johnson"),
-        User(5, "Chris Brown"),
-        User(6, "Jessica Wilson"),
-        User(7, "Daniel Martinez"),
-        User(8, "Sophia Anderson"),
-        User(9, "David Lee"),
-        User(10, "Olivia Taylor"),
-        User(11, "James Harris"),
-        User(12, "Isabella White"),
-        User(13, "Alexander Thompson"),
-        User(14, "Mia Moore"),
-        User(15, "Ethan Hall"),
-        User(16, "Ava Allen"),
-        User(17, "Benjamin Young"),
-        User(18, "Charlotte King"),
-        User(19, "Mason Scott"),
-        User(20, "Amelia Green"),
-        User(21, "Logan Adams"),
-        User(22, "Harper Nelson"),
-        User(23, "Lucas Carter"),
-        User(24, "Ella Mitchell"),
-        User(25, "Henry Perez"),
-        User(26, "Scarlett Roberts"),
-        User(27, "Sebastian Lewis"),
-        User(28, "Aria Walker"),
-        User(29, "Jack Robinson"),
-        User(30, "Lily Clark"),
-        User(31, "Samuel Rodriguez"),
-        User(32, "Grace Hall"),
-        User(33, "Daniel Lewis"),
-        User(34, "Chloe Hernandez"),
-        User(35, "Matthew Scott"),
-        User(36, "Penelope King"),
-        User(37, "Joseph Lee"),
-        User(38, "Victoria Wright"),
-        User(39, "Owen Baker"),
-        User(40, "Emily Parker"),
-        User(41, "William Davis"),
-        User(42, "Zoe Gonzalez"),
-        User(43, "Carter Wilson"),
-        User(44, "Eleanor Perez"),
-        User(45, "James Anderson"),
-        User(46, "Madison Young"),
-        User(47, "Jacob Martin"),
-        User(48, "Avery Thompson"),
-        User(49, "Michael White"),
-        User(50, "Layla Garcia")
-    )
+
+    private val _commentCount = MutableStateFlow(0)
+    val commentCount = _commentCount.asStateFlow()
+
+    var post by mutableStateOf(TextFieldValue(""))
+        private set
+
     init {
         WebSocketManager.registerListener(this)
         viewModelScope.launch {
             restoreGistState()
         }
-        sortUsersByName(unsortedUsers)
+        startObservingMessages()
     }
 
     fun onGistMessageChange(newMessage: TextFieldValue) {
         _gistMessage.value = newMessage
     }
 
-    private fun updateSimulatedGistComments() {
-        _comments.value = List(20) { index ->
-            GistComment(
-                id = generateUUIDString(),
-                fullName = "User $index",
-                comment = "This is comment number $index",
-                customerId = index,
-                replies = List(index % 3) { replyIndex ->
-                    Reply(
-                        id = replyIndex.toString(),
-                        fullName = "User ${replyIndex + 1}",
-                        customerId = index,
-                        reply = "This is a reply to comment $index"
-                    )
-                },
-                upVotes = 1
-            )
-        }
-    }
 
     suspend fun restoreGistState() {
         val persistedGist = getGistStateDao.getGistState()
@@ -259,13 +209,14 @@ class SharedCliqueViewModel(
                 ).second
                 val gists = parseGistsFromResponse(response)
                 _uiState.value = _uiState.value.copy(
-                    myGists = gists
+                    interactions = gists
                 )
             } catch (e: Exception) {
                 Log.e("fetchGists", "Exception is $e")
             }
         }
     }
+
     fun fetchInteractions(customerId: Int) {
         viewModelScope.launch {
             try {
@@ -280,7 +231,7 @@ class SharedCliqueViewModel(
                 ).second
                 val gists = parseGistsFromResponse(response)
                 _uiState.value = _uiState.value.copy(
-                    myGists = gists
+                    interactions = gists
                 )
             } catch (e: Exception) {
                 Log.e("fetchGists", "Exception is $e")
@@ -317,16 +268,24 @@ class SharedCliqueViewModel(
             getGistStateDao.updateTimestamp(currentTime)
         }
     }
-    fun askForHomeOnlineContacts (contacts: List<Contact>) {
+
+    fun askForHomeOnlineContacts(contacts: List<Contact>) {
         val listOfInt: MutableList<Int?> = mutableListOf()
         for (contact in contacts) {
-            if (contact.isAppUser){
+            if (contact.isAppUser) {
                 listOfInt.add(contact.customerId)
             }
         }
         val theJson = JSONObject().apply {
             put("type", "askForHomeOnlineContacts")
             put("contacts", listOfInt)
+        }
+        send(theJson.toString(), saveToBuffer = true)
+    }
+
+    fun unsubscribeToGfUpdates() {
+        val theJson = JSONObject().apply {
+            put("type", "unsubscribeToGFUpdates")
         }
         send(theJson.toString())
     }
@@ -422,6 +381,9 @@ class SharedCliqueViewModel(
                 _messages.value = messages
                 messages.forEach { message ->
                     handleMediaDownload(message)
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    fetchCommentsCount(gistId)
                 }
             }
 
@@ -650,6 +612,7 @@ class SharedCliqueViewModel(
                 clearGistState()
                 downloadedMediaUrls.clear()
             }
+
             SharedCliqueReceivingType.ONLINE_CONTACTS -> {
                 try {
                     val onlineArray = jsonObject.getJSONArray("onlineContacts")
@@ -662,6 +625,7 @@ class SharedCliqueViewModel(
                     Log.e("OnlineContacts", "Exception is $e")
                 }
             }
+
             SharedCliqueReceivingType.CONTACT_ONLINE -> {
                 try {
                     val userId = jsonObject.getInt("userId")
@@ -673,6 +637,7 @@ class SharedCliqueViewModel(
                     Log.e("OnlineContacts", "Error processing contact online: ${e.message}")
                 }
             }
+
             SharedCliqueReceivingType.CONTACT_OFFLINE -> {
                 try {
                     val userId = jsonObject.getInt("userId")
@@ -706,7 +671,7 @@ class SharedCliqueViewModel(
             startedBy = startedBy,
             startedById = startedById
         )
-        CoroutineScope(Dispatchers.Main).launch {
+        viewModelScope.launch(Dispatchers.Main) {
             _gistCreatedOrJoined.postValue(GistState(topic, gistId))
             _gistTopRow.value = gistTopRowObject
             _userStatus.value = UserStatus(isSpeaker = isSpeaker, isOwner = isOwner)
@@ -763,16 +728,20 @@ class SharedCliqueViewModel(
         )
     }
 
+    private suspend fun fetchCommentsCount(gistId: String) {
+        val json = JSONObject().put("gistId", gistId)
+        val result = multipurposeCaller(json, "fetchCommentsCount")
+        if (result.first) {
+            val jsonObject = JSONObject(result.second)
+            val commentsCount = jsonObject.getInt("commentsCount")
+            _commentCount.value = commentsCount
+        }
+    }
+
     private fun clearCacheDirectory(context: Context) {
-        val cacheDir = context.cacheDir
-        if (cacheDir.exists() && cacheDir.isDirectory) {
-            cacheDir.listFiles()?.forEach { file ->
-                if (file.isDirectory) {
-                    file.deleteRecursively()
-                } else {
-                    file.delete()
-                }
-            }
+        val mediaCacheDir = File(context.cacheDir, gistMediaCacheDir)
+        if (mediaCacheDir.exists()) {
+            mediaCacheDir.deleteRecursively()
         }
     }
 
@@ -798,19 +767,26 @@ class SharedCliqueViewModel(
         }
     }
 
-    fun startGist(post: String, type: String, listOfUsers: List<Int>, selectedType: GistType, chatVM: ChatScreenViewModel) {
-        CoroutineScope(Dispatchers.IO).launch {
+    fun startGist(
+        post: String,
+        type: String,
+        listOfUsers: List<Int>,
+        selectedType: GistType,
+        chatVM: ChatScreenViewModel
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
             var shouldReturn = false
-            val response : suspend () -> jwtHandle = {
+            val response: suspend () -> networkTriple = {
                 val query = mapOf("userId" to SessionManager.customerId.value.toString())
                 NetworkUtils.makeJwtRequest(
                     "checkIfUserGistEligible", KliqueHttpMethod.GET, query
                 )
             }
-            val action: suspend (jwtHandle) -> Unit = {}
-            val errorAction: suspend (jwtHandle) -> Unit = { result ->
+            val action: suspend (networkTriple) -> Unit = {}
+            val errorAction: suspend (networkTriple) -> Unit = { result ->
                 if (result.third == 422) {
-                    _gistCreationError.postValue(result.second)
+                    val errorMessage = JSONObject(result.second).getString("error")
+                    _gistCreationError.postValue(errorMessage)
                     shouldReturn = true
                 }
             }
@@ -819,29 +795,31 @@ class SharedCliqueViewModel(
                 return@launch
             }
             val inviteId = generateUUIDString()
-            if (selectedType == GistType.Public){
+            if (selectedType == GistType.Public) {
                 sendGistCreator(chatVM, inviteId, listOfUsers, post)
-            } else if (selectedType == GistType.Private){
+            } else if (selectedType == GistType.Private) {
                 createGistAndNotify(post, type, chatVM, listOfUsers)
             }
         }
     }
-    private fun sendGistCreator(vm: ChatScreenViewModel, inviteId: String, listOfUsers: List<Int>, post: String){
+
+    private fun sendGistCreator(
+        vm: ChatScreenViewModel,
+        inviteId: String,
+        listOfUsers: List<Int>,
+        post: String
+    ) {
         for (enemyId in listOfUsers) {
             vm.sendGistCreation(inviteId, enemyId, SessionManager.customerId.value, post)
         }
     }
-//    private fun sendGistInviteToUsers(inviteId: String, listOfUsers: List<Int>) {
-//        val jsonObject = JSONObject().apply {
-//            put("type", "inviteToCreateGist")
-//            put("inviteId", inviteId)
-//            put("listOfUsers", listOfUsers)
-//        }
-//        send(jsonObject.toString())
-//    }
-    private fun createGistAndNotify(post: String, type: String, vm: ChatScreenViewModel, listOfUsers: List<Int>) {
-        var generatedGistId = ""
-        var topic = ""
+
+    private fun createGistAndNotify(
+        post: String,
+        type: String,
+        vm: ChatScreenViewModel,
+        listOfUsers: List<Int>
+    ) {
         val data = buildJsonObject {
             put("gistType", type)
             put("post", post)
@@ -853,23 +831,26 @@ class SharedCliqueViewModel(
             put("userId", SessionManager.customerId.value)
             put("data", data)
         }
-        CoroutineScope(Dispatchers.IO).launch {
+        viewModelScope.launch(Dispatchers.IO) {
+            var generatedGistId = ""
+            var topic = ""
             try {
-                val response: suspend () -> jwtHandle = {
+                val response: suspend () -> networkTriple = {
                     NetworkUtils.makeJwtRequest(
                         "createGist", KliqueHttpMethod.POST, emptyMap(),
                         json.toString()
                     )
                 }
-                val action: suspend (jwtHandle) -> Unit = { result ->
+                val action: suspend (networkTriple) -> Unit = { result ->
                     val jsonObject = JSONObject(result.second)
-                    val refreshCall = { gistId: String -> requestRefreshGistAndPreviousMessages(gistId)
+                    val refreshCall = { gistId: String ->
+                        requestRefreshGistAndPreviousMessages(gistId)
                         generatedGistId = gistId
                         topic = jsonObject.getString("topic")
                     }
                     processNewGist(jsonObject, refreshCall)
                 }
-                val errorAction: suspend (jwtHandle) -> Unit = { result ->
+                val errorAction: suspend (networkTriple) -> Unit = { result ->
                     when (result.third) {
                         409 -> {
                             withContext(Dispatchers.Main) {
@@ -877,18 +858,27 @@ class SharedCliqueViewModel(
                                 _gistCreationError.value = receivedJson
                             }
                         }
+
                         else -> {
                             withContext(Dispatchers.Main) {
-                                Log.d("GistCreationError", "Error: ${result.third}, ${result.second}")
+                                Log.d(
+                                    "GistCreationError",
+                                    "Error: ${result.third}, ${result.second}"
+                                )
                                 _gistCreationError.value = "Unknown error, perhaps network?"
                             }
                         }
                     }
                 }
                 performReusableNetworkCalls(response, action, errorAction)
-                if (generatedGistId.isNotEmpty()){
+                if (generatedGistId.isNotEmpty()) {
                     for (enemyId in listOfUsers) {
-                        vm.sendGistInvite(topic, generatedGistId, enemyId, SessionManager.customerId.value)
+                        vm.sendGistInvite(
+                            topic,
+                            generatedGistId,
+                            enemyId,
+                            SessionManager.customerId.value
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -899,17 +889,112 @@ class SharedCliqueViewModel(
             }
         }
     }
-//    private fun sendTheGistIdToOptMembers(gistId: String, inviteId: String) {
-//        val theMembers = PendingInviteManager.drainAcceptedUsers(inviteId)
-//        if (theMembers.isNotEmpty()){
-//            val jsonObject = JSONObject().apply {
-//                put("type", "sendGistIdToOptMembers")
-//                put("gistId", gistId)
-//                put("inviteId", inviteId)
-//            }
-//            send(jsonObject.toString())
-//        }
-//    }
+    fun setGistBackground(messageId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val jsonBody = JSONObject().apply {
+                put("messageId", messageId)
+                put("gistId", gistTopRow.value?.gistId)
+            }
+
+            val response: suspend () -> networkTriple = {
+                NetworkUtils.makeJwtRequest("setGistBackground", KliqueHttpMethod.POST, emptyMap(),
+                    jsonBody.toString()
+                )
+            }
+            val action: suspend (networkTriple) -> Unit = {
+                withContext(Dispatchers.Main){
+                    Toast.makeText(appContext, "Background set", Toast.LENGTH_SHORT).show()
+                }
+            }
+            val errorAction: suspend (networkTriple) -> Unit = {
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(appContext, "Error setting background", Toast.LENGTH_SHORT)
+                        .show()
+                }
+            }
+            performReusableNetworkCalls(response, action, errorAction)
+        }
+    }
+
+    fun createAltGistAndNotify(post: String, type: String, enemyId: Int, inviteId: String) {
+        val data = buildJsonObject {
+            put("gistType", type)
+            put("post", post)
+            put("messageId", generateUUIDString())
+            put("inviteId", inviteId)
+        }
+        val json = buildJsonObject {
+            put("userId", enemyId)
+            put("memberUserId", customerId)
+            put("data", data)
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val response: suspend () -> networkTriple = {
+                    NetworkUtils.makeJwtRequest(
+                        "createAltGist", KliqueHttpMethod.POST, emptyMap(),
+                        json.toString()
+                    )
+                }
+                val action: suspend (networkTriple) -> Unit = { result ->
+                    val jsonObject = JSONObject(result.second)
+                    val refreshCall = { gistId: String ->
+                        requestRefreshGistAndPreviousMessages(gistId)
+                    }
+                    processNewGist(jsonObject, refreshCall)
+                }
+                val errorAction: suspend (networkTriple) -> Unit = { result ->
+                    when (result.third) {
+                        409 -> {
+                            withContext(Dispatchers.Main) {
+                                val receivedJson = JSONObject(result.second).getString("message")
+                                _gistCreationError.value = receivedJson
+                            }
+                        }
+
+                        else -> {
+                            withContext(Dispatchers.Main) {
+                                Log.d(
+                                    "GistCreationError",
+                                    "Error: ${result.third}, ${result.second}"
+                                )
+                                _gistCreationError.value = "Unknown error, perhaps network?"
+                            }
+                        }
+                    }
+                }
+                performReusableNetworkCalls(response, action, errorAction)
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.d("GistCreationError", "Error: ${e.message}")
+                    _gistCreationError.value = "Unknown error, perhaps network?"
+                }
+            }
+        }
+    }
+
+    suspend fun joinGist(gistId: String) {
+        val response: suspend () -> networkTriple = {
+            val jsonBody = """{"gistId": "$gistId"}"""
+            NetworkUtils.makeJwtRequest(
+                "joinGist", KliqueHttpMethod.POST, emptyMap(),
+                jsonBody
+            )
+        }
+        val action: suspend (networkTriple) -> Unit = { result ->
+            val jsonObject = JSONObject(result.second)
+            val refreshCall = { gistId: String ->
+                requestRefreshGistAndPreviousMessages(gistId)
+            }
+            processNewGist(jsonObject, refreshCall)
+        }
+        val errorAction: suspend (networkTriple) -> Unit = {
+            withContext(Dispatchers.Main) {
+                _gistCreationError.value = "Unknown error, perhaps network?"
+            }
+        }
+        performReusableNetworkCalls(response, action, errorAction)
+    }
 
     fun loadOlderMessages(lastMessageId: String, gistId: String) {
         Log.d("loading", "loading older messages")
@@ -1442,17 +1527,124 @@ class SharedCliqueViewModel(
         }
         send(messageToSend.toString(), true)
     }
-    private fun sortUsersByName(users: List<User>) {
-        _users.value = users.sortedBy { it.name }
+
+    fun onPostChange(newValue: TextFieldValue) {
+        post = newValue
     }
-    private fun addUserEfficiently(user: User) {
-        val currentList = _users.value.toMutableList()
-        val index = currentList.indexOfFirst { it.name > user.name }.let { if (it == -1) currentList.size else it }
-        currentList.add(index, user)
-        _users.value = currentList
+
+    private fun startObservingMessages() {
+        viewModelScope.launch {
+            _messages.collect { messageList ->
+                val uniqueUserIds = messageList
+                    .map { it.senderId }
+                    .filter { it != SessionManager.customerId.value }
+                    .toSet()
+                if (uniqueUserIds != lastFetchedUserIds) {
+                    lastFetchedUserIds = uniqueUserIds
+                    fetchUniqueUsers(uniqueUserIds)
+                }
+            }
+        }
     }
-    private fun removeUser(userId: Int) {
-        _users.value = _users.value.filterNot { it.userId == userId }
+
+    private fun fetchUniqueUsers(uniqueUserIds: Set<Int>) {
+        viewModelScope.launch {
+            val fetchedUsers = fetchUsersFromServer(uniqueUserIds)
+            Log.d("GistPP", "fetchUniqueUsers: ${fetchedUsers.second}, ${fetchedUsers.third}")
+            if (fetchedUsers.first) {
+                val jsonObject = JSONObject(fetchedUsers.second)
+
+                val userMap: Map<Int, UserInfo> = jsonObject.keys().asSequence().associate { key ->
+                    val userId = key.toInt()
+                    val profileUrl = if (jsonObject.isNull(key)) null else jsonObject.getString(key)
+                    userId to UserInfo(userId, profileUrl)
+                }
+                _users.value = userMap
+            }
+        }
+    }
+
+    private suspend fun fetchUsersFromServer(uniqueUserIds: Set<Int>): networkTriple {
+        val json = JSONObject().apply {
+            put("userIds", JSONArray(uniqueUserIds.toList()))
+        }
+        return multipurposeCaller(json, "fetchUsersPP")
+    }
+
+    private fun hashUrl(url: String): String {
+        return MessageDigest.getInstance("MD5")
+            .digest(url.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+    }
+
+    private fun getCachedThumbFile(userId: Int, imageUrl: String): File {
+        val hash = hashUrl(imageUrl)
+        return File(appContext.cacheDir, "thumbs/${userId}_$hash.jpg")
+    }
+
+    private fun clearOldThumbs(userId: Int) {
+        val thumbsDir = File(appContext.cacheDir, "thumbs")
+        thumbsDir.listFiles()?.filter { it.name.startsWith("${userId}_") }?.forEach { it.delete() }
+    }
+
+    private fun downscaleBitmap(bitmap: Bitmap, targetWidth: Int, targetHeight: Int): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val scaleFactor = minOf(targetWidth / width.toFloat(), targetHeight / height.toFloat())
+        val newWidth = (width * scaleFactor).toInt()
+        val newHeight = (height * scaleFactor).toInt()
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
+    private fun cacheNewThumb(
+        userId: Int,
+        imageUrl: String,
+        bitmap: Bitmap,
+        targetWidth: Int = 100,
+        targetHeight: Int = 100
+    ) {
+        clearOldThumbs(userId)
+        val file = getCachedThumbFile(userId, imageUrl)
+        file.parentFile?.mkdirs()
+        val scaledBitmap = downscaleBitmap(bitmap, targetWidth, targetHeight)
+        FileOutputStream(file).use { out ->
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+        }
+    }
+
+    suspend fun getOrDownloadThumbnail(
+        userId: Int,
+        imageUrl: String,
+        targetWidth: Int = 100,
+        targetHeight: Int = 100
+    ): Bitmap? {
+        val cachedFile = getCachedThumbFile(userId, imageUrl)
+        if (cachedFile.exists()) {
+            Log.d("CachedFileExists", "exists")
+            return BitmapFactory.decodeFile(cachedFile.absolutePath)
+        } else {
+            Log.d("CachedFileExists", "doesn't exists")
+            val downloadedBitmap = downloadImage(imageUrl)
+            if (downloadedBitmap != null) {
+                cacheNewThumb(userId, imageUrl, downloadedBitmap, targetWidth, targetHeight)
+                return BitmapFactory.decodeFile(cachedFile.absolutePath)
+            }
+        }
+        return null
+    }
+
+    private suspend fun downloadImage(url: String): Bitmap? {
+        return try {
+            val byteArray = downloadFromUrl(url)
+            BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+        } catch (e: Exception) {
+            Log.e(
+                "GistPP",
+                "Error converting downloaded file to Bitmap, url: $url, error: ${e.message}",
+                e
+            )
+            null
+        }
     }
 }
 
@@ -1480,32 +1672,79 @@ sealed class DownloadState {
     object Downloading : DownloadState()
     data class Downloaded(val uri: Uri) : DownloadState()
 }
+
 fun parseGistsFromResponse(response: String): List<GistModel> {
     Log.d("fetchGists", response)
     val jsonArray = JSONObject(response).getJSONArray("gists")
     val gists = mutableListOf<GistModel>()
-    for (i in 0 until jsonArray.length()) {
-        val gistJson = jsonArray.getJSONObject(i)
-        val gistJsonArray = gistJson.getJSONArray("lastGistPosts")
-        val lastGistPostsList = mutableListOf<LastGistComments>()
-        for (j in 0 until gistJsonArray.length()) {
-            val lastGistPostJson = gistJsonArray.getJSONObject(j)
-            val lastGistComments = LastGistComments(
-                senderName = lastGistPostJson.getString("name"),
-                comment = lastGistPostJson.getString("message"),
-                userId = lastGistPostJson.getInt("userId")
+    try {
+        for (i in 0 until jsonArray.length()) {
+            val gistJson = jsonArray.getJSONObject(i)
+            val gistJsonArray = gistJson.getJSONArray("lastGistPosts")
+            val lastGistPostsList = mutableListOf<LastGistComments>()
+            for (j in 0 until gistJsonArray.length()) {
+                val lastGistPostJson = gistJsonArray.getJSONObject(j)
+                val lastGistComments = LastGistComments(
+                    senderName = lastGistPostJson.getString("name"),
+                    comment = lastGistPostJson.getString("message"),
+                    userId = lastGistPostJson.getInt("userId")
+                )
+                lastGistPostsList.add(lastGistComments)
+            }
+            val gist = GistModel(
+                gistId = gistJson.getString("id"),
+                topic = gistJson.getString("topic"),
+                description = gistJson.getString("description"),
+                image = if (gistJson.isNull("imageUrl")) null else gistJson.getString("imageUrl"),
+                activeSpectators = gistJson.getInt("activeSpectators"),
+                lastGistComments = lastGistPostsList,
+                postImage = if (gistJson.isNull("postImage")) null else gistJson.getString("postImage"),
+                postVideo = if (gistJson.isNull("postVideo")) null else gistJson.getString("postVideo"),
             )
-            lastGistPostsList.add(lastGistComments)
+            gists.add(gist)
         }
-        val gist = GistModel(
-            gistId = gistJson.getString("id"),
-            topic = gistJson.getString("topic"),
-            description = gistJson.getString("description"),
-            image = gistJson.getString("imageUrl"),
-            activeSpectators = gistJson.getInt("activeSpectators"),
-            lastGistComments = lastGistPostsList
-        )
-        gists.add(gist)
+    } catch (e: Exception) {
+        Log.e("fetchGists", "Exception is $e")
     }
     return gists
+}
+
+object CliqueViewModelNavigator {
+    var post: String? = null
+    var type: String? = null
+    var inviteId: String? = null
+    var enemyId: Int? = null
+    var toActivate: Boolean = false
+    fun setNavigator(
+        post: String,
+        type: String,
+        inviteId: String,
+        enemyId: Int,
+        navController: NavController
+    ) {
+        this.post = post
+        this.type = type
+        this.inviteId = inviteId
+        this.enemyId = enemyId
+        this.toActivate = true
+        Screen.Home.navigate(navController)
+    }
+
+    fun clearNavigator() {
+        post = null
+        type = null
+        inviteId = null
+        enemyId = null
+        toActivate = false
+    }
+}
+
+suspend fun multipurposeCaller(json: JSONObject, typeField: String): networkTriple {
+    json.put("type", typeField)
+    return NetworkUtils.makeRequest(
+        "multipurpose",
+        KliqueHttpMethod.POST,
+        emptyMap(),
+        json.toString()
+    )
 }

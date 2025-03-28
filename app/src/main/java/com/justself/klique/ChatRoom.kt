@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
-import android.support.annotation.RequiresApi
 import android.util.Log
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -74,7 +73,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -83,7 +81,6 @@ fun ChatRoom(
     navController: NavController,
     chatRoomId: Int,
     myId: Int,
-    mediaViewModel: MediaViewModel,
     contactName: String,
     viewModel: ChatRoomViewModel = viewModel(
         factory = ChatRoomViewModelFactory(LocalContext.current.applicationContext as Application)
@@ -153,8 +150,7 @@ fun ChatRoom(
                 chatRoomId,
                 innerPadding,
                 viewModel,
-                myId,
-                mediaViewModel
+                myId
             )
         },
         bottomBar = {
@@ -213,8 +209,7 @@ fun ChatRoomContent(
     chatRoomId: Int,
     innerPadding: PaddingValues,
     viewModel: ChatRoomViewModel,
-    myId: Int,
-    mediaViewModel: MediaViewModel
+    myId: Int
 ) {
     val chatRoomMessages by viewModel.chatRoomMessages.collectAsState()
     val toastWarning by viewModel.toastWarning.collectAsState()
@@ -255,8 +250,7 @@ fun ChatRoomContent(
                 ChatRoomMessageItem(
                     message = message,
                     isCurrentUser = message.senderId == myId,
-                    navController = navController,
-                    mediaViewModel = mediaViewModel
+                    navController = navController
                 )
             }
         }
@@ -285,7 +279,6 @@ fun ChatRoomMessageItem(
     message: ChatRoomMessage,
     isCurrentUser: Boolean,
     navController: NavController,
-    mediaViewModel: MediaViewModel
 ) {
     val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
     val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp)
@@ -329,7 +322,6 @@ fun ChatRoomMessageItem(
                         ChatRoomImageItem(
                             image = message.localPath,
                             shape = shape,
-                            mediaViewModel = mediaViewModel,
                             navController = navController
                         )
                     }
@@ -425,7 +417,7 @@ fun CrTextBoxAndMedia(
 }
 
 @Composable
-fun ChatRoomImageItem(image: Uri?, shape: Shape, mediaViewModel: MediaViewModel, navController: NavController) {
+fun ChatRoomImageItem(image: Uri?, shape: Shape, navController: NavController) {
     var bitmap by remember { mutableStateOf<Bitmap?>(null) }
     val context = LocalContext.current
     LaunchedEffect(image) {
@@ -438,7 +430,7 @@ fun ChatRoomImageItem(image: Uri?, shape: Shape, mediaViewModel: MediaViewModel,
             modifier = Modifier
                 .height(200.dp)
                 .clip(shape)
-                .clickable { mediaViewModel.setBitmap(bmp); navController.navigate("fullScreenImage") }
+                .clickable { MediaVM.setBitmap(bmp); navController.navigate("fullScreenImage") }
         )
     } ?: Text(
         text = "Image Loading",

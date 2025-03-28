@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -26,11 +27,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -47,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -66,6 +70,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -178,7 +183,6 @@ fun MyAppTheme(
 
 @Composable
 fun MainScreen(
-    notificationRoute: String?,
     authViewModel: AuthViewModel = viewModel(),
     userDetailsViewModel: UserDetailsViewModel = viewModel(),
     navController: NavHostController
@@ -201,6 +205,16 @@ fun MainScreen(
     var searchResults by remember { mutableStateOf(listOf<SearchUser>()) }
     var cannotFindUser by remember {
         mutableStateOf(false)
+    }
+    var snackBarVisible by remember { mutableStateOf(false) }
+    var currentSnackBarData by remember { mutableStateOf<SnackBarMessageData?>(null) }
+
+    LaunchedEffect(Unit) {
+        GlobalEventBus.snackBarEvent.collect { messageData ->
+            currentSnackBarData = messageData
+            snackBarVisible = true
+            Log.d("SnackBar", "Broadcast received")
+        }
     }
     val context = LocalContext.current
     val navigationRoute by NotificationIntentManager.navigationRoute.collectAsState()
@@ -230,6 +244,7 @@ fun MainScreen(
             searchResults = emptyList()
         }
     }
+    val mainScreenTopPadding = 90.dp
     var gistStarterName by remember { mutableStateOf("") }
     var gistStarterId by remember { mutableIntStateOf(0) }
     when (appState) {
@@ -273,7 +288,6 @@ fun MainScreen(
                     innerPadding,
                     leftDrawerState,
                     rightDrawerState,
-                    authViewModel,
                     userDetailsViewModel,
                     imeVisible,
                     showEmojiPicker,
@@ -286,8 +300,7 @@ fun MainScreen(
                     resetSelectedEmoji = { selectedEmoji = "" },
                     onDisplayTextChange = { theText, userId ->
                         gistStarterName = theText; gistStarterId = userId
-                    },
-                    notificationRoute = notificationRoute
+                    }
                 )
                 Log.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
                 if (isSearchMode && (searchResults.isNotEmpty() || cannotFindUser)) {
@@ -295,7 +308,7 @@ fun MainScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .wrapContentHeight()
-                            .padding(top = 90.dp)
+                            .padding(top = mainScreenTopPadding)
                             .background(MaterialTheme.colorScheme.background)
                     ) {
                         if (!cannotFindUser || searchResults.isNotEmpty()) {
@@ -352,6 +365,16 @@ fun MainScreen(
                         }
                     }
                 }
+                IncomingMessageSnackBar(
+                    messageData = currentSnackBarData,
+                    visible = snackBarVisible,
+                    onDismiss = { snackBarVisible = false },
+                    mainScreenTopPadding,
+                    onClick = { snackBarData ->
+                        Screen.MessageScreen.navigate(navController, enemyId = snackBarData.enemyId)
+                        snackBarVisible = false
+                    }
+                )
             }
         }
 
@@ -371,7 +394,6 @@ fun MainContent(
     innerPadding: PaddingValues,
     leftDrawerState: MutableState<Boolean>,
     rightDrawerState: MutableState<Boolean>,
-    authViewModel: AuthViewModel,
     userDetailsViewModel: UserDetailsViewModel,
     imeVisible: Boolean,
     showEmojiPicker: Boolean,
@@ -379,8 +401,7 @@ fun MainContent(
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    onDisplayTextChange: (String, Int) -> Unit,
-    notificationRoute: String?
+    onDisplayTextChange: (String, Int) -> Unit
 ) {
     val customerId by SessionManager.customerId.collectAsState()
     val fullName by SessionManager.fullName.collectAsState()
@@ -416,6 +437,7 @@ fun MainContent(
                         Log.d("LifecycleEvent", "App moved to background. WebSocket closed.")
                     }
                 }
+
                 Lifecycle.Event.ON_START -> {
                     if (customerId != 0 && fullName.isNotBlank() && !WebSocketManager.isConnected.value) {
                         WebSocketManager.connect(
@@ -495,8 +517,7 @@ fun MainContent(
             application,
             sharedCliqueViewModel,
             resetSelectedEmoji,
-            onDisplayTextChange,
-            notificationRoute
+            onDisplayTextChange
         ) { height -> emojiPickerHeight = height }
 
         LeftDrawer(
@@ -643,13 +664,14 @@ fun CustomAppBar(
 fun BottomNavigationBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    Log.d("CurrentRoute", "The current route is: $currentRoute")
+    val unreadMessages by GlobalEventBus.unreadMessageCount.collectAsState()
     val textStyle = TextStyle(
-        color = if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimary,
+        color = MaterialTheme.colorScheme.onPrimary,
         fontFamily = AfacadFamily,
         fontSize = 12.sp
     )
-    val iconColor =
-        if (isSystemInDarkTheme()) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimary
+    val iconColor = MaterialTheme.colorScheme.onPrimary
 
     NavigationBar(
         containerColor = MaterialTheme.colorScheme.primary,
@@ -657,26 +679,44 @@ fun BottomNavigationBar(navController: NavController) {
         NavigationBarItem(
             icon = { Icon(Icons.Filled.Home, contentDescription = "Home", tint = iconColor) },
             label = { Text("Home", style = textStyle) },
-            selected = currentRoute == "home",
-            onClick = { if (currentRoute != "home") navController.navigate("home") }
+            selected = currentRoute == Screen.Home.route,
+            onClick = { if (currentRoute != Screen.Home.route) Screen.Home.navigate(navController) },
         )
         NavigationBarItem(
             icon = {
-                Icon(
-                    Icons.AutoMirrored.Filled.Chat,
-                    contentDescription = "Chats",
-                    tint = iconColor
-                )
+                Box {
+                    Icon(
+                        Icons.AutoMirrored.Filled.Chat,
+                        contentDescription = "Chats",
+                        tint = iconColor
+                    )
+                    if (unreadMessages > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 4.dp, y = (-4).dp)
+                                .size(16.dp)
+                                .background(MaterialTheme.colorScheme.background, shape = CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (unreadMessages > 99) "99+" else unreadMessages.toString(),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                }
             },
             label = { Text("Chats", style = textStyle) },
-            selected = currentRoute == "chats",
-            onClick = { if (currentRoute != "chats") navController.navigate("chats") }
+            selected = currentRoute == Screen.Chats.route,
+            onClick = { if (currentRoute != Screen.Chats.route) Screen.Chats.navigate(navController) }
         )
         NavigationBarItem(
             icon = { Icon(Icons.Filled.Book, contentDescription = "Bookshelf", tint = iconColor) },
             label = { Text("Bookshelf", style = textStyle) },
-            selected = currentRoute == "bookshelf",
-            onClick = { if (currentRoute != "bookshelf") navController.navigate("bookshelf") }
+            selected = currentRoute == Screen.Bookshelf.route,
+            onClick = { if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(navController) }
         )
     }
 }
@@ -710,11 +750,72 @@ fun EmojiPickerView(onEmojiSelected: (String) -> Unit, emojiPickerHeight: Dp) {
 fun VerifiedBadge(isVerified: Boolean) {
     if (isVerified) {
         Icon(
-            imageVector = Icons.Default.CheckCircle, // Replace with the desired icon
+            imageVector = Icons.Default.CheckCircle,
             contentDescription = "Verified",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(16.dp)
         )
+    }
+}
+
+@Composable
+fun IncomingMessageSnackBar(
+    messageData: SnackBarMessageData?,
+    visible: Boolean,
+    onDismiss: () -> Unit,
+    topScreenPadding: Dp,
+    onClick: (SnackBarMessageData) -> Unit,
+) {
+    LaunchedEffect(Unit) {
+        Log.d("SnackBar", "The snack bar display: $visible")
+    }
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(initialOffsetY = { -40 }),
+        exit = slideOutVertically(targetOffsetY = { -40 }),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        if (messageData != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = topScreenPadding)
+                    .padding(10.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .clickable { onClick(messageData) }
+            ) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize() // fill the parent box
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        .blur(16.dp)
+                )
+                Column(modifier = Modifier.padding(10.dp)) {
+                    Text(
+                        text = messageData.name,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.displayLarge,
+                    )
+                    Text(
+                        text = messageData.message,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            }
+        }
+    }
+
+    if (visible) {
+        LaunchedEffect(messageData) {
+            delay(3000)
+            onDismiss()
+        }
     }
 }
 

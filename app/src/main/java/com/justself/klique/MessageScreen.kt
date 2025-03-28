@@ -2,13 +2,13 @@ package com.justself.klique
 
 import ImageUtils
 import android.Manifest
+import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.support.annotation.RequiresApi
 import android.text.format.DateUtils
 import android.util.Log
 import android.view.MotionEvent
@@ -23,8 +23,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -126,12 +124,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import okhttp3.internal.format
 import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
@@ -147,15 +145,23 @@ fun MessageScreen(
     onEmojiPickerVisibilityChange: (Boolean) -> Unit,
     selectedEmoji: String,
     showEmojiPicker: Boolean,
-    contactName: String,
-    mediaViewModel: MediaViewModel,
     resetSelectedEmoji: () -> Unit,
     emojiPickerHeight: (Dp) -> Unit,
-    isVerified: Boolean
 ) {
     LaunchedEffect(key1 = Unit) {
         viewModel.enterChat(enemyId)
+        clearPChatNotifications(appContext, enemyId)
     }
+    val chatDetails = remember { mutableStateOf<ChatList?>(null) }
+    LaunchedEffect(enemyId) {
+        if (chatDetails.value == null) {
+            viewModel.fetchChatDetails(enemyId).collect { fetchedChat ->
+                chatDetails.value = fetchedChat
+            }
+        }
+    }
+    val contactName = chatDetails.value?.contactName ?: "Your NewFriend"
+    val isVerified = chatDetails.value?.isVerified ?: false
     DisposableEffect(Unit) {
         onDispose {
             viewModel.leaveChat(); viewModel.clearSelection(); onEmojiPickerVisibilityChange(
@@ -169,7 +175,7 @@ fun MessageScreen(
     val coroutineScope = rememberCoroutineScope()
     val isRecording = remember { mutableStateOf(false) }
     var theRealTrimmedUri by remember { mutableStateOf<Uri?>(null) }
-    val messageScreenUri by mediaViewModel.messageScreenUri.observeAsState()
+    val messageScreenUri by MediaVM.messageScreenUri.observeAsState()
     LaunchedEffect(messageScreenUri) {
         Log.d("onTrim", "ontrim triggered again with value $messageScreenUri")
         messageScreenUri?.let {
@@ -226,7 +232,7 @@ fun MessageScreen(
                 }
             }
         }
-        mediaViewModel.clearUris()
+        MediaVM.clearUris()
     }
     val videoPickerLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -340,7 +346,7 @@ fun MessageScreen(
                                     viewModel.addMessageToForward(it)
                                 }
                             }
-                            navController.navigate("forwardChatsScreen")
+                            Screen.ForwardChatsScreen.navigate(navController)
                         },
                         personalChat = personalChat
                     )
@@ -354,14 +360,11 @@ fun MessageScreen(
             innerPadding,
             viewModel,
             myId,
-            mediaViewModel,
             showDeleteDialog,
             onShowDeleteDialog
         )
     }, bottomBar = {
         TextBoxAndMedia(
-            navController = navController,
-            enemyId = enemyId,
             context = context,
             imagePickerLauncher = imagePickerLauncher,
             videoPickerLauncher = videoPickerLauncher,
@@ -421,7 +424,7 @@ fun CustomTopAppBar(
                 modifier = Modifier
                     .padding(start = 20.dp)
                     .clickable(enabled = true, onClick = {
-                        navController.navigate("bioScreen/$enemyId")
+                        Screen.BioScreen.navigate(navController, enemyId)
                         onEmojiPickerVisibilityChange(false)
                     })
             )
@@ -447,11 +450,11 @@ fun MessageScreenContent(
     innerPadding: PaddingValues,
     viewModel: ChatScreenViewModel,
     myId: Int,
-    mediaViewModel: MediaViewModel,
     showDeleteDialog: Boolean,
     onShowDeleteDialog: () -> Unit
 ) {
     val personalChat by viewModel.personalChats.collectAsState(emptyList())
+    val userId by SessionManager.customerId.collectAsState()
     val scrollState = rememberLazyListState()
     val context = LocalContext.current
     val isSelectionMode by viewModel.isSelectionMode.observeAsState(false)
@@ -554,15 +557,15 @@ fun MessageScreenContent(
                         when (message.messageType) {
                             PersonalMessageType.P_IMAGE -> {
                                 message.mediaUri?.let {
-                                    mediaViewModel.setBitmapFromUri(
+                                    MediaVM.setBitmapFromUri(
                                         Uri.parse(it), context
                                     )
                                 }
-                                navController.navigate("fullScreenImage")
+                                Screen.FullScreenImage.navigate(navController)
                             }
 
                             PersonalMessageType.P_VIDEO -> {
-                                navController.navigate("fullScreenVideo/${Uri.encode(message.mediaUri)}")
+                                Screen.FullScreenVideo.navigate(navController, Uri.encode(message.mediaUri))
                             }
 
                             else -> {
@@ -596,10 +599,7 @@ fun MessageScreenContent(
                                         DisplayImage(
                                             message.mediaUri,
                                             shape,
-                                            navController,
-                                            mediaViewModel,
                                             onLongPressLambda,
-                                            isSelectionMode,
                                             onTapLambda
                                         )
                                     }
@@ -609,7 +609,6 @@ fun MessageScreenContent(
                                         DisplayVideo(
                                             message.mediaUri,
                                             shape,
-                                            navController,
                                             onLongPressLambda,
                                             isSelectionMode,
                                             onTapLambda
@@ -620,7 +619,6 @@ fun MessageScreenContent(
                                         Log.d("isSelectionMode", "is now $isSelectionMode")
                                         DisplayAudio(
                                             message.mediaUri,
-                                            context,
                                             onLongPressLambda,
                                             isSelectionMode,
                                             onTapLambda
@@ -637,7 +635,7 @@ fun MessageScreenContent(
                                             message.gistId?.let {
                                                 viewModel.joinGist(it)
                                             }
-                                            navigateToHome(navController)
+                                            Screen.Home.navigate(navController)
                                         }
                                     }
 
@@ -668,7 +666,8 @@ fun MessageScreenContent(
                                                 message.inviteId?.let {
                                                     viewModel.createGistForFriend(message.inviteId, message.content, enemyId, navController)
                                                 }
-                                            }
+                                            },
+                                            message.myId == userId
                                         )
                                     }
                                 }
@@ -786,8 +785,6 @@ fun MessageScreenContent(
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun TextBoxAndMedia(
-    navController: NavController,
-    enemyId: Int,
     context: Context,
     imagePickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
     videoPickerLauncher: ManagedActivityResultLauncher<String, Uri?>,
@@ -1177,6 +1174,13 @@ fun MessageTimeStamp(
         }
     }
 }
-fun navigateToHome(navController: NavController) {
-    navController.navigate("home")
+
+fun clearPChatNotifications(context: Context, enemyId: Int) {
+    Log.d("Firebase", "Klique notification cleared")
+    val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    KliqueFirebaseMessagingService.pChatNotificationIds[enemyId]?.forEach { id ->
+        notificationManager.cancel(id)
+    }
+    notificationManager.cancel(enemyId)
+    KliqueFirebaseMessagingService.pChatNotificationIds.remove(enemyId)
 }

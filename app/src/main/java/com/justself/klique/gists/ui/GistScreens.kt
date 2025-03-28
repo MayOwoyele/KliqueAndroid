@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import com.justself.klique.GlobalEventBus
+import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 
@@ -27,11 +29,11 @@ enum class CurrentTab {
     TRENDING, INTERACTIONS
 }
 @Composable
-fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewModel, navController: NavController) {
+fun GistScreen(customerId: Int, viewModel: SharedCliqueViewModel, navController: NavController) {
     LaunchedEffect(key1 = Unit) {
         viewModel.fetchTrendingGists(customerId)
     }
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         var currentTab by remember { mutableStateOf(CurrentTab.TRENDING) }
 
         val uiState by viewModel.uiState.collectAsState()
@@ -58,11 +60,14 @@ fun GistScreen(modifier: Modifier, customerId: Int, viewModel: SharedCliqueViewM
         }
         when (currentTab) {
             CurrentTab.TRENDING -> {
-                TrendingGists(uiState.trendingGists, customerId = customerId, viewModel)
+                val message = "Probably loading"
+                GistListCaller(uiState.trendingGists, customerId,
+                    { viewModel.enterGist(it) }, defaultMessage = message)
             }
-
             CurrentTab.INTERACTIONS -> {
-                MyGists(uiState.myGists, customerId = customerId, viewModel)
+                val message = "You don't yet have any interactions with any gists"
+                GistListCaller(uiState.interactions, customerId,
+                    { viewModel.enterGist(it) }, defaultMessage = message)
             }
         }
     }

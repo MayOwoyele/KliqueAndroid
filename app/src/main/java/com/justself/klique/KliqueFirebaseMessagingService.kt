@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -13,10 +14,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 
-class FirebaseMessagingService : FirebaseMessagingService() {
+class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
         const val FIREBASE_PREFS_KEY = "firebase_prefs"
         const val FIREBASE_TOKEN_KEY = "firebase_token"
+        // Maintain a mapping from enemyId to list of notification IDs for pChat messages.
+        val pChatNotificationIds = mutableMapOf<Int, MutableList<Int>>()
     }
 
     private val notificationList = mutableListOf<String>()
@@ -25,7 +28,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
         Log.d("Firebase", "Firebase triggered")
         if (remoteMessage.notification != null) {
             Log.d("Firebase", "Notification + Data Message: ${remoteMessage.notification}")
-            handleNotificationWithData(remoteMessage.notification!!, remoteMessage.data)
+            handleNotificationWithData(remoteMessage.notification!!)
             return
         }
         if (remoteMessage.data.isNotEmpty()) {
@@ -33,46 +36,30 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             handleDataMessage(remoteMessage.data)
         }
     }
-    private fun handleNotificationWithData(notification: RemoteMessage.Notification, data: Map<String, String>) {
+
+    private fun handleNotificationWithData(notification: RemoteMessage.Notification) {
         val title = notification.title ?: "Klique Klique"
         val messageBody = notification.body ?: "You have new notifications"
-        val destination = data["destination"] ?: "home"
-        sendIndividualNotification(title, messageBody, destination)
+        sendIndividualNotification(title, messageBody)
     }
-    private fun sendIndividualNotification(
-        title: String,
-        messageBody: String,
-        destination: String
-    ) {
-        val route = when (destination) {
-            "chats" -> "chats"
-            "shots" -> "dmList"
-            "home" -> "home"
-            else -> "chats"
-        }
 
-        val intent = Intent(this, MainActivity::class.java).apply {
+    private fun sendIndividualNotification(title: String, messageBody: String) {
+        val deepLinkUri = Uri.parse("kliqueklique://home")
+        val intent = Intent(Intent.ACTION_VIEW, deepLinkUri).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("route", route)
         }
-
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
         )
-
         val channelId = "individual_channel"
-
-        val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             channelId,
             "Individual Notifications",
             NotificationManager.IMPORTANCE_DEFAULT
         )
         notificationManager.createNotificationChannel(channel)
-
         val notificationId = System.currentTimeMillis().toInt()
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.klique_icon)
@@ -80,37 +67,61 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             .setContentText(messageBody)
             .setAutoCancel(true)
             .setContentIntent(pendingIntent)
-
         notificationManager.notify(notificationId, notificationBuilder.build())
     }
 
-    private fun handleDataMessage(data: Map<String, String>) {
+    fun handleDataMessage(data: Map<String, String>) {
         val title = data["title"] ?: "Klique Klique"
         val messageBody = data["body"] ?: "You have new notifications"
-        val destination = data["destination"] ?: "home"
-
-        sendNotification(title, messageBody, destination)
+        sendNotification(title, messageBody, data)
     }
 
     private fun sendNotification(
         title: String,
         messageBody: String,
-        destination: String
+        data: Map<String, String>
     ) {
         val groupKey = "com.justself.klique.NOTIFICATION_GROUP"
         notificationList.add(messageBody)
-        val route = when (destination) {
-            "chats" -> "chats"
-            "shots" -> "dmList"
-            "home" -> "home"
-            else -> "home"
+        Log.d("Firebase", "Notification List: $notificationList")
+        val destination = data["destination"] ?: "home"
+        val pChat = "pChat"
+        val enemyId = if (destination == pChat) {
+            data["enemyId"]?.toIntOrNull() ?: 0
+        } else {
+            0
+        }
+        if (destination == pChat){
+            ChatVMObject.callFetch()
+        }
+        val deepLinkUri = when (destination) {
+            pChat -> {
+                Uri.parse("kliqueklique://messageScreen/$enemyId")
+            }
+            "gist" -> {
+                val gistId = data["gistId"]
+                if (!gistId.isNullOrBlank()) {
+                    Uri.parse("kliqueklique://home?gistId=${gistId}")
+                } else {
+                    Uri.parse("kliqueklique://home")
+                }
+            }
+            "shot" -> {
+                val theEnemyId = data["enemyId"]?.toIntOrNull() ?: 0
+                val enemyName = data["enemyName"] ?: "No Name"
+                Uri.parse("kliqueklique://dmChatScreen/$theEnemyId/${Uri.encode(enemyName)}")
+            }
+            else -> {
+                Uri.parse("kliqueklique://$destination")
+            }
         }
 
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val intent = Intent(Intent.ACTION_VIEW, deepLinkUri).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            putExtra("route", route)
+            if (destination == pChat && enemyId != 0) {
+                putExtra("enemyId", enemyId)
+            }
         }
-
         val pendingIntent = PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
@@ -121,10 +132,7 @@ class FirebaseMessagingService : FirebaseMessagingService() {
             "chats" -> "chat_channel"
             else -> "default_channel"
         }
-
-        val notificationManager =
-            getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channel = NotificationChannel(
             channelId,
             when (destination) {
@@ -137,34 +145,52 @@ class FirebaseMessagingService : FirebaseMessagingService() {
         notificationManager.createNotificationChannel(channel)
 
         val notificationId = System.currentTimeMillis().toInt()
+        val finalGroupKey = if (destination == pChat && enemyId != 0) "pChat_$enemyId" else groupKey
         val notificationBuilder = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(R.mipmap.klique_icon)
             .setContentTitle(title)
             .setContentText(messageBody)
             .setAutoCancel(true)
-            .setGroup(groupKey)
+            .setGroup(finalGroupKey)
             .setContentIntent(pendingIntent)
-
         notificationManager.notify(notificationId, notificationBuilder.build())
-        val summaryText = if (notificationList.size > 1) {
-            "+${notificationList.size - 1} more"
+
+        // If this is a pChat notification, record its ID.
+        if (destination == pChat && enemyId != 0) {
+            val list = pChatNotificationIds.getOrPut(enemyId) { mutableListOf() }
+            list.add(notificationId)
+            val summaryText = "You have ${list.size} messages"
+            val inboxStyle = NotificationCompat.InboxStyle()
+            notificationList.forEach { inboxStyle.addLine(it) }
+            inboxStyle.setSummaryText(summaryText)
+            val summaryBuilder = NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.mipmap.klique_icon)
+                .setContentTitle("Klique Notifications")
+                .setContentText(summaryText)
+                .setStyle(inboxStyle)
+                .setGroup(finalGroupKey)
+                .setGroupSummary(true)
+                .setContentIntent(pendingIntent)
+            notificationManager.notify(enemyId, summaryBuilder.build())
         } else {
-            "1 new message"
+            val summaryText = if (notificationList.size > 1) {
+                "+${notificationList.size - 1} more"
+            } else {
+                "1 new message"
+            }
+            val inboxStyle = NotificationCompat.InboxStyle()
+            notificationList.forEach { inboxStyle.addLine(it) }
+            inboxStyle.setSummaryText(summaryText)
+            val summaryBuilder = NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(R.mipmap.klique_icon)
+                .setContentTitle("Klique Notifications")
+                .setContentText("You have ${notificationList.size} new messages")
+                .setStyle(inboxStyle)
+                .setGroup(groupKey)
+                .setGroupSummary(true)
+                .setContentIntent(pendingIntent)
+            notificationManager.notify(0, summaryBuilder.build())
         }
-
-        val inboxStyle = NotificationCompat.InboxStyle()
-        notificationList.forEach { inboxStyle.addLine(it) }
-        inboxStyle.setSummaryText(summaryText)
-        val summaryBuilder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.mipmap.klique_icon)
-            .setContentTitle("Klique Notifications")
-            .setContentText("You have ${notificationList.size} new messages")
-            .setStyle(inboxStyle)
-            .setGroup(groupKey)
-            .setGroupSummary(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(0, summaryBuilder.build())
     }
 
     override fun onNewToken(token: String) {

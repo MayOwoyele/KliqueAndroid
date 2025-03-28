@@ -1,6 +1,5 @@
 package com.justself.klique
 
-import android.net.Uri
 import android.text.format.DateUtils
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
@@ -35,7 +34,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
@@ -118,115 +116,143 @@ fun ChatListScreen(
         }
     }
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            CustomContextMenu(
-                selectedChats = selectedChats,
-                onDelete = {
-                    showDialog = true
-                },
-                onDismiss = {
-                    isSelectionMode = false
-                    selectedChats.clear()
-                }
-            )
-            if (searchBarHeight > 0.dp) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(searchBarHeight)
-                        .background(MaterialTheme.colorScheme.background)
-                ) {
-                    Row(
+        if (chats.isNotEmpty()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                CustomContextMenu(
+                    selectedChats = selectedChats,
+                    onDelete = {
+                        showDialog = true
+                    },
+                    onDismiss = {
+                        isSelectionMode = false
+                        selectedChats.clear()
+                    }
+                )
+                if (searchBarHeight > 0.dp) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.background),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(searchBarHeight)
+                            .background(MaterialTheme.colorScheme.background)
                     ) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                        Row(
                             modifier = Modifier
-                                .weight(1f),
-                            placeholder = {
-                                Text(
-                                    "Search for your chats..",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                            },
-                            leadingIcon = {
-                                IconButton(onClick = {}) {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = "Search Icon"
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier
+                                    .weight(1f),
+                                placeholder = {
+                                    Text(
+                                        "Search for your chats..",
+                                        style = MaterialTheme.typography.bodyLarge
                                     )
-                                }
-                            },
-                            shape = RoundedCornerShape(bottomStart = 40.dp),
-                            colors = TextFieldDefaults.colors(
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            )
-                        )
-                    }
-                }
-            }
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(
-                    if (isSearchVisible) searchResults else chats,
-                    key = { chat -> chat.enemyId }) { chat ->
-                    ChatItem(chat, modifier = Modifier.fillMaxWidth(), onClick = {
-                        if (isSelectionMode) {
-                            toggleSelection(chat.enemyId)
-                        } else {
-                            navController.navigate(
-                                "messageScreen/${chat.enemyId}/${Uri.encode(chat.contactName)}?isVerified=${if (chat.isVerified) 1 else 0}"
+                                },
+                                leadingIcon = {
+                                    IconButton(onClick = {}) {
+                                        Icon(
+                                            imageVector = Icons.Default.Search,
+                                            contentDescription = "Search Icon"
+                                        )
+                                    }
+                                },
+                                shape = RoundedCornerShape(bottomStart = 40.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent
+                                )
                             )
                         }
-                    }, onLongPress = {
-                        isSelectionMode = true
-                        toggleSelection(chat.enemyId)
-                    }, isSelected = selectedChats.contains(chat.enemyId),
-                        isSelectionMode = isSelectionMode
+                    }
+                }
+                if (isSearchVisible && searchQuery.isNotEmpty() && searchResults.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No results found",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(
+                            if (isSearchVisible) searchResults else chats,
+                            key = { chat -> chat.enemyId }
+                        ) { chat ->
+                            ChatItem(
+                                chat = chat,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = {
+                                    if (isSelectionMode) {
+                                        toggleSelection(chat.enemyId)
+                                    } else {
+                                        Screen.MessageScreen.navigate(navController, chat.enemyId)
+                                    }
+                                },
+                                onLongPress = {
+                                    isSelectionMode = true
+                                    toggleSelection(chat.enemyId)
+                                },
+                                isSelected = selectedChats.contains(chat.enemyId),
+                                isSelectionMode = isSelectionMode
+                            )
+                        }
+                    }
+                }
+                if (showDialog) {
+                    AlertDialog(
+                        onDismissRequest = { showDialog = false },
+                        confirmButton = {
+                            TextButton(
+                                onClick = {
+                                    selectedChats.forEach { enemyId ->
+                                        viewModel.deleteChat(
+                                            enemyId,
+                                            context
+                                        )
+                                    }
+                                    isSelectionMode = false
+                                    selectedChats.clear()
+                                    showDialog = false
+                                }
+                            ) {
+                                Text("Yes", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDialog = false }) {
+                                Text("No", style = MaterialTheme.typography.bodyLarge)
+                            }
+                        },
+                        title = {
+                            Text(
+                                "Confirm Deletion",
+                                style = MaterialTheme.typography.displayLarge
+                            )
+                        },
+                        text = {
+                            Text(
+                                "Are you sure you want to delete the selected chats?",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     )
                 }
             }
-            if (showDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDialog = false },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                selectedChats.forEach { enemyId ->
-                                    viewModel.deleteChat(
-                                        enemyId,
-                                        context
-                                    )
-                                }
-                                isSelectionMode = false
-                                selectedChats.clear()
-                                showDialog = false
-                            }
-                        ) {
-                            Text("Yes", style = MaterialTheme.typography.bodyLarge)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDialog = false }) {
-                            Text("No", style = MaterialTheme.typography.bodyLarge)
-                        }
-                    },
-                    title = {
-                        Text(
-                            "Confirm Deletion",
-                            style = MaterialTheme.typography.displayLarge
-                        )
-                    },
-                    text = {
-                        Text(
-                            "Are you sure you want to delete the selected chats?",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
+        } else {
+            Box(modifier= Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+                Text(
+                    "You have no messages, yet. Click on the + icon to access your contacts",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.padding(16.dp)
                 )
             }
         }
@@ -252,7 +278,7 @@ fun ChatListScreen(
                         animationSpec = tween(durationMillis = 300)
                     ),
                     exit = slideOutVertically(
-                        targetOffsetY = { it }, // Slide out to the bottom
+                        targetOffsetY = { it },
                         animationSpec = tween(durationMillis = 300)
                     ) + scaleOut(
                         targetScale = 0.8f,
@@ -266,9 +292,13 @@ fun ChatListScreen(
                             .padding(bottom = 8.dp)
                             .animateContentSize()
                     ) {
-                        TextOption("Contacts", onClick = {navController.navigate("contactsScreen")})
+                        TextOption(
+                            "Contacts",
+                            onClick = { Screen.ContactsScreen.navigate(navController) })
 //                        TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
-                        TextOption("Assistant", onClick = {navController.navigate("messageScreen/1/Assistant")})
+                        TextOption(
+                            "Assistant",
+                            onClick = { Screen.MessageScreen.navigate(navController, 1) })
                     }
                 }
                 AddButton(
@@ -281,7 +311,7 @@ fun ChatListScreen(
                         .padding(25.dp)
                 )
             }
-            if (!isSelectionMode) {
+            if (!isSelectionMode && chats.isNotEmpty()) {
                 AddButton(
                     onClick = { isSearchVisible = !isSearchVisible; menuExpanded = false },
                     icon = Icons.Default.Search,
@@ -405,7 +435,7 @@ fun ChatItem(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(text = chat.contactName, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    if (chat.isVerified){
+                    if (chat.isVerified) {
                         VerifiedIcon(Modifier.align(Alignment.CenterVertically))
                     }
                 }
@@ -416,7 +446,13 @@ fun ChatItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 val lastTime = chat.lastMsgAddTime.toLongOrNull()
-                    ?.let { DateUtils.getRelativeTimeSpanString(it, System.currentTimeMillis(), DateUtils.SECOND_IN_MILLIS)}
+                    ?.let {
+                        DateUtils.getRelativeTimeSpanString(
+                            it,
+                            System.currentTimeMillis(),
+                            DateUtils.SECOND_IN_MILLIS
+                        )
+                    }
                 Text(text = lastTime.toString(), fontSize = 12.sp)
             }
             if (isSelectionMode) {

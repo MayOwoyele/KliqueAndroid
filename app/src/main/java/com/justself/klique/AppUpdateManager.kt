@@ -37,7 +37,7 @@ object AppUpdateManager {
                 val response =
                     NetworkUtils.makeRequest("fetchRequiredVersion", KliqueHttpMethod.GET, params)
                 if (response.first) {
-                    Log.d("Minumum version", response.second)
+                    Log.d("Minimum version", response.second)
                     val jsonObject = JSONObject(response.second)
                     val requiredVersion = jsonObject.getInt("minimumVersion")
                     val expirationDate = jsonObject.getString("expirationDate").toLong()

@@ -6,7 +6,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import android.support.annotation.RequiresApi
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
@@ -73,7 +72,6 @@ fun DmRoom(
     myId: Int,
     enemyId: Int,
     enemyName: String,
-    mediaViewModel: MediaViewModel,
     viewModel: DmRoomViewModel = viewModel(
         factory = DmRoomViewModelFactory(LocalContext.current.applicationContext as Application)
     )
@@ -145,7 +143,6 @@ fun DmRoom(
                 viewModel,
                 myId,
                 enemyId,
-                mediaViewModel,
                 enemyName
             )
         },
@@ -205,7 +202,6 @@ fun DmRoomContent(
     viewModel: DmRoomViewModel,
     myId: Int,
     enemyId: Int,
-    mediaViewModel: MediaViewModel,
     enemyName: String
 ) {
     val dmMessages by viewModel.dmMessages.collectAsState()
@@ -248,7 +244,6 @@ fun DmRoomContent(
                     message = message,
                     isCurrentUser = message.senderId == myId,
                     navController = navController,
-                    mediaViewModel = mediaViewModel,
                     enemyName = enemyName
                 )
             }
@@ -282,7 +277,6 @@ fun DmMessageItem(
     message: DmMessage,
     isCurrentUser: Boolean,
     navController: NavController,
-    mediaViewModel: MediaViewModel,
     enemyName: String
 ) {
     val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
@@ -325,7 +319,6 @@ fun DmMessageItem(
                         ChatRoomImageItem(
                             image = message.localPath,
                             shape = shape,
-                            mediaViewModel = mediaViewModel,
                             navController = navController
                         )
                     }

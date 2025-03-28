@@ -13,11 +13,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableFloatStateOf
@@ -31,19 +31,21 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 
 @Composable
-fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
-    val bitmap by viewModel.bitmap.observeAsState()
+fun FullScreenImage(navController: NavController) {
+    val bitmap by MediaVM.bitmap.observeAsState()
     val scale = remember { mutableFloatStateOf(1f) }
     val offsetX = remember { mutableFloatStateOf(0f) }
     val offsetY = remember { mutableFloatStateOf(0f) }
     val doubleTapScale = 2f
-    val showBackArrow = remember { mutableStateOf(true) }  // State to track back arrow visibility
+    val showBackArrow = remember { mutableStateOf(true) }
     BackHandler {
-        viewModel.clearBitmap()
+        MediaVM.clearBitmap()
         navController.popBackStack()
+    }
+    LaunchedEffect(Unit) {
+        Log.d("FullScreenImage", "Launched effect triggered: ${bitmap != null}")
     }
 
     bitmap?.let {
@@ -167,7 +169,7 @@ fun FullScreenImage(viewModel: MediaViewModel, navController: NavController) {
                     IconButton(
                         onClick = {
                             navController.popBackStack()
-                            viewModel.clearBitmap()},
+                            MediaVM.clearBitmap()},
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,

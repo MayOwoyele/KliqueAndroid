@@ -67,14 +67,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 @Composable
-fun StatusAudio(viewModel: MediaViewModel, navController: NavController) {
+fun StatusAudio(navController: NavController) {
     val context = LocalContext.current
     var isRecording by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     var permissionsGranted by remember { mutableStateOf(false) }
     var audioUri by remember { mutableStateOf<Uri?>(null) }
     var recordingDuration by remember { mutableIntStateOf(0) }
-    val audioStatus by viewModel.audioStatusSubmissionResult.collectAsState()
+    val audioStatus by MediaVM.audioStatusSubmissionResult.collectAsState()
     LaunchedEffect(audioStatus) {
         audioStatus?.let {statusSent ->
             if (statusSent) {
@@ -232,7 +232,7 @@ fun StatusAudio(viewModel: MediaViewModel, navController: NavController) {
                         )
                         .clickable {
                             audioUri?.let { uri ->
-                                viewModel.uploadAudioFile(context, uri)
+                                MediaVM.uploadAudioFile(context, uri)
                             }
                         }
                         .padding(16.dp)) {
@@ -322,12 +322,12 @@ fun CustomAudioPlayer(audioUri: Uri) {
 }
 
 @Composable
-fun StatusText(viewModel: MediaViewModel, navController: NavController, customerId: Int) {
+fun StatusText(navController: NavController, customerId: Int) {
     val context = LocalContext.current
     var textState by remember { mutableStateOf(TextFieldValue("")) }
     val charLimit = 100
     var showConfirmationDialog by remember { mutableStateOf(false) }
-    val submissionResult by viewModel.textStatusSubmissionResult.collectAsState()
+    val submissionResult by MediaVM.textStatusSubmissionResult.collectAsState()
 
     LaunchedEffect(submissionResult) {
         submissionResult?.let { success ->
@@ -336,7 +336,7 @@ fun StatusText(viewModel: MediaViewModel, navController: NavController, customer
             } else {
                 Toast.makeText(context, "Failed to send status. Try again.", Toast.LENGTH_SHORT).show()
             }
-            viewModel.resetSubmissionResult()
+            MediaVM.resetSubmissionResult()
         }
     }
 
@@ -431,7 +431,7 @@ fun StatusText(viewModel: MediaViewModel, navController: NavController, customer
     if (showConfirmationDialog) {
         AlertDialog(onDismissRequest = { showConfirmationDialog = false }, confirmButton = {
             TextButton(onClick = {
-                viewModel.sendTextStatus(textState.text, customerId)
+                MediaVM.sendTextStatus(textState.text, customerId)
                 showConfirmationDialog = false
                 navController.popBackStack()
             }) {

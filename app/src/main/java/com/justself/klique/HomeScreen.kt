@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +32,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,8 +57,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -70,6 +67,7 @@ import com.justself.klique.ContactsBlock.Contacts.ui.CheckContactsPermission
 import com.justself.klique.ContactsBlock.Contacts.ui.ContactsViewModel
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.gists.ui.GistScreen
+import com.justself.klique.gists.ui.viewModel.CliqueViewModelNavigator
 import com.justself.klique.sharedUi.AddButton
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.delay
@@ -87,10 +85,10 @@ fun HomeScreen(
     onNavigateToTrimScreen: (String) -> Unit,
     navController: NavController,
     resetSelectedEmoji: () -> Unit,
-    mediaViewModel: MediaViewModel,
     emojiPickerHeight: (Dp) -> Unit,
     chatScreenViewModel: ChatScreenViewModel,
-    onDisplayTextChange: (String, Int) -> Unit
+    onDisplayTextChange: (String, Int) -> Unit,
+    gistId: String?
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -98,31 +96,25 @@ fun HomeScreen(
     val gistCreationError by viewModel.gistCreationError.observeAsState()
     val gistState by viewModel.gistCreatedOrJoined.observeAsState()
     val gistActive = gistState != null
-    val buttonPosition = remember { mutableStateOf(Offset.Zero) }
-    val enterTransition: EnterTransition = slideIn(
-        initialOffset = {
-            IntOffset(buttonPosition.value.x.roundToInt(), buttonPosition.value.y.roundToInt())
-        },
-        animationSpec = tween(durationMillis = 300)
-    ) + scaleIn(
-        initialScale = 0.3f,
-        animationSpec = tween(durationMillis = 300)
-    )
-    val exitTransition: ExitTransition = slideOut(
-        targetOffset = {
-            IntOffset(buttonPosition.value.x.roundToInt(), buttonPosition.value.y.roundToInt())
-        },
-        animationSpec = tween(durationMillis = 300)
-    ) + scaleOut(
-        targetScale = 0.3f,
-        animationSpec = tween(durationMillis = 300)
-    )
 
     gistCreationError?.let { error ->
         ErrorDialog(
             errorMessage = error,
             onDismiss = { viewModel.clearGistCreationError() }
         )
+    }
+    LaunchedEffect(Unit) {
+        if (CliqueViewModelNavigator.toActivate){
+            viewModel.createAltGistAndNotify(CliqueViewModelNavigator.post!!,
+                CliqueViewModelNavigator.type!!,
+                CliqueViewModelNavigator.enemyId!!,
+                CliqueViewModelNavigator.inviteId!!)
+            CliqueViewModelNavigator.clearNavigator()
+        }
+        if (gistId != null) {
+            Log.d("GistId", "The gist id is $gistId")
+            viewModel.joinGist(gistId)
+        }
     }
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -139,7 +131,6 @@ fun HomeScreen(
                 onNavigateToTrimScreen = onNavigateToTrimScreen,
                 navController = navController,
                 resetSelectedEmoji = resetSelectedEmoji,
-                mediaViewModel = mediaViewModel,
                 emojiPickerHeight = emojiPickerHeight,
                 chatScreenViewModel = chatScreenViewModel,
                 onDisplayTextChange = onDisplayTextChange
@@ -155,10 +146,6 @@ fun HomeScreen(
                     ),
             ) {
                 GistScreen(
-                    modifier = Modifier
-                        .padding(top = 15.dp)
-                        .padding(horizontal = 16.dp)
-                        .fillMaxSize(),
                     customerId = customerId,
                     viewModel = viewModel,
                     navController
@@ -222,14 +209,12 @@ fun GistForm(
             contactViewModel.updateContactFromHomeScreen(appContext)
         }
     )
-
     if (!hasContactsPermission) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Contacts permission is required.")
         }
         return
     }
-    var post by remember { mutableStateOf(TextFieldValue("")) }
     var selectedType by remember { mutableStateOf(GistType.Public) }
     val minPostLength = 5
     val maxPostLength = 120
@@ -260,6 +245,7 @@ fun GistForm(
         WebSocketManager.isGistFormVisible = true
         onDispose {
             WebSocketManager.isGistFormVisible = false
+            viewModel.unsubscribeToGfUpdates()
         }
     }
 
@@ -291,14 +277,10 @@ fun GistForm(
         Spacer(modifier = Modifier.height(16.dp))
 
         OutlinedTextField(
-            value = post,
+            value = viewModel.post,
             onValueChange = { newText ->
-                if (newText.text.length <= maxPostLength) {
-                    post = newText
-                    showPostError = newText.text.length < minPostLength
-                } else {
-                    showPostError = true
-                }
+                viewModel.onPostChange(newText)
+                showPostError = newText.text.length < minPostLength
             },
             label = { Text("What's on your mind?", color = MaterialTheme.colorScheme.onPrimary) },
             colors = OutlinedTextFieldDefaults.colors(
@@ -307,6 +289,7 @@ fun GistForm(
                 focusedTextColor = MaterialTheme.colorScheme.onPrimary
             )
         )
+
 
         Spacer(modifier = Modifier.height(16.dp))
         Spacer(modifier = Modifier.height(8.dp))
@@ -427,11 +410,11 @@ fun GistForm(
 
         Button(
             onClick = {
-                val isPostValid = post.text.length in minPostLength..maxPostLength
+                val isPostValid = viewModel.post.text.length in minPostLength..maxPostLength
                 val isUserSelectionValid = selectedUserIds.isNotEmpty()
                 if (isPostValid && isUserSelectionValid) {
                     showPostError = false
-                    onSubmit(post.text, selectedType.value, selectedUserIds.toList(), selectedType)
+                    onSubmit(viewModel.post.text, selectedType.value, selectedUserIds.toList(), selectedType)
                 } else {
                     showPostError = true
                 }
@@ -488,4 +471,3 @@ enum class GistType(val value: String) {
     Public("public"),
     Private("private")
 }
-data class User(val userId: Int, val name: String)

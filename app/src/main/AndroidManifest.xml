@@ -20,13 +20,6 @@
     <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
     <uses-permission android:name="android.permission.ACCESS_ADSERVICES_AD_ID" tools:node="remove" />
 
-<!--    <supports-screens-->
-<!--        android:smallScreens="true"-->
-<!--        android:normalScreens="true"-->
-<!--        android:largeScreens="true"-->
-<!--        android:xlargeScreens="false"-->
-<!--        android:anyDensity="true" />-->
-
     <application
         android:name=".MyKliqueApp"
         android:allowBackup="false"
@@ -54,7 +47,7 @@
                 android:value="default_channel"/>
         </provider>
         <service
-            android:name=".FirebaseMessagingService"
+            android:name=".KliqueFirebaseMessagingService"
             android:permission="com.justself.klique.permission.FCM_MESSAGE"
             android:exported="true">
             <intent-filter>
@@ -69,6 +62,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kliqueklique" />
             </intent-filter>
         </activity>
 

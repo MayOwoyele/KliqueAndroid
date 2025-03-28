@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Message
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Wallet
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -82,7 +83,6 @@ fun LeftDrawer(
         }
     }
     val profileDetails by viewModel.tinyProfileDetails.collectAsState()
-    var isChatRoomsExpanded by remember { mutableStateOf(false) }
     AnimatedVisibility(
         visible = drawerState.value,
         enter = slideInHorizontally { -it } + fadeIn(),
@@ -155,24 +155,8 @@ fun LeftDrawer(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = { Icon(Icons.Rounded.Person, contentDescription = "Me") },
                     text = "Me",
-                    onClick = {navController.navigate("BioScreen/$customerId"); drawerState.value = false}
+                    onClick = {Screen.BioScreen.navigate(navController, customerId); drawerState.value = false}
                 )
-//                LeftDrawerItem(
-//                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
-//                    leading = {
-//                        Icon(
-//                            Icons.Rounded.MarkChatUnread,
-//                            contentDescription = "Klique"
-//                        )
-//                    },
-//                    text = "Clique",
-//                    onClick = { isChatRoomsExpanded = !isChatRoomsExpanded }
-//                )
-//                if (isChatRoomsExpanded) {
-//                    ExpandableChatroomOptions(
-//                        navController,
-//                        onDeExpansion = { drawerState.value = false })
-//                }
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
                     leading = {
@@ -184,6 +168,15 @@ fun LeftDrawer(
                     text = "Shots",
                     onClick = {
                         navController.navigate("dmList")
+                        drawerState.value = false
+                    }
+                )
+                LeftDrawerItem(
+                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                    leading = { Icon(Icons.Rounded.Star, contentDescription = "Top Gists") },
+                    text = "Top Gists",
+                    onClick = {
+                        Screen.TopGists.navigate(navController)
                         drawerState.value = false
                     }
                 )

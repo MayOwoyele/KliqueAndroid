@@ -22,9 +22,9 @@ class LeftDrawerViewModel : ViewModel() {
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
-                val response: suspend() -> jwtHandle =
+                val response: suspend() -> networkTriple =
                     { NetworkUtils.makeJwtRequest("fetchUserDetails", KliqueHttpMethod.GET, params) }
-                val action: suspend( jwtHandle) -> Unit = {triple ->
+                val action: suspend(networkTriple) -> Unit = { triple ->
                     val jsonObject = JSONObject(triple.second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
@@ -40,7 +40,7 @@ class LeftDrawerViewModel : ViewModel() {
                     }
                     Log.d("LeftViewModel", _tinyProfileDetails.value.toString())
                 }
-                val error: suspend (jwtHandle) -> Unit = {}
+                val error: suspend (networkTriple) -> Unit = {}
                 JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
             } catch (e: Exception) {
                 Log.d("LeftViewModel", "${e}")
@@ -48,4 +48,4 @@ class LeftDrawerViewModel : ViewModel() {
         }
     }
 }
-typealias jwtHandle = Triple<Boolean, String, Int>
+typealias networkTriple = Triple<Boolean, String, Int>

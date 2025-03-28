@@ -39,6 +39,8 @@ mobile-ffmpeg = "4.4"
 libphonenumber = "8.12.38"
 exoplayer = "2.19.1"
 coreKtxVersion = "1.6.1"
+media3Exoplayer = "1.5.1"
+media3Ui = "1.5.1"
 
 
 
@@ -110,6 +112,8 @@ exoplayer-core = { module = "com.google.android.exoplayer:exoplayer-core", versi
 exoplayer-ui = { module = "com.google.android.exoplayer:exoplayer-ui", version.ref = "exoplayer" }
 firebase-messaging = {module = "com.google.firebase:firebase-messaging"}
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3Exoplayer" }
+androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3Ui" }
 
 
 

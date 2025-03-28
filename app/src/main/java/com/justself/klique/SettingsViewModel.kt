@@ -8,7 +8,7 @@ import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
 import com.justself.klique.WebSocketManager
-import com.justself.klique.jwtHandle
+import com.justself.klique.networkTriple
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -34,10 +34,10 @@ class SettingsViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val jsonObject = JSONObject().put("userId", SessionManager.customerId.value).toString()
-                val response: suspend () -> jwtHandle = {
+                val response: suspend () -> networkTriple = {
                     NetworkUtils.makeJwtRequest("deleteMyAccount", KliqueHttpMethod.POST, emptyMap(), jsonObject)
                 }
-                val action: suspend (jwtHandle) -> Unit = {
+                val action: suspend (networkTriple) -> Unit = {
                     if (it.first) {
                         Toast.makeText(appContext, "Successfully deleted your account", Toast.LENGTH_LONG).show()
                         SessionManager.resetCustomerData()
@@ -46,7 +46,7 @@ class SettingsViewModel : ViewModel() {
                         Toast.makeText(appContext, "Temporary issues with deleting your account", Toast.LENGTH_LONG).show()
                     }
                 }
-                val error: suspend (jwtHandle) -> Unit = {
+                val error: suspend (networkTriple) -> Unit = {
                     onFailure("Unknown error occurred")
                 }
                 JWTNetworkCaller.performReusableNetworkCalls(response, action, error)

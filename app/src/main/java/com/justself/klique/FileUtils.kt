@@ -79,7 +79,7 @@ object FileUtils {
             saveToInternalStorage(context, data, fileName, mediaType)
         }
     }
-    fun saveToInternalStorage(
+    private fun saveToInternalStorage(
         context: Context,
         data: ByteArray,
         fileName: String,
@@ -124,7 +124,7 @@ object FileUtils {
             saveToInternalStorage(context, data, fileName, MediaType.AUDIO)
         }
     }
-    fun saveToPublicDirectory(
+    private fun saveToPublicDirectory(
         context: Context,
         data: ByteArray,
         fileName: String,

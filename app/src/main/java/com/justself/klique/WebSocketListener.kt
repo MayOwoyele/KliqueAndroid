@@ -38,6 +38,7 @@ enum class PrivateChatReceivingType(val type: String) {
     P_AUDIO("PAudio"),
     P_VIDEO("PVideo"),
     P_GIST_INVITE("PGistInvite"),
+    P_GIST_CREATION("PGistCreation"),
     P_PROFILE_UPDATE("PProfileUpdate")
 }
 enum class ChatRoomReceivingType(val type: String){
