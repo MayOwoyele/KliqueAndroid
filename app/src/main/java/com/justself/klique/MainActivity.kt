@@ -17,13 +17,14 @@ import androidx.core.content.ContextCompat
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
+import androidx.fragment.app.FragmentActivity
 import androidx.navigation.compose.rememberNavController
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
 
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(

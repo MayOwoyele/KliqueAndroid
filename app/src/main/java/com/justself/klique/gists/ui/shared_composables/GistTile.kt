@@ -41,9 +41,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.center
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -51,8 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.rememberAsyncImagePainter
+import com.justself.klique.GistType
 import com.justself.klique.MyKliqueApp.Companion.appContext
+import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
+import com.justself.klique.gists.data.models.GistModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
@@ -64,16 +74,14 @@ import kotlin.math.min
 @Composable
 fun GistTile(
     customerId: Int,
-    title: String,
-    description: String,
-    image: String?,
-    activeSpectators: Int,
     onTap: () -> Unit,
     onHoldClick: (() -> Unit)? = null,
     lastPostList: List<LastGistComments>,
     postImage: String?,
-    postVideo: String?
+    postVideo: String?,
+    gist: GistModel
 ) {
+    val image = gist.image?.let { NetworkUtils.fixLocalHostUrl(it) }
     val frameBitmaps = remember { mutableStateListOf<ImageBitmap>() }
     var currentFrameIndex by remember { mutableIntStateOf(0) }
     val isCacheReady = remember { mutableStateOf(false) }
@@ -197,6 +205,8 @@ fun GistTile(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
                 )
+            } else {
+                EmptyBackground()
             }
         } else if (!postImage.isNullOrEmpty()) {
             val formattedPath =
@@ -209,16 +219,29 @@ fun GistTile(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-            )
+            EmptyBackground()
         }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background.copy(alpha = if (postImage != null) animatedAlpha else 0f))
+        )
+        val primaryColor = MaterialTheme.colorScheme.primary
+        val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
+        val highlightWidth = 0.1f
+        val animatedHighlight by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f - highlightWidth,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 2000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            )
+        )
+        val gradientStops: Array<out Pair<Float, Color>> = arrayOf(
+            0f to onPrimaryColor,
+            animatedHighlight to onPrimaryColor,
+            (animatedHighlight + highlightWidth) to primaryColor,
+            1f to onPrimaryColor
         )
         Surface(
             modifier = Modifier
@@ -233,7 +256,22 @@ fun GistTile(
                         }
                     )
                 }
-                .border(1.dp, MaterialTheme.colorScheme.onPrimary, roundedCornerShape)
+                .drawBehind {
+                    val strokeWidthPx = 3.dp.toPx()
+                    val halfStroke = strokeWidthPx / 2
+                    val adjustedSize = Size(size.width - strokeWidthPx, size.height - strokeWidthPx)
+
+                    drawRoundRect(
+                        brush = Brush.sweepGradient(
+                            *gradientStops,
+                            center = size.center
+                        ),
+                        size = adjustedSize,
+                        style = Stroke(width = strokeWidthPx),
+                        topLeft = Offset(halfStroke, halfStroke),
+                        cornerRadius = CornerRadius(20.dp.toPx(), 20.dp.toPx())
+                    )
+                }
                 .clip(roundedCornerShape),
             color = Color.Transparent
         ) {
@@ -260,23 +298,32 @@ fun GistTile(
                         }
                     }
                     Column {
+//                        Text(
+//                            text = gist.topic,
+//                            style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp),
+//                            maxLines = 2,
+//                            overflow = TextOverflow.Ellipsis
+//                        )
                         Text(
-                            text = title,
-                            style = MaterialTheme.typography.displayLarge.copy(fontSize = 17.sp),
-                            maxLines = 2,
+                            text = gist.description,
+                            style = MaterialTheme.typography.displayLarge,
+                            maxLines = 5,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "Active Spectators: $activeSpectators",
+                            text = "Active Spectators: ${gist.activeSpectators}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
+                        if (gist.gistType == GistType.Private){
+                            Box(Modifier.border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(5.dp)).padding(5.dp)){
+                                Text(
+                                    text = "News",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
                     }
                 }
                 Column(
@@ -337,7 +384,14 @@ fun GistTile(
         }
     }
 }
-
+@Composable
+fun EmptyBackground() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    )
+}
 data class LastGistComments(
     val senderName: String,
     val comment: String,

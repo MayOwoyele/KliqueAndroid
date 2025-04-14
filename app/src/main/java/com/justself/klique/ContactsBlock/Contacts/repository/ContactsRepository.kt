@@ -29,7 +29,6 @@ import java.util.Locale
 import kotlin.random.Random
 
 
-//Our repository class for managing and fetching of data from the content provider
 class ContactsRepository(private val contentResolver: ContentResolver, context: Context) {
     private val database: ContactsDatabase = DatabaseProvider.getContactsDatabase(context)
     private val phoneUtil = PhoneNumberUtil.getInstance()

@@ -1,43 +1,35 @@
 package com.justself.klique.Authentication.ui.viewModels
 
-import android.app.Application
-import android.content.Context
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import androidx.room.util.appendPlaceholders
-import com.justself.klique.AppUpdateManager
-import com.justself.klique.AppUpdateManager.getRequiredVersion
 import com.justself.klique.AppUpdateManager.isUpdateRequired
 import com.justself.klique.AppUpdateManager.updateDismissedFlow
 import com.justself.klique.Authentication.ui.screens.Gender
 import com.justself.klique.JWTNetworkCaller
-import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.MyKliqueApp.Companion.appContext
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import org.json.JSONObject
-import java.io.IOException
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
 import com.justself.klique.SessionManager.customerId
+import com.justself.klique.SessionManager.saveCountryToSharedPreferences
 import com.justself.klique.SessionManager.saveCustomerIdToSharedPreferences
 import com.justself.klique.SessionManager.saveNameToSharedPreferences
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import org.json.JSONException
+import org.json.JSONObject
+import java.io.IOException
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Calendar
-import com.justself.klique.BuildConfig
-import com.justself.klique.SessionManager.saveCountryToSharedPreferences
 
 
 enum class RegistrationStep {
@@ -300,8 +292,10 @@ class AuthViewModel : ViewModel() {
         name.value?.let { completeRegistrationData.put("name", it) }
         gender.value?.let { completeRegistrationData.put("gender", it) }
         birthday.value?.let {
-            val formattedBirthday = "${it.first}-${it.second}-${it.third}"
-            completeRegistrationData.put("birthday", formattedBirthday)
+            val (day, month, year) = birthday.value ?: Triple(1, 1, 1970)
+            val date = LocalDate.of(year, month, day)
+            val formatted = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+            completeRegistrationData.put("birthday", formatted)
         }
         completeRegistrationData.put("platform", "android")
         country.value?.let { completeRegistrationData.put("country", it) }

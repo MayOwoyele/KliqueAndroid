@@ -100,11 +100,17 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
             }
             "gist" -> {
                 val gistId = data["gistId"]
-                if (!gistId.isNullOrBlank()) {
-                    Uri.parse("kliqueklique://home?gistId=${gistId}")
+                val commentId = data["commentId"]
+                val uriString = if (!gistId.isNullOrBlank()) {
+                    if (!commentId.isNullOrBlank()) {
+                        "kliqueklique://home?gistId=${gistId}&commentId=${commentId}"
+                    } else {
+                        "kliqueklique://home?gistId=${gistId}"
+                    }
                 } else {
-                    Uri.parse("kliqueklique://home")
+                    "kliqueklique://home"
                 }
+                Uri.parse(uriString)
             }
             "shot" -> {
                 val theEnemyId = data["enemyId"]?.toIntOrNull() ?: 0

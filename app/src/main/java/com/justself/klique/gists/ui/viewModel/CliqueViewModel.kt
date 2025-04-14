@@ -20,6 +20,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
+import com.justself.klique.BinaryBufferObject
+import com.justself.klique.BufferObject
 import com.justself.klique.ChatScreenViewModel
 import com.justself.klique.ContactDao
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
@@ -34,6 +36,7 @@ import com.justself.klique.GistStateEntity
 import com.justself.klique.GistTopRow
 import com.justself.klique.GistType
 import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
+import com.justself.klique.WsDataType
 import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.ListenerIdEnum
 import com.justself.klique.Members
@@ -55,6 +58,7 @@ import com.justself.klique.gists.ui.GistUiState
 import com.justself.klique.gists.ui.shared_composables.LastGistComments
 import com.justself.klique.networkTriple
 import com.justself.klique.toContact
+import com.justself.klique.toNetworkTriple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -109,6 +113,8 @@ class SharedCliqueViewModel(
 
     private val _users = MutableStateFlow<Map<Int, UserInfo>>(emptyMap())
     val users: StateFlow<Map<Int, UserInfo>> = _users
+    private val _topGists = MutableStateFlow<List<GistModel>>(emptyList())
+    val topGists: StateFlow<List<GistModel>> = _topGists
 
     private val _listOfContactMembers = MutableStateFlow<List<Members>>(emptyList())
     private val _listOfNonContactMembers = MutableStateFlow<List<Members>>(emptyList())
@@ -144,6 +150,7 @@ class SharedCliqueViewModel(
 
     init {
         WebSocketManager.registerListener(this)
+        WebSocketManager.setSharedCliqueViewModel(this)
         viewModelScope.launch {
             restoreGistState()
         }
@@ -188,41 +195,20 @@ class SharedCliqueViewModel(
             "type": "requestRefreshGistAndPreviousMessages",
             "gistId": "$gistId"
             }""".trimMargin()
-        send(message)
+        send(BufferObject(message = message))
     }
 
     fun clearMessage() {
         _gistMessage.value = TextFieldValue("")
     }
 
-    fun fetchMyGists(customerId: Int) {
-        viewModelScope.launch {
-            try {
-                val endpoint = "gists/my"
-                val method = KliqueHttpMethod.GET
-                val params = mapOf("userId" to customerId.toString())
-
-                val response = NetworkUtils.makeRequest(
-                    endpoint = endpoint,
-                    method = method,
-                    params = params
-                ).second
-                val gists = parseGistsFromResponse(response)
-                _uiState.value = _uiState.value.copy(
-                    interactions = gists
-                )
-            } catch (e: Exception) {
-                Log.e("fetchGists", "Exception is $e")
-            }
-        }
-    }
 
     fun fetchInteractions(customerId: Int) {
         viewModelScope.launch {
             try {
                 val endpoint = "interactedGists"
                 val method = KliqueHttpMethod.GET
-                val params = mapOf("userId" to customerId.toString())
+                val params = mapOf("userId" to customerId.toString(), "sendLong" to true.toString())
 
                 val response = NetworkUtils.makeRequest(
                     endpoint = endpoint,
@@ -244,7 +230,7 @@ class SharedCliqueViewModel(
             try {
                 val endpoint = "gists/trending"
                 val method = KliqueHttpMethod.GET
-                val params = mapOf("userId" to customerId.toString())
+                val params = mapOf("userId" to customerId.toString(), "sendLong" to true.toString())
 
                 val response = NetworkUtils.makeRequest(
                     endpoint = endpoint,
@@ -280,24 +266,31 @@ class SharedCliqueViewModel(
             put("type", "askForHomeOnlineContacts")
             put("contacts", listOfInt)
         }
-        send(theJson.toString(), saveToBuffer = true)
+        send(BufferObject(WsDataType.HomeOnlineContacts, theJson.toString()))
     }
 
     fun unsubscribeToGfUpdates() {
         val theJson = JSONObject().apply {
             put("type", "unsubscribeToGFUpdates")
         }
-        send(theJson.toString())
+        send(BufferObject(WsDataType.GistFormUnsubscription, theJson.toString()))
     }
 
     fun enterGist(gistId: String) {
-        val enterGistId = """
-            {
-            "type": "enterGist",
-            "gistId": "$gistId"
+        viewModelScope.launch(Dispatchers.IO) {
+            val json = JSONObject().put("gistId", gistId)
+            val action: suspend (NetworkUtils.JwtTriple) -> Unit = { it ->
+                val jsonObject = JSONObject(it.toNetworkTriple().second)
+                processNewGist(jsonObject, callRefresh = { requestRefreshGistAndPreviousMessages(it) })
             }
-        """.trimIndent()
-        send(enterGistId, true)
+            val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = {
+                Log.e("EnterGist", "Error is ${it.toNetworkTriple().second}, error code ${it.toNetworkTriple().third}")
+            }
+            NetworkUtils.makeJwtRequest(
+                "enterGist", KliqueHttpMethod.POST,
+                emptyMap(), json.toString(), action = action, errorAction = errorAction
+            )
+        }
     }
 
     fun exitGist() {
@@ -307,11 +300,8 @@ class SharedCliqueViewModel(
             "gistId": "$gistId"
             }
         """.trimIndent()
-        send(exitGistId, true)
+        send(BufferObject(message = exitGistId), true)
     }
-
-    // remember to handle the websocket receipt message
-    // use this to update _searchResults state variable
     fun doTheSearch(searchQuery: String) {
         val allMembers = _listOfContactMembers.value + _listOfNonContactMembers.value
         val filteredMembers = allMembers.filter {
@@ -329,7 +319,7 @@ class SharedCliqueViewModel(
         val messageJson = """{
             "type": "unsubscribeToMembersUpdate"
             }""".trimMargin()
-        send(messageJson)
+        send(BufferObject(WsDataType.UnsubscribeForGistSetting, messageJson))
     }
 
     fun generateUUIDString(): String {
@@ -719,7 +709,7 @@ class SharedCliqueViewModel(
         outputStream.write(data)
 
         val combinedBytes = outputStream.toByteArray()
-        WebSocketManager.sendBinary(combinedBytes)
+        WebSocketManager.sendBinary(BinaryBufferObject(WsDataType.GistRoomChat, combinedBytes))
         updateGistTimestamp()
 
         Log.d(
@@ -776,26 +766,23 @@ class SharedCliqueViewModel(
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             var shouldReturn = false
-            val response: suspend () -> networkTriple = {
-                val query = mapOf("userId" to SessionManager.customerId.value.toString())
-                NetworkUtils.makeJwtRequest(
-                    "checkIfUserGistEligible", KliqueHttpMethod.GET, query
-                )
-            }
-            val action: suspend (networkTriple) -> Unit = {}
-            val errorAction: suspend (networkTriple) -> Unit = { result ->
-                if (result.third == 422) {
-                    val errorMessage = JSONObject(result.second).getString("error")
+            val action: suspend (NetworkUtils.JwtTriple) -> Unit = {}
+            val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+                if (result.toNetworkTriple().third == 422) {
+                    val errorMessage = JSONObject(result.toNetworkTriple().second).getString("error")
                     _gistCreationError.postValue(errorMessage)
-                    shouldReturn = true
                 }
+                shouldReturn = true
             }
-            performReusableNetworkCalls(response, action, errorAction)
+            val query = mapOf("userId" to SessionManager.customerId.value.toString())
+            NetworkUtils.makeJwtRequest(
+                "checkIfUserGistEligible", KliqueHttpMethod.GET, query, action = action, errorAction = errorAction
+            )
             if (shouldReturn) {
                 return@launch
             }
-            val inviteId = generateUUIDString()
             if (selectedType == GistType.Public) {
+                val inviteId = generateUUIDString()
                 sendGistCreator(chatVM, inviteId, listOfUsers, post)
             } else if (selectedType == GistType.Private) {
                 createGistAndNotify(post, type, chatVM, listOfUsers)
@@ -835,14 +822,8 @@ class SharedCliqueViewModel(
             var generatedGistId = ""
             var topic = ""
             try {
-                val response: suspend () -> networkTriple = {
-                    NetworkUtils.makeJwtRequest(
-                        "createGist", KliqueHttpMethod.POST, emptyMap(),
-                        json.toString()
-                    )
-                }
-                val action: suspend (networkTriple) -> Unit = { result ->
-                    val jsonObject = JSONObject(result.second)
+                val action: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+                    val jsonObject = JSONObject(result.toNetworkTriple().second)
                     val refreshCall = { gistId: String ->
                         requestRefreshGistAndPreviousMessages(gistId)
                         generatedGistId = gistId
@@ -850,11 +831,11 @@ class SharedCliqueViewModel(
                     }
                     processNewGist(jsonObject, refreshCall)
                 }
-                val errorAction: suspend (networkTriple) -> Unit = { result ->
-                    when (result.third) {
+                val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+                    when (result.toNetworkTriple().third) {
                         409 -> {
                             withContext(Dispatchers.Main) {
-                                val receivedJson = JSONObject(result.second).getString("message")
+                                val receivedJson = JSONObject(result.toNetworkTriple().second).getString("message")
                                 _gistCreationError.value = receivedJson
                             }
                         }
@@ -863,14 +844,17 @@ class SharedCliqueViewModel(
                             withContext(Dispatchers.Main) {
                                 Log.d(
                                     "GistCreationError",
-                                    "Error: ${result.third}, ${result.second}"
+                                    "Error: ${result.toNetworkTriple().third}, ${result.toNetworkTriple().second}"
                                 )
                                 _gistCreationError.value = "Unknown error, perhaps network?"
                             }
                         }
                     }
                 }
-                performReusableNetworkCalls(response, action, errorAction)
+                NetworkUtils.makeJwtRequest(
+                    "createGist", KliqueHttpMethod.POST, emptyMap(),
+                    json.toString(), action = action, errorAction = errorAction
+                )
                 if (generatedGistId.isNotEmpty()) {
                     for (enemyId in listOfUsers) {
                         vm.sendGistInvite(
@@ -889,6 +873,7 @@ class SharedCliqueViewModel(
             }
         }
     }
+
     fun setGistBackground(messageId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val jsonBody = JSONObject().apply {
@@ -896,23 +881,21 @@ class SharedCliqueViewModel(
                 put("gistId", gistTopRow.value?.gistId)
             }
 
-            val response: suspend () -> networkTriple = {
-                NetworkUtils.makeJwtRequest("setGistBackground", KliqueHttpMethod.POST, emptyMap(),
-                    jsonBody.toString()
-                )
-            }
-            val action: suspend (networkTriple) -> Unit = {
-                withContext(Dispatchers.Main){
+            val action: suspend (NetworkUtils.JwtTriple) -> Unit = {
+                withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "Background set", Toast.LENGTH_SHORT).show()
                 }
             }
-            val errorAction: suspend (networkTriple) -> Unit = {
+            val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(appContext, "Error setting background", Toast.LENGTH_SHORT)
                         .show()
                 }
             }
-            performReusableNetworkCalls(response, action, errorAction)
+            NetworkUtils.makeJwtRequest(
+                "setGistBackground", KliqueHttpMethod.POST, emptyMap(),
+                jsonBody.toString(), action = action, errorAction = errorAction
+            )
         }
     }
 
@@ -930,40 +913,36 @@ class SharedCliqueViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response: suspend () -> networkTriple = {
-                    NetworkUtils.makeJwtRequest(
-                        "createAltGist", KliqueHttpMethod.POST, emptyMap(),
-                        json.toString()
-                    )
-                }
-                val action: suspend (networkTriple) -> Unit = { result ->
-                    val jsonObject = JSONObject(result.second)
+                val action: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+                    val jsonObject = JSONObject(result.toNetworkTriple().second)
                     val refreshCall = { gistId: String ->
                         requestRefreshGistAndPreviousMessages(gistId)
                     }
                     processNewGist(jsonObject, refreshCall)
                 }
-                val errorAction: suspend (networkTriple) -> Unit = { result ->
-                    when (result.third) {
+                val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+                    when (result.toNetworkTriple().third) {
                         409 -> {
                             withContext(Dispatchers.Main) {
-                                val receivedJson = JSONObject(result.second).getString("message")
+                                val receivedJson = JSONObject(result.toNetworkTriple().second).getString("message")
                                 _gistCreationError.value = receivedJson
                             }
                         }
-
                         else -> {
                             withContext(Dispatchers.Main) {
                                 Log.d(
                                     "GistCreationError",
-                                    "Error: ${result.third}, ${result.second}"
+                                    "Error: ${result.toNetworkTriple().third}, ${result.toNetworkTriple().second}"
                                 )
                                 _gistCreationError.value = "Unknown error, perhaps network?"
                             }
                         }
                     }
                 }
-                performReusableNetworkCalls(response, action, errorAction)
+                NetworkUtils.makeJwtRequest(
+                    "createAltGist", KliqueHttpMethod.POST, emptyMap(),
+                    json.toString(), action = action, errorAction = errorAction
+                )
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     Log.d("GistCreationError", "Error: ${e.message}")
@@ -974,26 +953,23 @@ class SharedCliqueViewModel(
     }
 
     suspend fun joinGist(gistId: String) {
-        val response: suspend () -> networkTriple = {
-            val jsonBody = """{"gistId": "$gistId"}"""
-            NetworkUtils.makeJwtRequest(
-                "joinGist", KliqueHttpMethod.POST, emptyMap(),
-                jsonBody
-            )
-        }
-        val action: suspend (networkTriple) -> Unit = { result ->
-            val jsonObject = JSONObject(result.second)
+        val action: suspend (NetworkUtils.JwtTriple) -> Unit = { result ->
+            val jsonObject = JSONObject(result.toNetworkTriple().second)
             val refreshCall = { gistId: String ->
                 requestRefreshGistAndPreviousMessages(gistId)
             }
             processNewGist(jsonObject, refreshCall)
         }
-        val errorAction: suspend (networkTriple) -> Unit = {
+        val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = {
             withContext(Dispatchers.Main) {
                 _gistCreationError.value = "Unknown error, perhaps network?"
             }
         }
-        performReusableNetworkCalls(response, action, errorAction)
+        val jsonBody = """{"gistId": "$gistId"}"""
+        NetworkUtils.makeJwtRequest(
+            "joinGist", KliqueHttpMethod.POST, emptyMap(),
+            jsonBody, action = action, errorAction = errorAction
+        )
     }
 
     fun loadOlderMessages(lastMessageId: String, gistId: String) {
@@ -1005,7 +981,7 @@ class SharedCliqueViewModel(
             "gistId": "$gistId"
             }
             """.trimMargin()
-        send(message)
+        send(BufferObject(WsDataType.LoadOlderGistMessages, message))
     }
 
     fun clearGistCreationError() {
@@ -1032,8 +1008,8 @@ class SharedCliqueViewModel(
         }
     }
 
-    fun send(message: String, showToast: Boolean = false, saveToBuffer: Boolean = false) {
-        WebSocketManager.send(message, showToast, saveToBuffer)
+    fun send(message: BufferObject, showToast: Boolean = false) {
+        WebSocketManager.send(message, showToast)
     }
 
     private val _myName = mutableStateOf("")
@@ -1126,7 +1102,7 @@ class SharedCliqueViewModel(
             "gistId": "$gistId"
             }
         """.trimIndent()
-        send(fetchRequest)
+        send(BufferObject(WsDataType.FetchGistMembers, fetchRequest))
     }
 
     private fun sortMembersByContact(members: MutableList<Members>) {
@@ -1162,9 +1138,7 @@ class SharedCliqueViewModel(
                     return
                 }
 
-                else -> {
-                    // Proceed to download
-                }
+                else -> {}
             }
 
             Log.d("Called", "handle media called internal 7")
@@ -1186,11 +1160,7 @@ class SharedCliqueViewModel(
                         "Failed to download media for message ${message.id}",
                         e
                     )
-                    // Remove from cache on failure
                     downloadedMediaUrls.remove(message.externalUrl)
-                    // Optionally, update the message with an error state or notify the user
-                    // For example:
-                    // updateMessageWithError(message.id, "Failed to load media")
                 }
             }
         }
@@ -1218,7 +1188,7 @@ class SharedCliqueViewModel(
             "userId": $userId,
             "gistId": "$gistId"
             }""".trimMargin()
-        send(message)
+        send(BufferObject(WsDataType.GistRoomChat,message))
     }
 
     fun makeOwner(userId: Int) {
@@ -1227,7 +1197,7 @@ class SharedCliqueViewModel(
             "userId": $userId,
             "gistId": "$gistId"
             }""".trimMargin()
-        send(message)
+        send(BufferObject(WsDataType.GistRoomChat,message))
     }
 
     fun makeSpeaker(userId: Int) {
@@ -1236,7 +1206,7 @@ class SharedCliqueViewModel(
             "userId": $userId,
             "gistId": "$gistId"
             }""".trimMargin()
-        send(message)
+        send(BufferObject(WsDataType.GistRoomChat,message))
     }
 
     private fun removeMemberById(memberId: Int) {
@@ -1282,21 +1252,14 @@ class SharedCliqueViewModel(
                 "descriptionUpdate": "$editedText",
                 "gistId": "$gistId"
             }""".trimMargin()
-
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "updateGistDescription",
-                            KliqueHttpMethod.POST,
-                            params = emptyMap(),
-                            jsonBody = jsonBody
-                        )
-                    },
+                NetworkUtils.makeJwtRequest(
+                    "updateGistDescription",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = jsonBody,
                     action = { response ->
                         try {
-                            Log.d("Updated Description", response.second)
-                            val jsonObject = JSONObject(response.second)
-                            val description = jsonObject.getString("description")
+                            Log.d("Updated Description", response.toNetworkTriple().second)
                             _gistTopRow.value =
                                 _gistTopRow.value?.copy(gistDescription = editedText)
                             Log.d("GistDescription", "Successfully updated description")
@@ -1305,7 +1268,7 @@ class SharedCliqueViewModel(
                         }
                     },
                     errorAction = { response ->
-                        Log.e("GistDescription", "Failed to update description: ${response.second}")
+                        Log.e("GistDescription", "Failed to update description: ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {
@@ -1417,15 +1380,11 @@ class SharedCliqueViewModel(
         }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            endpoint,
-                            KliqueHttpMethod.POST,
-                            emptyMap(),
-                            jsonBody
-                        )
-                    },
+                NetworkUtils.makeJwtRequest(
+                    endpoint,
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody,
                     action = {
                         val myNewComment = GistComment(
                             comment = comment,
@@ -1454,7 +1413,7 @@ class SharedCliqueViewModel(
                         }
                     },
                     errorAction = { response ->
-                        Log.e("NetworkUtils", "Error during request: ${response.second}")
+                        Log.e("NetworkUtils", "Error during request: ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {
@@ -1470,16 +1429,12 @@ class SharedCliqueViewModel(
         )
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "addUpVotes",
-                            KliqueHttpMethod.GET,
-                            params
-                        )
-                    },
+                NetworkUtils.makeJwtRequest(
+                    "addUpVotes",
+                    KliqueHttpMethod.GET,
+                    params,
                     action = { response ->
-                        if (response.second.contains("true")) {
+                        if (response.toNetworkTriple().second.contains("true")) {
                             _comments.value = _comments.value.map { comment ->
                                 if (comment.id == commentId) {
                                     comment.copy(upVotes = comment.upVotes + 1, upVotedByYou = true)
@@ -1487,7 +1442,7 @@ class SharedCliqueViewModel(
                                     comment
                                 }
                             }
-                        } else if (response.second.contains("false")) {
+                        } else if (response.toNetworkTriple().second.contains("false")) {
                             _comments.value = _comments.value.map { comment ->
                                 if (comment.id == commentId) {
                                     comment.copy(
@@ -1501,7 +1456,7 @@ class SharedCliqueViewModel(
                         }
                     },
                     errorAction = { response ->
-                        Log.e("NetworkUtils", "Error during request: ${response.second}")
+                        Log.e("NetworkUtils", "Error during request: ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {
@@ -1516,7 +1471,7 @@ class SharedCliqueViewModel(
             put("type", "gistMessageDelete")
             put("messageId", messageId)
         }
-        send(messageToSend.toString(), true)
+        send(BufferObject(WsDataType.GistRoomChat, messageToSend.toString()), true)
     }
 
     fun reportMessageById(messageId: String) {
@@ -1525,7 +1480,7 @@ class SharedCliqueViewModel(
             put("type", "gistMessageReport")
             put("messageId", messageId)
         }
-        send(messageToSend.toString(), true)
+        send(BufferObject(WsDataType.GistRoomChat, messageToSend.toString()), true)
     }
 
     fun onPostChange(newValue: TextFieldValue) {
@@ -1646,6 +1601,20 @@ class SharedCliqueViewModel(
             null
         }
     }
+
+    fun getTopGists() {
+        viewModelScope.launch {
+            try {
+                val result = NetworkUtils.makeRequest("topGists", KliqueHttpMethod.GET, emptyMap())
+                if (result.first) {
+                    val topGists = parseGistsFromResponse(result.second)
+                    _topGists.value = topGists
+                }
+            } catch (e: Exception) {
+                Log.e("fetchGistsTop", "Network request failed: ${e.message}")
+            }
+        }
+    }
 }
 
 class SharedCliqueViewModelFactory(
@@ -1682,6 +1651,8 @@ fun parseGistsFromResponse(response: String): List<GistModel> {
             val gistJson = jsonArray.getJSONObject(i)
             val gistJsonArray = gistJson.getJSONArray("lastGistPosts")
             val lastGistPostsList = mutableListOf<LastGistComments>()
+            val gistType = gistJson.getString("gistType")
+            val gistTypeType = GistType.fromString(gistType)
             for (j in 0 until gistJsonArray.length()) {
                 val lastGistPostJson = gistJsonArray.getJSONObject(j)
                 val lastGistComments = LastGistComments(
@@ -1697,6 +1668,7 @@ fun parseGistsFromResponse(response: String): List<GistModel> {
                 description = gistJson.getString("description"),
                 image = if (gistJson.isNull("imageUrl")) null else gistJson.getString("imageUrl"),
                 activeSpectators = gistJson.getInt("activeSpectators"),
+                gistType = gistTypeType,
                 lastGistComments = lastGistPostsList,
                 postImage = if (gistJson.isNull("postImage")) null else gistJson.getString("postImage"),
                 postVideo = if (gistJson.isNull("postVideo")) null else gistJson.getString("postVideo"),

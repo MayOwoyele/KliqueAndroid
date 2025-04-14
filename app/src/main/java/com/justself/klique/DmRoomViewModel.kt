@@ -1,14 +1,12 @@
 package com.justself.klique
 
-import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.gists.ui.viewModel.DownloadState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -21,7 +19,6 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -57,7 +54,7 @@ enum class DmMessageType(val inString: String) {
     DImage("DImage")
 }
 
-class DmRoomViewModel(application: Application) : AndroidViewModel(application), WebSocketListener<DmReceivingType> {
+class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     override val listenerId: String
         get() = ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
     private val _dmMessages = MutableStateFlow<List<DmMessage>>(emptyList())
@@ -70,8 +67,8 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
     }
     override fun onCleared() {
         super.onCleared()
-        Log.d("DmRoomViewModel", "ViewModel cleared")
         WebSocketManager.unregisterListener(this)
+        WebSocketManager.clearWebsocketBuffer(WsDataType.ShotsRefresh)
     }
 
     fun generateMessageId(): String = UUID.randomUUID().toString()
@@ -94,7 +91,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
         outputStream.write(image)
 
         val combinedBytes = outputStream.toByteArray()
-        WebSocketManager.sendBinary(combinedBytes)
+        WebSocketManager.sendBinary(BinaryBufferObject(WsDataType.Shots, combinedBytes))
         viewModelScope.launch {
             val imageUri = getDMRoomUriFromByteArray(image, context, DmMediaType.IMAGE)
 
@@ -265,11 +262,6 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             }
         }
     }
-    private fun extractNumberLong(jsonObject: JSONObject): Long {
-        return jsonObject.optJSONObject("timeStamp")
-            ?.optJSONObject("\$date")
-            ?.optLong("\$numberLong") ?: Instant.now().toEpochMilli()
-    }
 
     fun sendTextMessage(message: String, dmRoomId: Int, myId: Int) {
         val messageId = generateMessageId()
@@ -295,14 +287,14 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             put("messageId", messageId)
             put("timeStamp", timeStamp.toString())
         }
-        send(jsonToSend.toString())
+        send(BufferObject(WsDataType.Shots, jsonToSend.toString()))
     }
     private fun updateDmMessages(newMessages: List<DmMessage>) {
         _dmMessages.value = newMessages
         Log.d("Parsing", "Updated _dmMessages: ${_dmMessages.value}")
     }
 
-    fun send(textToSend: String) {
+    fun send(textToSend: BufferObject) {
         WebSocketManager.send(textToSend)
     }
     private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
@@ -327,7 +319,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
                     // Proceed to download
                 }
             }
-            val context = getApplication<Application>().applicationContext
+            val context = appContext
             downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
 
             viewModelScope.launch(Dispatchers.IO) {
@@ -365,7 +357,7 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             "messageId": "$messageId"
             }
         """.trimIndent()
-        send(message)
+        send(BufferObject(WsDataType.ShotsRefresh, message))
     }
     fun resetToastWarning(){
         _toastWarning.value = null
@@ -379,11 +371,11 @@ class DmRoomViewModel(application: Application) : AndroidViewModel(application),
             "enemyId": $dmRoomId
             }
         """.trimIndent()
-        send(theJson)
-        downloadedMediaUrls.forEach { (url, state) ->
-            Log.d("DownloadHashMap", "URL: $url, State: $state")
-        }
-        Log.d("Parsing", "loaded again?")
+        send(BufferObject(WsDataType.ShotsRefresh, theJson))
+//        downloadedMediaUrls.forEach { (url, state) ->
+//            Log.d("DownloadHashMap", "URL: $url, State: $state")
+//        }
+//        Log.d("Parsing", "loaded again?")
     }
 }
 
@@ -403,16 +395,5 @@ suspend fun getDMRoomUriFromByteArray(
         file.writeBytes(byteArray)
 
         FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-    }
-}
-class DmRoomViewModelFactory(
-    private val application: Application
-) : ViewModelProvider.AndroidViewModelFactory(application) {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(DmRoomViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return DmRoomViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

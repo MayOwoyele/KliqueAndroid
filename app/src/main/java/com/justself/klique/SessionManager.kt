@@ -100,20 +100,16 @@ object SessionManager {
                 }.toString()
 
                 try {
-                    JWTNetworkCaller.performReusableNetworkCalls(
-                        response = {
-                            NetworkUtils.makeJwtRequest(
-                                endpoint = "updateDeviceToken",
-                                method = KliqueHttpMethod.POST,
-                                params = emptyMap(),
-                                jsonBody = jsonBody
-                            )
-                        },
+                    NetworkUtils.makeJwtRequest(
+                        endpoint = "updateDeviceToken",
+                        method = KliqueHttpMethod.POST,
+                        params = emptyMap(),
+                        jsonBody = jsonBody,
                         action = { response ->
-                            Log.d("SendToken", "Token successfully sent to server: ${response.second}")
+                            Log.d("SendToken", "Token successfully sent to server: ${response.toNetworkTriple().second}")
                         },
                         errorAction = { errorResponse ->
-                            Log.e("SendToken", "Error sending token: ${errorResponse.second}")
+                            Log.e("SendToken", "Error sending token: ${errorResponse.toNetworkTriple().second}")
                         }
                     )
                 } catch (e: Exception) {

@@ -41,50 +41,66 @@ object JWTNetworkCaller {
         just put each of these actions in the lambda body, calling performReusableNetworkCalls with them
          **/
     suspend fun performReusableNetworkCalls(
-        response: suspend () -> Triple<Boolean, String, Int>,
-        action: suspend (Triple<Boolean, String, Int>) -> Unit,
-        errorAction: suspend (Triple<Boolean, String, Int>) -> Unit
+        response: suspend () -> NetworkUtils.JwtTriple,
+        action: suspend (NetworkUtils.JwtTriple) -> Unit,
+        errorAction: suspend (NetworkUtils.JwtTriple) -> Unit
     ) {
         val theResponse = response()
-        Log.d("refreshToken", "response: ${theResponse.second}, code: ${theResponse.third}")
-        when (theResponse.third) {
-            200 -> action(theResponse)
-            401 -> tokenIssue(action, response, errorAction)
-            403 -> SessionManager.resetCustomerData()
-            else -> errorAction(theResponse)
+        if (theResponse is NetworkUtils.JwtTriple.Value) {
+            loggerD("refreshToken"
+            ) { "response: ${theResponse.response}, code: ${theResponse.responseCode}" }
+
+            when (theResponse.responseCode) {
+                200 -> action(theResponse)
+                401 -> tokenIssue(action, response, errorAction)
+                403 -> SessionManager.resetCustomerData()
+                else -> errorAction(theResponse)
+            }
+        } else {
+            Log.e("refreshToken", "Unknown JwtTriple subclass: $theResponse")
+            errorAction(theResponse)
         }
     }
 
     private suspend fun tokenIssue(
-        action: suspend (Triple<Boolean, String, Int>) -> Unit,
-        response: suspend () -> Triple<Boolean, String, Int>,
-        errorAction: suspend (Triple<Boolean, String, Int>) -> Unit
+        action: suspend (NetworkUtils.JwtTriple) -> Unit,
+        response: suspend () -> NetworkUtils.JwtTriple,
+        errorAction: suspend (NetworkUtils.JwtTriple) -> Unit
     ) {
         val statusCode = refreshAccessToken()
         Log.d("refreshToken", "status code : $statusCode")
-        when (statusCode) {
-            200 -> {
-                val responseTriple = response()
 
-                when (responseTriple.third) {
-                    200 -> action(responseTriple)
-                    401 -> {
-                        val retryResponse = response()
-                        if (retryResponse.first) {
-                            action(retryResponse)
-                        } else {
-                            errorAction(responseTriple)
-                        }
-                    }
+        if (statusCode == 403) {
+            SessionManager.resetCustomerData()
+            return
+        }
 
-                    403 -> SessionManager.resetCustomerData()
-                    else -> errorAction(responseTriple)
+        val responseTriple = response()
+        if (responseTriple !is NetworkUtils.JwtTriple.Value) {
+            Log.e("tokenIssue", "Unexpected JwtTriple type: $responseTriple")
+            errorAction(responseTriple)
+            return
+        }
+
+        when (responseTriple.responseCode) {
+            200 -> action(responseTriple)
+            401 -> {
+                val retryResponse = response()
+                if (retryResponse !is NetworkUtils.JwtTriple.Value) {
+                    Log.e("tokenIssue", "Unexpected JwtTriple type on retry: $retryResponse")
+                    errorAction(retryResponse)
+                    return
+                }
+
+                if (retryResponse.isSuccessful) {
+                    action(retryResponse)
+                } else {
+                    errorAction(responseTriple)
                 }
             }
 
-            403 -> {
-                SessionManager.resetCustomerData()
-            }
+            403 -> SessionManager.resetCustomerData()
+            else -> errorAction(responseTriple)
         }
     }
 

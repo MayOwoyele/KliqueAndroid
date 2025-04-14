@@ -15,6 +15,7 @@ import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -62,10 +63,12 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -108,6 +111,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -117,6 +121,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -124,6 +129,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.PermissionChecker
 import androidx.navigation.NavController
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -133,6 +139,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.Locale
@@ -239,8 +246,13 @@ fun GistRoom(
     LaunchedEffect(key1 = keyboardHeightDp) {
         if (keyboardHeightDp > maxKeyboardHeightDp) maxKeyboardHeightDp = keyboardHeightDp
     }
+    val userStatus by viewModel.userStatus.observeAsState(initial = UserStatus(false, false))
+    var showWelcomeDialog by remember { mutableStateOf(!UserAppSettings.suppressAdminTip(appContext)) }
+    var dontShowAgain by remember { mutableStateOf(false) }
+    if (userStatus.isOwner && showWelcomeDialog) {
+        AlertDialogMan(onDismiss = {showWelcomeDialog = false}, dontShowAgain = {bool -> dontShowAgain = bool }, dontShowAgainChecked = dontShowAgain, context = appContext)
+    }
     emojiPickerHeight(maxKeyboardHeightDp)
-    // Handle Emoji Selection
     LaunchedEffect(selectedEmoji) {
         if (selectedEmoji.isNotEmpty()) {
             viewModel.onGistMessageChange(
@@ -397,7 +409,6 @@ fun GistRoom(
         }
     }
     var showBottomSheet by remember { mutableStateOf(false) }
-    val userStatus by viewModel.userStatus.observeAsState(initial = UserStatus(false, false))
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -453,20 +464,15 @@ fun GistRoom(
                         if (gistMessage != null) {
                             viewModel.addMessage(gistMessage)
                         }
-                        val messageJson = """
-                            {
-                            "type": "KText",
-                            "gistId": "$gistId",
-                            "content": "${
-                            message.text.replace("\\", "\\\\").replace("\"", "\\\"")
-                                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-                                .replace("\b", "\\b")
-                        }",
-                            "id": "$messageId",
-                            "senderName": "$myName"
-                            }
-                            """.trimIndent()
-                        viewModel.send(messageJson)
+                        val messageJson = JSONObject().apply {
+                            put("type", "KText")
+                            put("gistId", gistId)
+                            put("content", message.text)
+                            put("id", messageId)
+                            put("senderName", myName)
+                        }.toString()
+
+                        viewModel.send(BufferObject(WsDataType.GistRoomChat, messageJson))
                         viewModel.updateGistTimestamp()
                         viewModel.clearMessage()
                     }
@@ -539,7 +545,20 @@ fun GistTitleRow(
             )
         }
         Box {
+            var showOwnerInfo by remember { mutableStateOf(false) }
             Row(verticalAlignment = Alignment.CenterVertically) {
+                if (isOwner) {
+                    IconButton(onClick = { showOwnerInfo = true }){
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Admin",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .padding(end = 4.dp)
+                        )
+                    }
+                }
                 Text(text = "$activeUserCount spectators",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.secondary,
@@ -611,6 +630,9 @@ fun GistTitleRow(
                     }
                 }
             }
+            if(showOwnerInfo) {
+                AlertDialogMan(onDismiss = {showOwnerInfo = false}, context = appContext, hideCheck = true)
+            }
         }
         if (showInfoDialog.value) {
             AlertDialog(
@@ -642,6 +664,7 @@ fun MessageContent(
     userStatus: UserStatus
 ) {
     val currentTime = remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val randomInt = remember { mutableIntStateOf((0..10000).random()) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(60 * 1000L)
@@ -649,7 +672,6 @@ fun MessageContent(
         }
     }
 
-    // State for controlling the options dialog and confirmation dialogs
     var showOptionsDialog by remember { mutableStateOf(false) }
     var selectedMessage by remember { mutableStateOf<GistMessage?>(null) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -709,7 +731,7 @@ fun MessageContent(
                 Column(
                     modifier = Modifier
                         .background(Color.Gray, shape)
-                        .background(getUserOverlayColor(message.senderId).copy(alpha = 0.2f), shape)
+                        .background(getUserOverlayColor(message.senderId, randomInt.intValue).copy(alpha = 0.2f), shape)
                         .padding(8.dp),
                     horizontalAlignment = alignment
                 ) {
@@ -831,10 +853,68 @@ fun MessageContent(
                             }
                         }
                         GistMessageType.K_TEXT -> {
-                            Text(
-                                text = message.content,
-                                color = MaterialTheme.colorScheme.background
-                            )
+                            Box {
+                                val lines = 6
+                                var visibleLines by remember { mutableIntStateOf(lines) }
+                                var fullLineCount by remember { mutableIntStateOf(0) }
+
+                                val hasMoreToShow = visibleLines < fullLineCount
+                                val hasMoreToHide = visibleLines > lines
+                                val showToggle = fullLineCount > lines
+                                Text(
+                                    text = message.content,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    onTextLayout = {
+                                        if (fullLineCount == 0) {
+                                            fullLineCount = it.lineCount
+                                        }
+                                    },
+                                    maxLines = Int.MAX_VALUE,
+                                    modifier = Modifier
+                                        .widthIn(max = 300.dp)
+                                        .then(
+                                            Modifier.layout { measurable, constraints ->
+                                                measurable.measure(constraints)
+                                                layout(0, 0) { }
+                                            }
+                                        )
+                                )
+
+                                Column(modifier = Modifier.animateContentSize()) {
+                                    Text(
+                                        text = message.content,
+                                        color = MaterialTheme.colorScheme.background,
+                                        maxLines = visibleLines,
+                                        overflow = TextOverflow.Ellipsis,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+
+                                    if (showToggle) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row {
+                                            if (hasMoreToShow) {
+                                                Text(
+                                                    text = "Show more",
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier
+                                                        .clickable { visibleLines += 10 }
+                                                        .padding(end = 8.dp),
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                            if (hasMoreToHide) {
+                                                Text(
+                                                    text = "Show less",
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier
+                                                        .clickable { visibleLines = maxOf(6, visibleLines - 10) },
+                                                    style = MaterialTheme.typography.bodyMedium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     Row(modifier = Modifier.align(Alignment.End)) {
@@ -1407,7 +1487,6 @@ fun CommentIconButtonBox(
     commentCount: Int,
     onClick: (() -> Unit)
 ) {
-    val padding = 4.dp
     Box(
         contentAlignment = Alignment.Center
     ) {
@@ -1434,9 +1513,49 @@ fun CommentIconButtonBox(
         }
     }
 }
+@Composable
+fun AlertDialogMan(onDismiss: () -> Unit, dontShowAgain: ((Boolean)-> Unit)? = null, dontShowAgainChecked: Boolean? = null, context: Context, hideCheck: Boolean = false){
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        title = { Text("Welcome, Owner!", style = MaterialTheme.typography.displayLarge) },
+        text = {
+            Column {
+                Text(
+                    "You have admin privileges. You can set any image or video as the gist background that users will see on their timeline. It will improve engagement, just hold any image or video!",
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (!hideCheck){
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (dontShowAgainChecked != null) {
+                            Checkbox(
+                                checked = dontShowAgainChecked,
+                                onCheckedChange = {
+                                    if (dontShowAgain != null) {
+                                        dontShowAgain(it)
+                                    }
+                                }
+                            )
+                        }
+                        Text("Don't show again")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (dontShowAgainChecked == true) {
+                    UserAppSettings.setSuppressAdminTip(context, true)
+                }
+                onDismiss() }) {
+                Text("Got it")
+            }
+        }
+    )
+}
 
-fun getUserOverlayColor(userId: Int): Color {
-    val hue = (userId * 137) % 360
+fun getUserOverlayColor(userId: Int, randomSeed: Int): Color {
+    val hue = (userId * randomSeed) % 360
     return Color.hsv(hue.toFloat(), 0.6f, 0.9f, alpha = 0.2f)
 }
 fun formatCount(count: Int): String {

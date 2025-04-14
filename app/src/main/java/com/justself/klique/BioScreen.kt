@@ -437,23 +437,19 @@ fun BioScreen(
                         }
                     }
                     items(bioGists) { gist ->
-                        val newImage = gist.image?.let { NetworkUtils.fixLocalHostUrl(it) }
                         val mediaPaths = cachedMedia[gist.gistId]
                         GistTile(
                             enemyId,
-                            title = gist.topic,
-                            description = gist.description,
-                            image = newImage,
-                            activeSpectators = gist.activeSpectators,
                             onTap = {
-                                bioViewModel.joinGist(gist.gistId); Screen.Home.navigate(
-                                navController
-                            )
+                                Screen.Home.navigate(
+                                    navController, gist.gistId
+                                )
                             },
                             onHoldClick = { bioViewModel.floatGist(gist.gistId) },
                             lastPostList = gist.lastGistComments,
                             postImage = mediaPaths?.postImage,
-                            postVideo = mediaPaths?.postVideo
+                            postVideo = mediaPaths?.postVideo,
+                            gist = gist
                         )
                     }
                     items(profile!!.posts) { post ->

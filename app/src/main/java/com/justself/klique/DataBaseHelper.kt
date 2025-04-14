@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 
 // ChatList Database Management
 @Entity(tableName = "chats")
@@ -56,11 +58,11 @@ interface ChatDao {
 
     @Query("SELECT * FROM chats WHERE (myId = :myId AND contactName LIKE :query) OR (enemyId = :myId AND contactName LIKE :query)")
     fun searchChats(myId: Int, query: String): List<ChatList>
+
     @Query("SELECT * FROM chats WHERE enemyId = :enemyId LIMIT 1")
     suspend fun getChatByEnemyId(enemyId: Int): ChatList?
 }
 
-// Define Database Class
 @Database(entities = [ChatList::class], version = 1)
 abstract class ChatListDatabase : RoomDatabase() {
     abstract fun chatDao(): ChatDao
@@ -134,6 +136,17 @@ interface PersonalChatDao {
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(personalChat: PersonalChat)
+
+    // In PersonalChatDao, add a helper query:
+    @Query(
+        """
+    SELECT * FROM personalChats 
+    WHERE ((myId = :myId AND enemyId = :enemyId) OR (myId = :enemyId AND enemyId = :myId))
+    ORDER BY timeStamp DESC 
+    LIMIT 1
+"""
+    )
+    suspend fun getLatestMessageBetween(myId: Int, enemyId: Int): PersonalChat?
 }
 
 @Database(entities = [PersonalChat::class], version = 2)
@@ -141,13 +154,52 @@ abstract class PersonalChatDatabase : RoomDatabase() {
     abstract fun personalChatDao(): PersonalChatDao
 }
 
+@Entity(tableName = "diary_entries")
+data class DiaryEntry(
+    @PrimaryKey val date: LocalDate,
+    val content: String,
+    val lastModified: Long = System.currentTimeMillis(),
+    val lastSynced: Long? = null,
+    val timestampMillis: Long = 0L
+)
+
+@Dao
+interface DiaryEntryDao {
+    @Query("SELECT * FROM diary_entries WHERE date = :date")
+    suspend fun getEntryByDate(date: LocalDate): DiaryEntry?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEntry(entry: DiaryEntry)
+
+    @Query("SELECT date FROM diary_entries")
+    fun getAllEntryDates(): Flow<List<LocalDate>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDiaryEntries(entries: List<DiaryEntry>)
+
+    @Query("SELECT * FROM diary_entries WHERE lastSynced IS NULL OR lastModified > lastSynced")
+    suspend fun getUnsyncedEntries(): List<DiaryEntry>
+
+    @Query("UPDATE diary_entries SET lastSynced = :syncTime WHERE date IN (:dates)")
+    suspend fun updateSyncStatus(dates: List<LocalDate>, syncTime: Long)
+
+    @Query("DELETE FROM diary_entries WHERE date IN (:dates)")
+    suspend fun deleteEntries(dates: List<LocalDate>)
+}
+
+@Database(entities = [DiaryEntry::class], version = 2)
+@TypeConverters(Converters::class)
+abstract class DiaryDatabase : RoomDatabase() {
+    abstract fun diaryEntryDao(): DiaryEntryDao
+}
+
 object DatabaseProvider {
-    private var CHATLIST_DATABASE_INSTANCE: ChatListDatabase? = null
+    private var CHAT_LIST_DATABASE_INSTANCE: ChatListDatabase? = null
 
     fun getChatListDatabase(context: Context): ChatListDatabase {
-        if (CHATLIST_DATABASE_INSTANCE == null) {
+        if (CHAT_LIST_DATABASE_INSTANCE == null) {
             synchronized(ChatListDatabase::class) {
-                CHATLIST_DATABASE_INSTANCE = Room.databaseBuilder(
+                CHAT_LIST_DATABASE_INSTANCE = Room.databaseBuilder(
                     context.applicationContext,
                     ChatListDatabase::class.java,
                     "chats.db"
@@ -156,7 +208,7 @@ object DatabaseProvider {
                     .build()
             }
         }
-        return CHATLIST_DATABASE_INSTANCE!!
+        return CHAT_LIST_DATABASE_INSTANCE!!
     }
 
     private var CONTACTS_INSTANCE: ContactsDatabase? = null
@@ -179,6 +231,12 @@ object DatabaseProvider {
     private val MIGRATION_1_2 = object : Migration(1, 2) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE personalChats ADD COLUMN inviteId TEXT DEFAULT NULL")
+        }
+    }
+    private val MIGRATION_1_2_DIARY = object : Migration(1, 2) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE diary_entries ADD COLUMN timestampMillis INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("UPDATE diary_entries SET timestampMillis = (strftime('%s', date) * 1000)")
         }
     }
 
@@ -209,6 +267,23 @@ object DatabaseProvider {
         }
         return GIST_STATE_DATABASE!!
     }
+
+    private var DIARY_DATABASE_INSTANCE: DiaryDatabase? = null
+
+    fun getDiaryDatabase(context: Context): DiaryDatabase {
+        if (DIARY_DATABASE_INSTANCE == null) {
+            synchronized(DiaryDatabase::class) {
+                DIARY_DATABASE_INSTANCE = Room.databaseBuilder(
+                    context.applicationContext,
+                    DiaryDatabase::class.java,
+                    "diary.db"
+                )
+                    .addMigrations(MIGRATION_1_2_DIARY)
+                    .build()
+            }
+        }
+        return DIARY_DATABASE_INSTANCE!!
+    }
 }
 
 enum class PersonalMessageType(val typeString: String) {
@@ -217,11 +292,36 @@ enum class PersonalMessageType(val typeString: String) {
     P_VIDEO("PVideo"),
     P_AUDIO("PAudio"),
     P_GIST_INVITE("PGistInvite"),
-    P_GIST_CREATION("PGistCreation")
+    P_GIST_CREATION("PGistCreation");
+    fun canBeCopied(): Boolean {
+        return this == P_TEXT
+    }
 }
 
 enum class PersonalMessageStatus {
     PENDING,
     SENT,
     DELIVERED
+}
+
+class Converters {
+    @TypeConverter
+    fun fromLocalDate(date: LocalDate?): String? {
+        return date?.toString()
+    }
+
+    @TypeConverter
+    fun toLocalDate(dateString: String?): LocalDate? {
+        return dateString?.let { LocalDate.parse(it) }
+    }
+}
+fun PersonalChat.displayableContent(): String {
+    return when (messageType) {
+        PersonalMessageType.P_TEXT -> content
+        PersonalMessageType.P_IMAGE -> "Photo"
+        PersonalMessageType.P_VIDEO -> "Video"
+        PersonalMessageType.P_AUDIO -> "Audio"
+        PersonalMessageType.P_GIST_INVITE -> "Gist Invite..."
+        PersonalMessageType.P_GIST_CREATION -> "Gist Creation..."
+    }
 }

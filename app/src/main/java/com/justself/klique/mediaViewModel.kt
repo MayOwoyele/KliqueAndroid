@@ -75,7 +75,8 @@ object MediaVM {
             }
         }
     }
-    fun resetToCropImageUri(){
+
+    fun resetToCropImageUri() {
         _toCropImageUri.value = null
     }
 
@@ -167,7 +168,12 @@ object MediaVM {
                         val fields = listOf(userIdField, videoFileField)
 
                         performReusableNetworkCalls(
-                            response = { NetworkUtils.makeMultipartRequest("sendVideoStatus", fields) },
+                            response = {
+                                NetworkUtils.makeMultipartRequest(
+                                    "sendVideoStatus",
+                                    fields
+                                )
+                            },
                             action = { response ->
                                 Log.d("KliqueVideoStatus", "Video uploaded successfully")
                                 Toast.makeText(
@@ -179,7 +185,7 @@ object MediaVM {
                             errorAction = { response ->
                                 Log.e(
                                     "KliqueVideoStatus",
-                                    "Failed to upload video: ${response.second}, ${response.third}"
+                                    "Failed to upload video: ${response.toNetworkTriple().second}, ${response.toNetworkTriple().third}"
                                 )
                                 Toast.makeText(
                                     context,
@@ -213,7 +219,8 @@ object MediaVM {
     fun uploadCroppedImage(context: Context, bitmap: Bitmap, customerId: Int) {
         scope.launch(Dispatchers.IO) {
             try {
-                val byteArray = ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
+                val byteArray =
+                    ImageUtils.processImageToByteArray(context = context, inputBitmap = bitmap)
                 val fields = listOf(
                     MultipartField(
                         name = "userId",
@@ -230,23 +237,32 @@ object MediaVM {
                 performReusableNetworkCalls(
                     response = { NetworkUtils.makeMultipartRequest("sendImageStatus", fields) },
                     action = { response ->
-                        Log.d("UploadSuccess", "Image uploaded successfully: ${response.second}")
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Image uploaded successfully!", Toast.LENGTH_LONG)
-                                .show()
-                        }
-                    },
-                    errorAction = { response ->
-                        Log.e(
-                            "UploadError",
-                            "Failed to upload image: ${response.third} - ${response.second}"
+                        Log.d(
+                            "UploadSuccess",
+                            "Image uploaded successfully: ${response.toNetworkTriple().second}"
                         )
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
                                 context,
-                                "Failed to upload image. Please try again.",
+                                "Image uploaded successfully!",
                                 Toast.LENGTH_LONG
-                            ).show()
+                            )
+                                .show()
+                        }
+                    },
+                    errorAction = { response ->
+                        if (response is NetworkUtils.JwtTriple.Value) {
+                            Log.e(
+                                "UploadError",
+                                "Failed to upload image: ${response.responseCode} - ${response.responseCode}"
+                            )
+                            withContext(Dispatchers.Main) {
+                                Toast.makeText(
+                                    context,
+                                    "Failed to upload image. Please try again.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     }
                 )
@@ -283,21 +299,26 @@ object MediaVM {
                     performReusableNetworkCalls(
                         response = { NetworkUtils.makeMultipartRequest("sendAudioStatus", fields) },
                         action = { response ->
-                            Log.d("UploadSuccess", "Audio file uploaded successfully: ${response.second}")
+                            Log.d(
+                                "UploadSuccess",
+                                "Audio file uploaded successfully: ${response.toNetworkTriple().second}"
+                            )
                             withContext(Dispatchers.Main) {
                                 _audioStatusSubmissionResult.value = true
                             }
                         },
                         errorAction = { response ->
-                            Log.e(
-                                "UploadError",
-                                "Failed to upload audio file: ${response.third} - ${response.second}"
-                            )
+                            if (response is NetworkUtils.JwtTriple.Value) {
+                                Log.e(
+                                    "UploadError",
+                                    "Failed to upload audio file: ${response.responseCode} - ${response.response}"
+                                )
+                            }
                             withContext(Dispatchers.Main) {
                                 _audioStatusSubmissionResult.value = false
                                 Toast.makeText(
                                     context,
-                                    "Failed with status code ${response.third}",
+                                    "Failed with status code ${response.toNetworkTriple().second}",
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -331,16 +352,20 @@ object MediaVM {
         scope.launch()
         {
             try {
-                performReusableNetworkCalls(
-                    response = { NetworkUtils.makeJwtRequest("sendTextStatus", KliqueHttpMethod.POST, emptyMap(), jsonBody) },
+                NetworkUtils.makeJwtRequest("sendTextStatus",
+                    KliqueHttpMethod.POST,
+                    emptyMap(),
+                    jsonBody,
                     action = { response ->
-                        _textStatusSubmissionResult.value = response.first
+                        _textStatusSubmissionResult.value = response.toNetworkTriple().first
                     },
                     errorAction = { response ->
-                        Log.e("NetworkUtils", "Failed to send text status: ${response.second}")
+                        Log.e(
+                            "NetworkUtils",
+                            "Failed to send text status: ${response.toNetworkTriple().second}"
+                        )
                         _textStatusSubmissionResult.value = false
-                    }
-                )
+                    })
             } catch (e: Exception) {
                 e.printStackTrace()
             }

@@ -6,12 +6,15 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -28,15 +31,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -44,6 +50,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -292,7 +299,6 @@ fun ClickableMessageText(
     onTapLambda: () -> Unit
 ) {
     val context = LocalContext.current
-    // Pass isSelectionMode so the annotated string is rebuilt accordingly.
     val annotatedString = createAnnotatedString(messageText, isSelectionMode)
     val defaultTextStyle = MaterialTheme.typography.bodyLarge.copy(
         color = MaterialTheme.colorScheme.background,
@@ -300,72 +306,124 @@ fun ClickableMessageText(
     )
     val clipboardManager = LocalClipboardManager.current
 
-    var layoutResult: TextLayoutResult? = remember { null }
+    val initialLines = 6
+    var visibleLines by remember { mutableIntStateOf(initialLines) }
+    var fullLineCount by remember { mutableIntStateOf(0) }
+    var visibleLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
+    var fullLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
-    Text(
-        text = annotatedString,
-        style = defaultTextStyle,
-        modifier = Modifier
-            // Adding isSelectionMode as a key to force re-creation of the pointerInput block when it changes.
-            .pointerInput(isSelectionMode) {
-                detectTapGestures(
-                    onLongPress = { offset ->
-                        layoutResult?.let { textLayoutResult ->
-                            val position = textLayoutResult.getOffsetForPosition(offset)
-                            if (isSelectionMode) {
-                                onLongPressLambda()
-                            } else {
-                                annotatedString.getStringAnnotations("PHONE", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
-                                        clipboardManager.setText(AnnotatedString(phoneNumber))
-                                        Toast.makeText(context, "Copied phone number", Toast.LENGTH_SHORT).show()
-                                    } ?: run {
-                                    onLongPressLambda()
-                                }
-                            }
-                        }
-                    },
-                    onTap = { offset ->
-                        layoutResult?.let { textLayoutResult ->
-                            val position = textLayoutResult.getOffsetForPosition(offset)
-                            if (isSelectionMode) {
-                                onTapLambda()
-                            } else {
-                                annotatedString.getStringAnnotations("URL", position, position)
-                                    .firstOrNull()?.let { annotation ->
-                                        val url = if (annotation.item.startsWith("http")) {
-                                            annotation.item
-                                        } else {
-                                            "https://${annotation.item}"
-                                        }
-                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                        context.startActivity(
-                                            Intent.createChooser(
-                                                intent,
-                                                "Open link with"
-                                            )
-                                        )
-                                    }
-                                    ?: annotatedString.getStringAnnotations("PHONE", position, position)
-                                        .firstOrNull()?.let { annotation ->
-                                            val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
-                                            val intent = Intent(
-                                                Intent.ACTION_DIAL,
-                                                Uri.parse("tel:$phoneNumber")
-                                            )
-                                            context.startActivity(intent)
-                                        }
-                                    ?: run {
-                                        onTapLambda()
-                                    }
-                            }
-                        }
+    Box {
+        Text(
+            text = annotatedString,
+            style = defaultTextStyle,
+            maxLines = Int.MAX_VALUE,
+            modifier = Modifier
+                .widthIn(max = 300.dp)
+                .then(
+                    Modifier.layout { measurable, constraints ->
+                        measurable.measure(constraints)
+                        layout(0, 0) { }
                     }
                 )
-            },
-        onTextLayout = { layoutResult = it }
-    )
+                .alpha(0f),
+            onTextLayout = { layoutResult ->
+                if (fullLineCount == 0) {
+                    fullLineCount = layoutResult.lineCount
+                    fullLayoutResult = layoutResult
+                }
+            }
+        )
+
+        Column(modifier = Modifier.animateContentSize()) {
+            Text(
+                text = annotatedString,
+                style = defaultTextStyle,
+                maxLines = visibleLines,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .pointerInput(isSelectionMode) {
+                        detectTapGestures(
+                            onLongPress = { offset ->
+                                val layout = fullLayoutResult ?: visibleLayoutResult
+                                layout?.let { textLayoutResult ->
+                                    val position = textLayoutResult.getOffsetForPosition(offset)
+                                    if (isSelectionMode) {
+                                        onLongPressLambda()
+                                    } else {
+                                        annotatedString.getStringAnnotations("PHONE", position, position)
+                                            .firstOrNull()?.let { annotation ->
+                                                val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
+                                                clipboardManager.setText(AnnotatedString(phoneNumber))
+                                                Toast.makeText(context, "Copied phone number", Toast.LENGTH_SHORT).show()
+                                            } ?: run {
+                                            onLongPressLambda()
+                                        }
+                                    }
+                                }
+                            },
+                            onTap = { offset ->
+                                val layout = fullLayoutResult ?: visibleLayoutResult
+                                layout?.let { textLayoutResult ->
+                                    val position = textLayoutResult.getOffsetForPosition(offset)
+                                    if (isSelectionMode) {
+                                        onTapLambda()
+                                    } else {
+                                        annotatedString.getStringAnnotations("URL", position, position)
+                                            .firstOrNull()?.let { annotation ->
+                                                val url = if (annotation.item.startsWith("http")) {
+                                                    annotation.item
+                                                } else {
+                                                    "https://${annotation.item}"
+                                                }
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                                                context.startActivity(Intent.createChooser(intent, "Open link with"))
+                                            }
+                                            ?: annotatedString.getStringAnnotations("PHONE", position, position)
+                                                .firstOrNull()?.let { annotation ->
+                                                    val phoneNumber = annotation.item.filter { it.isDigit() || it == '+' }
+                                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber"))
+                                                    context.startActivity(intent)
+                                                }
+                                            ?: run {
+                                                onTapLambda()
+                                            }
+                                    }
+                                }
+                            }
+                        )
+                    },
+                onTextLayout = { layoutResult ->
+                    visibleLayoutResult = layoutResult
+                }
+            )
+
+            // If the full text is longer than the initial lines, show toggles.
+            if (fullLineCount > initialLines) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row {
+                    if (visibleLines < fullLineCount) {
+                        Text(
+                            text = "Show more",
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable { visibleLines += 10 }
+                                .padding(end = 8.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    if (visibleLines > initialLines) {
+                        Text(
+                            text = "Show less",
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clickable { visibleLines = maxOf(initialLines, visibleLines - 10) },
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

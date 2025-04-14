@@ -16,8 +16,6 @@ class MyKliqueApp : Application() {
         NetworkUtils.initialize(this)
         AppUpdateManager.initialize()
         SessionManager.startSession()
-
-        // Set up a global exception handler
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             val crashLog = """
                 🚨 UNHANDLED CRASH 🚨
@@ -27,11 +25,10 @@ class MyKliqueApp : Application() {
                 ${Log.getStackTraceString(throwable)}
             """.trimIndent()
 
-            Log.e("CrashLogger", crashLog) // Log crash locally
-
-            // Send crash log via email
+            Log.e("CrashLogger", crashLog)
             sendCrashReportByEmail(crashLog)
         }
+        scheduleDiaryBackupWork(appContext)
     }
 
     private fun sendCrashReportByEmail(crashLog: String) {

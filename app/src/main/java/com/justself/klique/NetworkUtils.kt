@@ -26,14 +26,34 @@ object NetworkUtils {
         baseUrl = context.getString(R.string.base_url)
         Log.d("NetworkUtils", "Base URL: $baseUrl")
     }
+    sealed class JwtTriple {
+        data class Value(
+            val isSuccessful: Boolean,
+            val response: String,
+            val responseCode: Int
+        ) : JwtTriple()
+        companion object {
+            fun create(isSuccessful: Boolean, response: String, responseCode: Int): JwtTriple =
+                Value(isSuccessful, response, responseCode)
+        }
+    }
+
+    /** action parameter is a lambda that contains whatever actions you want to perform if
+     * response code == 200,
+     * error action is what you want to happen if response code != 200,
+     * the remaining parameters are the same as makeRequest
+     * this function is already tested and trusted.. no need to test it again in the case of debugging
+     */
     suspend fun makeJwtRequest(
         endpoint: String,
         method: KliqueHttpMethod = KliqueHttpMethod.POST,
         params: Map<String, String>,
         jsonBody: String? = null,
-        binaryBody: ByteArray? = null
-    ): Triple<Boolean, String, Int> {
-        return makeRequest(
+        binaryBody: ByteArray? = null,
+        action: suspend (JwtTriple) -> Unit,
+        errorAction: suspend (JwtTriple) -> Unit
+    ) {
+        val (success, response, code) = makeRequest(
             endpoint = endpoint,
             method = method,
             params = params,
@@ -41,6 +61,8 @@ object NetworkUtils {
             binaryBody = binaryBody,
             useJWT = true
         )
+        val result = { JwtTriple.create(success, response, code) }
+        JWTNetworkCaller.performReusableNetworkCalls(result, action, errorAction)
     }
 
     suspend fun makeRequest(
@@ -50,7 +72,7 @@ object NetworkUtils {
         jsonBody: String? = null,
         binaryBody: ByteArray? = null,
         useJWT: Boolean = false
-    ): Triple<Boolean, String, Int> {
+    ): networkTriple {
         Log.d("GistDescription", endpoint)
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
@@ -118,7 +140,7 @@ object NetworkUtils {
     suspend fun makeMultipartRequest(
         endpoint: String,
         fields: List<MultipartField>
-    ): Triple<Boolean, String, Int> {
+    ): JwtTriple {
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
 
@@ -166,7 +188,11 @@ object NetworkUtils {
             Log.d("refreshToken", "multipart again: ${connection.responseCode}, $response")
 
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
-            Triple(isSuccessful, response, connection.responseCode)
+            NetworkUtils.JwtTriple.create(
+                isSuccessful = isSuccessful,
+                response = response,
+                responseCode = connection.responseCode
+            )
         }
     }
 
@@ -222,3 +248,8 @@ data class MultipartField(
     val mimeType: MimeType? = null,
     val fileName: String? = null
 )
+fun NetworkUtils.JwtTriple.toNetworkTriple(): networkTriple {
+    return when (this) {
+        is NetworkUtils.JwtTriple.Value -> Triple(this.isSuccessful, this.response, this.responseCode)
+    }
+}

@@ -72,9 +72,7 @@ fun DmRoom(
     myId: Int,
     enemyId: Int,
     enemyName: String,
-    viewModel: DmRoomViewModel = viewModel(
-        factory = DmRoomViewModelFactory(LocalContext.current.applicationContext as Application)
-    )
+    viewModel: DmRoomViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val toastWarning by viewModel.toastWarning.collectAsState()
@@ -134,7 +132,7 @@ fun DmRoom(
 
     Scaffold(
         topBar = {
-            CustomDmTopAppBar(navController, enemyName, viewModel, enemyId)
+            CustomDmTopAppBar(navController, enemyName, enemyId)
         },
         content = { innerPadding ->
             DmRoomContent(
@@ -162,7 +160,6 @@ fun DmRoom(
 fun CustomDmTopAppBar(
     navController: NavController,
     enemyName: String,
-    viewModel: DmRoomViewModel,
     enemyId: Int
 ) {
     Surface(

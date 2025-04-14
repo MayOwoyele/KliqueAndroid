@@ -129,27 +129,34 @@ fun LeftDrawer(
                 LeftDrawerItem(
                     modifier = Modifier.padding(bottom = 16.dp),
                     leading = {
+                        val hasProfileImage = profileDetails.profileUrl.isNotBlank()
                         Surface(
                             modifier = Modifier
-                                .size((60).dp)
-                                .clip(CircleShape.copy(CornerSize(150.dp)))
+                                .size(60.dp)
+                                .clip(CircleShape),
+                            color = if (!hasProfileImage) MaterialTheme.colorScheme.primary else Color.Transparent
                         ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(model = profileDetails.profileUrl),
-                                contentScale = ContentScale.Crop,
-                                contentDescription = "Logo"
-                            )
+                            if (hasProfileImage) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(model = profileDetails.profileUrl),
+                                    contentScale = ContentScale.Crop,
+                                    contentDescription = "Profile picture"
+                                )
+                            }
                         }
                     },
                     text = profileDetails.name,
                     secondaryText = profileDetails.phoneNumber,
                     trailing = {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Icon(Icons.Rounded.Wallet, contentDescription = "Profile")
+                            Icon(Icons.Rounded.Wallet, contentDescription = "KC Balance")
                             Text(text = "${profileDetails.kcBalance}KC")
                         }
                     },
-                    onClick = {navController.navigate("updateProfile"); drawerState.value = false}
+                    onClick = {
+                        navController.navigate("updateProfile")
+                        drawerState.value = false
+                    }
                 )
                 LeftDrawerItem(
                     modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),

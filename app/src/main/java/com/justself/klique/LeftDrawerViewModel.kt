@@ -17,15 +17,14 @@ class LeftDrawerViewModel : ViewModel() {
     init {
         fetchProfile()
     }
+
     fun fetchProfile() {
         Log.d("UpdateProfile", "Called")
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
-                val response: suspend() -> networkTriple =
-                    { NetworkUtils.makeJwtRequest("fetchUserDetails", KliqueHttpMethod.GET, params) }
-                val action: suspend(networkTriple) -> Unit = { triple ->
-                    val jsonObject = JSONObject(triple.second)
+                val action: suspend (NetworkUtils.JwtTriple) -> Unit = { triple ->
+                    val jsonObject = JSONObject(triple.toNetworkTriple().second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
                         NetworkUtils.fixLocalHostUrl(jsonObject.getString("profileUrl"))
@@ -40,8 +39,14 @@ class LeftDrawerViewModel : ViewModel() {
                     }
                     Log.d("LeftViewModel", _tinyProfileDetails.value.toString())
                 }
-                val error: suspend (networkTriple) -> Unit = {}
-                JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
+                val error: suspend (NetworkUtils.JwtTriple) -> Unit = {}
+                NetworkUtils.makeJwtRequest(
+                    "fetchUserDetails",
+                    KliqueHttpMethod.GET,
+                    params,
+                    action = action,
+                    errorAction = error
+                )
             } catch (e: Exception) {
                 Log.d("LeftViewModel", "${e}")
             }

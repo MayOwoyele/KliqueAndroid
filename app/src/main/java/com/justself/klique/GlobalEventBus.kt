@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 object GlobalEventBus {
     private val _snackBarEvent = MutableSharedFlow<SnackBarMessageData>(replay = 0)
     val snackBarEvent = _snackBarEvent.asSharedFlow()
-    private val _unreadMessageCount = MutableStateFlow(3)
+    private val _unreadMessageCount = MutableStateFlow(0)
     val unreadMessageCount = _unreadMessageCount.asStateFlow()
 
     suspend fun sendSnackBarMessage(messageData: SnackBarMessageData) {
@@ -99,6 +99,7 @@ fun cacheMediaForGist(
         } else {
             GlobalEventBus.updateMediaPaths(gistId, MediaPaths(postVideo = localPath))
         }
+        return
     }
 
     downloadFile(NetworkUtils.fixLocalHostUrl(remoteUrl), file, MediaVM.scope) { success ->

@@ -3,12 +3,10 @@ package com.justself.klique
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONArray
-import org.json.JSONObject
 
 data class DmItem(
     val imageLink: String,
@@ -30,15 +28,11 @@ class DmListViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val params = mapOf("userId" to "$customerId")
-
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest("fetchDmList", KliqueHttpMethod.GET, params)
-                    },
+                NetworkUtils.makeJwtRequest("fetchDmList", KliqueHttpMethod.GET, params,
                     action = { response ->
                         try {
-                            val jsonArray = JSONArray(response.second)
-                            Log.d("Parsing", response.second)
+                            val jsonArray = JSONArray(response.toNetworkTriple().second)
+                            Log.d("Parsing", response.toNetworkTriple().second)
                             val dmItems = (0 until jsonArray.length()).map { i ->
                                 val jsonObject = jsonArray.getJSONObject(i)
 
@@ -68,7 +62,7 @@ class DmListViewModel : ViewModel() {
                         }
                     },
                     errorAction = { response ->
-                        Log.e("fetchDmList", "Request failed: ${response.second}")
+                        Log.e("fetchDmList", "Request failed: ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {

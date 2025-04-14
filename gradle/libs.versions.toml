@@ -1,26 +1,26 @@
 [versions]
 android-gradle-plugin = "7.0.4"
-agp = "8.8.0"
+agp = "8.8.2"
 annotations = "23.0.0"
 annotationsVersion = "12.0"
-firebaseBom = "33.4.0"
-kotlin = "1.9.0"
-coreKtx = "1.13.1"
+firebaseBom = "33.12.0"
+kotlin = "2.0.0"
+coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
 espressoCore = "3.6.1"
-lifecycleRuntimeKtx = "2.8.6"
-activityCompose = "1.10.0"
-composeBom = "2025.02.00"
+lifecycleRuntimeKtx = "2.8.7"
+activityCompose = "1.10.1"
+composeBom = "2025.03.01"
 retrofit = "2.9.0"
 okhttp = "4.9.3"
 gson = "2.9.0"
-constraintLayout = "2.1.4"
+constraintLayout = "2.2.1"
 compose = "1.7.8"  # Update to the latest stable version suitable for your project
 material3 = "1.3.1"
 materialIconsExtended = "1.7.8"
 material = "1.12.0"
-navigationCompose = "2.8.2"
+navigationCompose = "2.8.9"
 lifecycle = "2.8.6"
 coroutines = "1.7.3"
 serialization = "1.5.1"
@@ -30,8 +30,8 @@ archCoreTesting = "2.2.0"
 coil = "2.1.0"
 picasso = "2.71828"
 room = "2.6.1"
-ksp = "1.9.0-1.0.12"
-uiTestJunit4 = "1.7.3"
+ksp = "2.0.0-1.0.21"
+uiTestJunit4 = "1.7.8"
 emojicompat = "1.5.0"
 carUiLib = "2.6.0"
 emoji2 = "1.5.0"
@@ -39,8 +39,11 @@ mobile-ffmpeg = "4.4"
 libphonenumber = "8.12.38"
 exoplayer = "2.19.1"
 coreKtxVersion = "1.6.1"
-media3Exoplayer = "1.5.1"
-media3Ui = "1.5.1"
+media3Exoplayer = "1.6.0"
+media3Ui = "1.6.0"
+workRuntimeKtx = "2.10.0"
+biometric = "1.1.0"
+
 
 
 
@@ -114,18 +117,13 @@ firebase-messaging = {module = "com.google.firebase:firebase-messaging"}
 core-ktx = { group = "androidx.test", name = "core-ktx", version.ref = "coreKtxVersion" }
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3Exoplayer" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3Ui" }
-
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workRuntimeKtx" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 jetbrainsKotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
-ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }  # Ensure this line is added
-
-
-
-
-
-
-
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

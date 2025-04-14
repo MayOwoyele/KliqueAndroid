@@ -72,6 +72,7 @@ import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ChatScreenViewModel
 import com.justself.klique.Screen
 import com.justself.klique.useful_extensions.initials
+import kotlinx.coroutines.delay
 
 @Composable
 fun ContactsScreen(
@@ -89,6 +90,12 @@ fun ContactsScreen(
 
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    val hasWaitedLongEnough = remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        delay(5000)
+        hasWaitedLongEnough.value = true
+    }
 
     CheckContactsPermission(
         onPermissionResult = { granted ->
@@ -102,13 +109,6 @@ fun ContactsScreen(
     LaunchedEffect(contactList) {
         isLoading.value = contactList.isEmpty()
     }
-
-    if (!hasPermission) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Contacts permission is required.")
-        }
-        return
-    }
     val filteredContacts = if (searchQuery.isEmpty()) {
         contactList
     } else {
@@ -117,79 +117,100 @@ fun ContactsScreen(
                     it.phoneNumber.contains(searchQuery, ignoreCase = true)
         }
     }
-    Box {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (isLoading.value) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-                } else {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                        modifier = Modifier.padding(top = 8.dp)
-                    ) {
-                        items(filteredContacts.size) { index ->
-                            ContactTile(
-                                contact = filteredContacts[index],
-                                navController = navController,
-                                chatScreenViewModel = chatScreenViewModel,
-                                customerId = customerId
-                            )
+
+    if (!hasPermission) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Contacts permission is required.")
+        }
+    } else {
+        Box {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (isLoading.value) {
+                        if (hasWaitedLongEnough.value) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "You have no contacts.",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                            }
+                        } else {
+                            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                        }
+                    } else {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            items(filteredContacts.size) { index ->
+                                ContactTile(
+                                    contact = filteredContacts[index],
+                                    navController = navController,
+                                    chatScreenViewModel = chatScreenViewModel,
+                                    customerId = customerId
+                                )
+                            }
                         }
                     }
                 }
             }
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Transparent)
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            IconButton(onClick = { navController.popBackStack() }) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    modifier = Modifier.background(MaterialTheme.colorScheme.background)
-                )
-            }
-            Crossfade(
-                targetState = isSearching,
-                animationSpec = tween(durationMillis = 300),
-                modifier = Modifier.weight(1f)
-            ) { targetIsSearching ->
-                if (targetIsSearching) {
-                    TextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search contacts") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = TextFieldDefaults.colors(
-                            unfocusedIndicatorColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            focusedContainerColor = MaterialTheme.colorScheme.background,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.background
-                        ),
-                        shape = RoundedCornerShape(16.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.Transparent)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        modifier = Modifier.background(MaterialTheme.colorScheme.background)
                     )
-                } else {
-                    Box(modifier = Modifier.fillMaxWidth())
                 }
-            }
-            IconButton(onClick = {
-                if (isSearching) {
-                    isSearching = false
-                    searchQuery = ""
-                } else {
-                    isSearching = true
+                Crossfade(
+                    targetState = isSearching,
+                    animationSpec = tween(durationMillis = 300),
+                    modifier = Modifier.weight(1f)
+                ) { targetIsSearching ->
+                    if (targetIsSearching) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search contacts") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                unfocusedIndicatorColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                focusedContainerColor = MaterialTheme.colorScheme.background,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.background
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxWidth())
+                    }
                 }
-            }) {
-                Icon(
-                    imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
-                    contentDescription = if (isSearching) "Close search" else "Search contacts",
-                    modifier = Modifier.background(MaterialTheme.colorScheme.background)
-                )
+                IconButton(onClick = {
+                    if (isSearching) {
+                        isSearching = false
+                        searchQuery = ""
+                    } else {
+                        isSearching = true
+                    }
+                }) {
+                    Icon(
+                        imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                        contentDescription = if (isSearching) "Close search" else "Search contacts",
+                        modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                    )
+                }
             }
         }
     }

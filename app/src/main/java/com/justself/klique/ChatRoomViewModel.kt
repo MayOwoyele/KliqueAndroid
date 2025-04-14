@@ -219,7 +219,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
         outputStream.write(image)
 
         val combinedBytes = outputStream.toByteArray()
-        WebSocketManager.sendBinary(combinedBytes)
+        WebSocketManager.sendBinary(BinaryBufferObject(data = combinedBytes))
         viewModelScope.launch{
             val imageLocalPath =
                 getChatRoomUriFromByteArray(image, context, ChatRoomMediaType.IMAGE)
@@ -270,7 +270,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun send(textToSend: String) {
-        WebSocketManager.send(textToSend)
+        WebSocketManager.send(BufferObject(message = textToSend))
     }
     fun retrial(){
         viewModelScope.launch {

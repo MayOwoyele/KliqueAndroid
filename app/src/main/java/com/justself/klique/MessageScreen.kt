@@ -288,9 +288,9 @@ fun MessageScreen(
     emojiPickerHeight(maxKeyboardHeightDp)
     val selectedMessages by viewModel.selectedMessages.observeAsState(emptyList())
     val personalChat by viewModel.personalChats.collectAsState(emptyList())
-    val containsMediaMessages = selectedMessages.any { messageId ->
+    val hasOnlyCopiableMessages = selectedMessages.all{ messageId ->
         val messageType = personalChat.find { it.messageId == messageId }?.messageType
-        messageType == PersonalMessageType.P_VIDEO || messageType == PersonalMessageType.P_IMAGE || messageType == PersonalMessageType.P_AUDIO
+        messageType?.canBeCopied() == true
     }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val onShowDeleteDialog = { showDeleteDialog = false }
@@ -330,7 +330,6 @@ fun MessageScreen(
                             } else {
                                 textMessages.firstOrNull().orEmpty()
                             }
-
                             val clipboard =
                                 context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             val clip = ClipData.newPlainText("Copied Messages", copiedText)
@@ -338,7 +337,7 @@ fun MessageScreen(
                             Toast.makeText(context, "Messages copied", Toast.LENGTH_SHORT).show()
                         },
                         onDismiss = { viewModel.clearSelection() },
-                        showCopyOption = !containsMediaMessages,
+                        showCopyOption = hasOnlyCopiableMessages,
                         onForward = { sortedMessages ->
                             sortedMessages.forEach { messageId ->
                                 val message = personalChat.find { it.messageId == messageId }
@@ -633,9 +632,8 @@ fun MessageScreenContent(
                                             onTapLambda = onTapLambda
                                         ) {
                                             message.gistId?.let {
-                                                viewModel.joinGist(it)
+                                                Screen.Home.navigate(navController, it)
                                             }
-                                            Screen.Home.navigate(navController)
                                         }
                                     }
 

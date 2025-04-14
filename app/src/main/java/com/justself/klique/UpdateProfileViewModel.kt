@@ -52,16 +52,8 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
-                val response: suspend() -> networkTriple =
-                    {
-                        NetworkUtils.makeJwtRequest(
-                            "fetchUserDetails",
-                            KliqueHttpMethod.GET,
-                            params
-                        )
-                    }
-                val action: suspend(networkTriple) -> Unit ={ triple ->
-                    val jsonObject = JSONObject(triple.second)
+                val action: suspend(NetworkUtils.JwtTriple) -> Unit ={ triple ->
+                    val jsonObject = JSONObject(triple.toNetworkTriple().second)
                     val bioText = jsonObject.getString("bio")
                     val profilePicture =
                         NetworkUtils.fixLocalHostUrl(jsonObject.getString("profileUrl"))
@@ -76,8 +68,14 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                     Log.d("Profile", _tinyProfileDetails.value.toString())
 
                 }
-                val error: suspend (networkTriple) -> Unit = {}
-                performReusableNetworkCalls(response, action, error)
+                val error: suspend (NetworkUtils.JwtTriple) -> Unit = {}
+                NetworkUtils.makeJwtRequest(
+                    "fetchUserDetails",
+                    KliqueHttpMethod.GET,
+                    params,
+                    action = action,
+                    errorAction = error
+                )
             } catch (e: Exception) {
                 Log.d("Profile", e.toString())
             }
@@ -153,10 +151,10 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                         _loaded.value = true
                         Toast.makeText(
                             appContext,
-                            "Failed to update your image. ${response.second}",
+                            "Failed to update your image. ${response.toNetworkTriple().second}",
                             Toast.LENGTH_SHORT
                         ).show()
-                        Log.e("UpdateProfile", "Error: ${response.third} - ${response.second}")
+                        Log.e("UpdateProfile", "Error: ${response.toNetworkTriple().third} - ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {
@@ -173,15 +171,11 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
 
         viewModelScope.launch {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "updateBioText",
-                            KliqueHttpMethod.POST,
-                            params = emptyMap(),
-                            jsonBody = bioJson
-                        )
-                    },
+                NetworkUtils.makeJwtRequest(
+                    "updateBioText",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = bioJson,
                     action = {
                         Toast.makeText(
                             appContext,
@@ -192,10 +186,10 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                     errorAction = { response ->
                         Toast.makeText(
                             appContext,
-                            "Failed to update your bio. ${response.second}",
+                            "Failed to update your bio. ${response.toNetworkTriple().second}",
                             Toast.LENGTH_SHORT
                         ).show()
-                        Log.e("UpdateBio", "Error: ${response.third} - ${response.second}")
+                        Log.e("UpdateBio", "Error: ${response.toNetworkTriple().third} - ${response.toNetworkTriple().second}")
                     }
                 )
             } catch (e: Exception) {
@@ -205,7 +199,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
     }
 
     fun updateBio(newBio: String) {
-        _bio.value = newBio // Allow independent updates to bio
+        _bio.value = newBio
     }
 
     fun setTinyProfileDetails(details: TinyProfileDetails) {

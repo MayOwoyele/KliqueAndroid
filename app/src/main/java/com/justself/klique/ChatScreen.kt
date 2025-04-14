@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.content.Intent
 import android.text.format.DateUtils
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
@@ -38,15 +39,19 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -69,7 +74,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
+import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
+import com.justself.klique.ContactsBlock.Contacts.ui.CheckContactsPermission
+import com.justself.klique.ContactsBlock.Contacts.ui.ContactsViewModel
+import com.justself.klique.MyKliqueApp.Companion.appContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
     navController: NavHostController,
@@ -91,11 +101,86 @@ fun ChatListScreen(
     )
     val context = LocalContext.current
     var showDialog by remember { mutableStateOf(false) }
+    val repository = remember { ContactsRepository(context.contentResolver, context) }
+    val contactViewModel = remember { ContactsViewModel(repository) }
+    val pastExceededList by remember { mutableStateOf(UserAppSettings.fetchExceededContactList(
+        appContext)) }
+    LaunchedEffect(pastExceededList) {
+        Log.d("pastExceededList", "$pastExceededList")
+    }
+    if (!pastExceededList){
+        val number = 6
+        var hasContactsPermission by remember { mutableStateOf(false) }
+        var showInviteModal by remember { mutableStateOf(false) }
+        val contactList by contactViewModel.contacts.collectAsState()
+        CheckContactsPermission(
+            onPermissionGranted = { contactViewModel.refreshContacts(context) },
+            onPermissionResult = { granted -> hasContactsPermission = granted }
+        )
+        LaunchedEffect(contactList) {
+            val appUserCount = contactList.count { it.isAppUser }
+            val currentTime = System.currentTimeMillis()
+            val lastInviteTime = UserAppSettings.fetchLastInviteTime(appContext)
+            val timeMillis = 30 * 60 * 1000L
+
+            if (appUserCount < number) {
+                if (currentTime - lastInviteTime > timeMillis) {
+                    showInviteModal = true
+                    UserAppSettings.setLastInviteTime(appContext, currentTime)
+                }
+            }
+
+            if (appUserCount >= number) {
+                UserAppSettings.setExceededContactList(appContext, true)
+            }
+        }
+        if (showInviteModal) {
+            ModalBottomSheet(
+                onDismissRequest = { showInviteModal = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                content = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            "Invite your friends!",
+                            style = MaterialTheme.typography.displayLarge
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Klique would be more interesting if your friends were here to gist with you!"
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = {
+                                val shareText = "Hey, let's gist on klique: app.kliquesocial.com"
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, shareText)
+                                }
+                                context.startActivity(
+                                    Intent.createChooser(shareIntent, "Invite Friends")
+                                )
+                                showInviteModal = false
+                            }
+                        ) {
+                            Text("Invite Now")
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        TextButton(onClick = { showInviteModal = false }) {
+                            Text("Maybe later")
+                        }
+                    }
+                }
+            )
+        }
+    }
     LaunchedEffect(Unit) {
         viewModel.loadChats(customerId)
         viewModel.setMyUserId(customerId)
         viewModel.fetchNewMessagesFromServer()
-        viewModel.checkContactUpdate()
         Log.d("loadChats", "Chat has been loaded")
     }
     LaunchedEffect(searchQuery) {
@@ -247,7 +332,7 @@ fun ChatListScreen(
                 }
             }
         } else {
-            Box(modifier= Modifier.fillMaxSize(), contentAlignment = Alignment.Center){
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "You have no messages, yet. Click on the + icon to access your contacts",
                     style = MaterialTheme.typography.bodyLarge,
@@ -296,9 +381,9 @@ fun ChatListScreen(
                             "Contacts",
                             onClick = { Screen.ContactsScreen.navigate(navController) })
 //                        TextOption("Update Doings", onClick = {navController.navigate("statusSelectionScreen")})
-                        TextOption(
-                            "Assistant",
-                            onClick = { Screen.MessageScreen.navigate(navController, 1) })
+//                        TextOption(
+//                            "Assistant",
+//                            onClick = { Screen.MessageScreen.navigate(navController, 1) })
                     }
                 }
                 AddButton(

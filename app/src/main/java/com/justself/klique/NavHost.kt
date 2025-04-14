@@ -54,25 +54,28 @@ fun NavigationHost(
         ProfileRepository.clearProfileData()
     }
     val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModelFactory(chatScreenViewModel))
-    WebSocketManager.setChatScreenViewModel(chatScreenViewModel)
-    WebSocketManager.setSharedCliqueViewModel(sharedCliqueViewModel)
-
     NavHost(
         navController = navController,
         startDestination = if (isLoggedIn) Screen.Home.route else Screen.Registration.route
     ) {
         composable(
-            route = Screen.Home.route,
+            route = "home?gistId={gistId}&commentId={commentId}",
             arguments = listOf(
                 navArgument("gistId") {
                     type = NavType.StringType
                     defaultValue = null
                     nullable = true
+                },
+                navArgument("commentId") {
+                    type = NavType.StringType
+                    defaultValue = null
+                    nullable = true
                 }
             ),
-            deepLinks = listOf(navDeepLink { uriPattern = Screen.Home.deepLink })
+            deepLinks = listOf(navDeepLink { uriPattern = "kliqueklique://home?gistId={gistId}&commentId={commentId}" })
         ) { backStackEntry ->
             val gistId = backStackEntry.arguments?.getString("gistId")
+            val commentId = backStackEntry.arguments?.getString("commentId")
             HomeScreen(
                 customerId = customerId,
                 fullName = fullName,
@@ -88,7 +91,8 @@ fun NavigationHost(
                 emojiPickerHeight = emojiPickerHeight,
                 chatScreenViewModel = chatScreenViewModel,
                 onDisplayTextChange = onDisplayTextChange,
-                gistId = gistId
+                gistId = gistId,
+                commentId = commentId
             )
         }
         composable(
@@ -324,8 +328,8 @@ fun NavigationHost(
             deepLinks = listOf(navDeepLink { uriPattern = Screen.TopGists.deepLink })
         ) {
             TopGistsScreen(
-                navController = navController,
-                viewModel = sharedCliqueViewModel
+                viewModel = sharedCliqueViewModel,
+                navController = navController
             )
         }
         composable(
@@ -338,12 +342,18 @@ fun NavigationHost(
 }
 
 sealed class Screen(val route: String, val deepLink: String) {
-    data object Home : Screen("home?gistId={gistId}", "kliqueklique://home?gistId={gistId}") {
-        fun createRoute(gistId: String? = null): String {
-            return if (gistId.isNullOrEmpty()) "home" else "home?gistId=${Uri.encode(gistId)}"
+    data object Home : Screen("home?gistId={gistId}&commentId={commentId}", "kliqueklique://home?gistId={gistId}&commentId={commentId}") {
+        private fun createRoute(gistId: String? = null, commentId: String? = null): String {
+            val encodedGistId = gistId?.let { Uri.encode(it) }
+            val encodedCommentId = commentId?.let { Uri.encode(it) }
+            return if (encodedGistId.isNullOrEmpty() && encodedCommentId.isNullOrEmpty()) {
+                "home"
+            } else {
+                "home?gistId=${encodedGistId ?: ""}&commentId=${encodedCommentId ?: ""}"
+            }
         }
-        fun navigate(navController: NavController, gistId: String? = null) {
-            navController.navigate(createRoute(gistId))
+        fun navigate(navController: NavController, gistId: String? = null, commentId: String? = null) {
+            navController.navigate(createRoute(gistId, commentId))
         }
     }
     data object Chats : Screen("chats", "kliqueklique://chats") {

@@ -9,6 +9,7 @@ import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
 import com.justself.klique.WebSocketManager
 import com.justself.klique.networkTriple
+import com.justself.klique.toNetworkTriple
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
@@ -34,11 +35,8 @@ class SettingsViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val jsonObject = JSONObject().put("userId", SessionManager.customerId.value).toString()
-                val response: suspend () -> networkTriple = {
-                    NetworkUtils.makeJwtRequest("deleteMyAccount", KliqueHttpMethod.POST, emptyMap(), jsonObject)
-                }
-                val action: suspend (networkTriple) -> Unit = {
-                    if (it.first) {
+                val action: suspend (NetworkUtils.JwtTriple) -> Unit = {
+                    if (it.toNetworkTriple().first) {
                         Toast.makeText(appContext, "Successfully deleted your account", Toast.LENGTH_LONG).show()
                         SessionManager.resetCustomerData()
                         WebSocketManager.close()
@@ -46,10 +44,10 @@ class SettingsViewModel : ViewModel() {
                         Toast.makeText(appContext, "Temporary issues with deleting your account", Toast.LENGTH_LONG).show()
                     }
                 }
-                val error: suspend (networkTriple) -> Unit = {
+                val error: suspend (NetworkUtils.JwtTriple) -> Unit = {
                     onFailure("Unknown error occurred")
                 }
-                JWTNetworkCaller.performReusableNetworkCalls(response, action, error)
+                NetworkUtils.makeJwtRequest("deleteMyAccount", KliqueHttpMethod.POST, emptyMap(), jsonObject, action = action, errorAction = error)
             } catch (e: Exception) {
                 onFailure(e.message ?: "Unknown error occurred")
             }

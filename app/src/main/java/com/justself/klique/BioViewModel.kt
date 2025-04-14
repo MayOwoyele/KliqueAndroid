@@ -3,7 +3,6 @@ package com.justself.klique
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.liveData
-import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -17,7 +16,6 @@ import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
-import android.graphics.Color as AndroidColor
 
 class BioViewModel(private val contactsRepository: ContactsRepository) : ViewModel() {
     private val _postComments = MutableStateFlow<List<StatusComments>>(emptyList())
@@ -27,6 +25,15 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
     val profile = _profile.asStateFlow()
     private val _gistList = MutableStateFlow<List<GistModel>>(emptyList())
     val gistList = _gistList.asStateFlow()
+    init {
+        WebSocketManager.bioViewModel = this
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        WebSocketManager.bioViewModel = null
+    }
+
     fun fetchProfile(bioUserId: Int, spectatorUserId: Int) {
         val params = mapOf(
             "bioUserId" to "$bioUserId",
@@ -111,21 +118,6 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         }
         return comments
     }
-
-    private fun colorFromHex(hex: String): Color {
-        val androidColorInt = AndroidColor.parseColor(hex)
-        return Color(androidColorInt)
-    }
-    fun joinGist(gistId: String) {
-        val joinGistJson = """
-            {
-            "type": "joinGist",
-            "gistId": "$gistId"
-            }
-        """.trimIndent()
-        WebSocketManager.send(joinGistJson, showToast = true)
-        Log.d("Join Gist", "Join gist id is $gistId")
-    }
     fun floatGist(gistId: String) {
         val floatGistId = """
             {
@@ -133,7 +125,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             "gistId": "$gistId"
             }
         """.trimIndent()
-        WebSocketManager.send(floatGistId, showToast = true)
+        WebSocketManager.send(BufferObject(WsDataType.BioVM, floatGistId), showToast = true)
     }
 
     fun leaveSeat(enemyId: Int, customerId: Int) {
@@ -146,25 +138,24 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
         viewModelScope.launch {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "leaveSeat",
-                            KliqueHttpMethod.POST,
-                            params = emptyMap(),
-                            jsonBody = json
-                        )
-                    },
-                    action = { response ->
+                NetworkUtils.makeJwtRequest(
+                    "leaveSeat",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = json,
+                    action = {
                         _profile.value = _profile.value?.copy(
                             isSpectator = false,
                             seatedCount = (_profile.value?.seatedCount ?: 1) - 1
                         )
                     },
                     errorAction = { response ->
-                        Log.e("Response", "Error leaving seat: ${response.second}")
+                        if (response is NetworkUtils.JwtTriple.Value){
+                            Log.e("Response", "Error leaving seat: ${response.response}")
+                        }
                     }
                 )
+
             } catch (e: Exception) {
                 Log.e("Response", "Exception: ${e.message}", e)
             }
@@ -181,15 +172,11 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
 
         viewModelScope.launch {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "takeSeat",
-                            KliqueHttpMethod.POST,
-                            params = emptyMap(),
-                            jsonBody = json
-                        )
-                    },
+                NetworkUtils.makeJwtRequest(
+                    "takeSeat",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = json,
                     action = {
                         Log.d("Response", "response successful")
                         _profile.value = _profile.value?.copy(
@@ -198,7 +185,9 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         )
                     },
                     errorAction = { response ->
-                        Log.e("Response", "Error taking seat: ${response.second}")
+                        if (response is NetworkUtils.JwtTriple.Value){
+                            Log.e("Response", "Error taking seat: ${response.response}")
+                        }
                     }
                 )
             } catch (e: Exception) {
@@ -232,16 +221,12 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         Log.d("CommentStatus", "called")
         viewModelScope.launch {
             try {
-                performReusableNetworkCalls(
-                    response = {
-                        NetworkUtils.makeJwtRequest(
-                            "sendStatusComment",
-                            KliqueHttpMethod.POST,
-                            params = emptyMap(),
-                            jsonBody = comment
-                        )
-                    },
-                    action = { response ->
+                NetworkUtils.makeJwtRequest(
+                    "sendStatusComment",
+                    KliqueHttpMethod.POST,
+                    params = emptyMap(),
+                    jsonBody = comment,
+                    action = {
                         val newComment = StatusComments(
                             name = "You",
                             customerId = customerId,
@@ -263,11 +248,8 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         }?.toMutableList() ?: mutableListOf()
 
                         _profile.value = _profile.value?.copy(posts = updatedPosts)
-
-                        Log.d("CommentStatus", response.second)
                     },
-                    errorAction = { response ->
-                        Log.d("CommentStatus", "Error: ${response.second}")
+                    errorAction = {
                     }
                 )
             } catch (e: Exception) {

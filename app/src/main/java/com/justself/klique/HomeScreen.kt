@@ -1,13 +1,6 @@
 package com.justself.klique
 
 import android.util.Log
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideIn
-import androidx.compose.animation.slideOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,9 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
@@ -72,7 +63,7 @@ import com.justself.klique.sharedUi.AddButton
 import com.justself.klique.gists.ui.viewModel.SharedCliqueViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
@@ -88,7 +79,8 @@ fun HomeScreen(
     emojiPickerHeight: (Dp) -> Unit,
     chatScreenViewModel: ChatScreenViewModel,
     onDisplayTextChange: (String, Int) -> Unit,
-    gistId: String?
+    gistId: String?,
+    commentId: String?
 ) {
     val coroutineScope = rememberCoroutineScope()
     var showOptions by remember { mutableStateOf(false) }
@@ -113,7 +105,7 @@ fun HomeScreen(
         }
         if (gistId != null) {
             Log.d("GistId", "The gist id is $gistId")
-            viewModel.joinGist(gistId)
+            viewModel.enterGist(gistId)
         }
     }
     Surface(
@@ -148,7 +140,6 @@ fun HomeScreen(
                 GistScreen(
                     customerId = customerId,
                     viewModel = viewModel,
-                    navController
                 )
                 Box(
                     modifier = Modifier
@@ -226,9 +217,10 @@ fun GistForm(
     }
     val onlineContacts by viewModel.onlineContacts.collectAsState()
     val mergedContacts = remember(contacts, onlineContacts) {
+        val appUsersOnly = contacts.filter { it.customerId != null }
         val onlineSet = onlineContacts.toSet()
-        val onlineList = contacts.filter { it.customerId in onlineSet }
-        val offlineList = contacts.filter { it.customerId !in onlineSet }
+        val onlineList = appUsersOnly.filter { it.customerId in onlineSet }
+        val offlineList = appUsersOnly.filter { it.customerId !in onlineSet }
         onlineList.sortedBy { it.name } + offlineList.sortedBy { it.name }
     }
     var emptyText by remember { mutableStateOf("Loading your online contacts...") }
@@ -243,9 +235,11 @@ fun GistForm(
     }
     DisposableEffect(Unit) {
         WebSocketManager.isGistFormVisible = true
+        WebSocketManager.clearWebsocketBuffer(WsDataType.GistFormUnsubscription)
         onDispose {
             WebSocketManager.isGistFormVisible = false
             viewModel.unsubscribeToGfUpdates()
+            WebSocketManager.clearWebsocketBuffer(WsDataType.HomeOnlineContacts)
         }
     }
 
@@ -289,11 +283,8 @@ fun GistForm(
                 focusedTextColor = MaterialTheme.colorScheme.onPrimary
             )
         )
-
-
         Spacer(modifier = Modifier.height(16.dp))
         Spacer(modifier = Modifier.height(8.dp))
-
         Row {
             RadioButton(
                 selected = selectedType == GistType.Public,
@@ -304,7 +295,7 @@ fun GistForm(
                 )
             )
             Text(
-                text = "Open",
+                text = "Gist",
                 modifier = Modifier.clickable { selectedType = GistType.Public },
                 color = MaterialTheme.colorScheme.onPrimary
             )
@@ -318,7 +309,7 @@ fun GistForm(
                 )
             )
             Text(
-                text = "Controlled",
+                text = "News",
                 modifier = Modifier.clickable { selectedType = GistType.Private },
                 color = MaterialTheme.colorScheme.onPrimary
             )
@@ -394,7 +385,10 @@ fun GistForm(
                                 Box(
                                     modifier = Modifier
                                         .size(10.dp)
-                                        .background(MaterialTheme.colorScheme.primary, shape = CircleShape )
+                                        .background(
+                                            MaterialTheme.colorScheme.primary,
+                                            shape = CircleShape
+                                        )
                                 )
                             }
                         }
@@ -469,5 +463,15 @@ fun ErrorDialog(
 
 enum class GistType(val value: String) {
     Public("public"),
-    Private("private")
+    Private("private");
+
+    companion object {
+        fun fromString(value: String): GistType {
+            return when (value.lowercase(Locale.getDefault())) {
+                "public" -> Public
+                "private" -> Private
+                else -> Public
+            }
+        }
+    }
 }

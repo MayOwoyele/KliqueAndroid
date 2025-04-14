@@ -63,16 +63,21 @@ object WebSocketManager {
     private var chatScreenViewModel: ChatScreenViewModel? = null
     private var sharedCliqueViewModel: SharedCliqueViewModel? = null
     private var chatRoomViewModel: ChatRoomViewModel? = null
+    var bioViewModel: BioViewModel? = null
     var aReconnection = false
     private var isPingPongRunning = false
     private var isConnecting = false
     private var reconnectionJob: Job? = null
     var isGistFormVisible = false
-    private var websocketBuffer = mutableListOf<String>()
+    private var websocketBuffer = mutableMapOf<WsDataType, MutableList<BufferObject>>()
+    var inGistSettings = false
+    private const val BUFFER_TIMEOUT = 30_000L
+    private var websocketBinaryBuffer = mutableMapOf<WsDataType, MutableList<BinaryBufferObject>>()
+    val coroutine = CoroutineScope(Dispatchers.IO)
+    val coroutineMain = CoroutineScope(Dispatchers.Main)
 
     @Volatile
     private var isReconnecting = false
-
 
     fun <T> registerListener(listener: WebSocketListener<T>) {
         listeners[listener.listenerId] = listener
@@ -91,14 +96,13 @@ object WebSocketManager {
                 lastPongTime = System.currentTimeMillis()
                 reconnectionAttempts = 0
                 startPingPong()
-                CoroutineScope(Dispatchers.IO).launch {
-                    delay(1000)
+                coroutine.launch {
                     chatScreenViewModel?.retryPendingMessages(context)
                     chatScreenViewModel?.currentChat?.value?.let { enemyId ->
                         chatScreenViewModel?.subscribeToOnlineStatus(enemyId)
                     }
                     chatScreenViewModel?.fetchNewMessagesFromServer()
-                    CoroutineScope(Dispatchers.IO).launch {
+                    coroutine.launch {
                         val randomNumber = (1..100).random()
                         if (randomNumber in 1..10) {
                             val theIds = chatScreenViewModel?.fetchRelevantIds()
@@ -109,13 +113,24 @@ object WebSocketManager {
                     }
                 }
                 sharedCliqueViewModel?.gistCreatedOrJoined?.value?.let {
-                    CoroutineScope(Dispatchers.IO).launch {
+                    coroutine.launch {
                         sharedCliqueViewModel?.restoreGistState()
+                    }
+                    if (inGistSettings){
+                        sharedCliqueViewModel?.gistTopRow?.value?.gistId?.let { it1 ->
+                            sharedCliqueViewModel?.fetchMembersFromServer(
+                                it1
+                            )
+                        }
                     }
                     aReconnection = false
                 }
+                bioViewModel?.fetchMyGists(
+                    SessionManager.customerId.value
+                )
                 chatRoomViewModel?.retrial()
                 sendTheBuffer()
+                sendTheBinaryBuffer()
             }
 
             override fun onWebsocketPong(conn: WebSocket?, f: Framedata?) {
@@ -127,7 +142,7 @@ object WebSocketManager {
             override fun onMessage(message: String) {
                 Log.d("RawWebSocket", "raw $message")
                 println("Received message: $message")
-                CoroutineScope(Dispatchers.Main).launch {
+                coroutineMain.launch {
                     try {
                         val jsonObject = JSONObject(message)
                         val type = jsonObject.getString("type")
@@ -147,7 +162,7 @@ object WebSocketManager {
 
             override fun onMessage(bytes: ByteBuffer) {
                 println("Received binary message")
-                CoroutineScope(Dispatchers.Main).launch {
+                coroutineMain.launch {
                     try {
                         if (bytes.remaining() < 12) {
                             println("Error: ByteBuffer does not have enough bytes for the prefix")
@@ -215,7 +230,7 @@ object WebSocketManager {
             override fun onError(ex: Exception) {
                 println("WebSocket error: ${ex.message}")
                 if (shouldReconnect) {
-                    CoroutineScope(Dispatchers.IO).launch {
+                    coroutine.launch {
                         setIsConnectedToFalse("onError")
                     }
                 }
@@ -259,10 +274,6 @@ object WebSocketManager {
 
     fun setChatRoomViewModel(viewModel: ChatRoomViewModel) {
         chatRoomViewModel = viewModel
-    }
-
-    fun clearChatRoomViewModel() {
-        chatRoomViewModel = null
     }
 
     private suspend fun scheduleReconnect(caller: String) {
@@ -353,10 +364,10 @@ object WebSocketManager {
         }
     }
 
-    fun send(message: String, showToast: Boolean = false, saveToBuffer: Boolean = false) {
+    fun send(message: BufferObject, showToast: Boolean = false) {
         Log.d("RawWebsocket", "outgoing $message")
         if (!_isConnected.value && showToast) {
-            CoroutineScope(Dispatchers.Main).launch {
+            coroutineMain.launch {
                 Toast.makeText(
                     appContext,
                     "You should try again when wifi icon changes back to pink",
@@ -366,9 +377,9 @@ object WebSocketManager {
         }
         try {
             if (webSocketClient?.isOpen == true) {
-                webSocketClient?.send(message)
+                webSocketClient?.send(message.message)
             } else {
-                if (saveToBuffer) {
+                if (message.type != null) {
                     saveMessageToBuffer(message)
                 }
                 Log.e("WebSocketManager", "WebSocket is not connected. Message queued.")
@@ -378,12 +389,12 @@ object WebSocketManager {
         }
     }
 
-    fun sendBinary(message: ByteArray) {
+    fun sendBinary(message: BinaryBufferObject) {
         try {
             if (webSocketClient?.isOpen == true) {
-                webSocketClient?.send(message)
+                webSocketClient?.send(message.data)
             } else {
-                throw WebsocketNotConnectedException()
+                saveBinaryMessageToBuffer(message)
             }
         } catch (e: WebsocketNotConnectedException) {
             Log.e("WebSocketManager", "WebSocket not connected: ${e.message}")
@@ -474,20 +485,63 @@ object WebSocketManager {
             }
         }
     }
-    private fun sendTheBuffer(){
-        if (websocketBuffer.isNotEmpty() && isGistFormVisible){
-            for (message in websocketBuffer) {
-                send(message)
-            }
+    private fun sendTheBuffer() {
+        val currentBuffer = mutableMapOf<WsDataType, MutableList<BufferObject>>().also {
+            it.putAll(websocketBuffer)
         }
         websocketBuffer.clear()
+
+        val now = System.currentTimeMillis()
+
+        currentBuffer.forEach { (type, messages) ->
+            messages.forEach { bufferObject ->
+                if (now - bufferObject.bufferedAt <= BUFFER_TIMEOUT) {
+                    Log.d("WebSocketManager", "Sending buffered [$type] message: ${bufferObject.message}")
+                    send(bufferObject)
+                } else {
+                    Log.d("WebSocketManager", "Discarding expired buffered [$type] message: ${bufferObject.message}")
+                }
+            }
+        }
     }
-    private fun saveMessageToBuffer(message: String){
-        websocketBuffer.add(message)
+    private fun sendTheBinaryBuffer() {
+        val currentBinaryBuffer = mutableMapOf<WsDataType, MutableList<BinaryBufferObject>>().also {
+            it.putAll(websocketBinaryBuffer)
+        }
+        websocketBinaryBuffer.clear()
+
+        val now = System.currentTimeMillis()
+
+        currentBinaryBuffer.forEach { (type, binaryMessages) ->
+            binaryMessages.forEach { binaryBufferObject ->
+                if (now - binaryBufferObject.bufferedAt <= BUFFER_TIMEOUT) {
+                    Log.d("WebSocketManager", "Sending buffered [$type] binary message")
+                    sendBinary(binaryBufferObject)
+                } else {
+                    Log.d("WebSocketManager", "Discarding expired buffered [$type] binary message")
+                }
+            }
+        }
+    }
+    private fun saveMessageToBuffer(message: BufferObject) {
+        message.type?.let { type ->
+            val list = websocketBuffer.getOrPut(type) { mutableListOf() }
+            list.add(message)
+        } ?: run {
+            Log.w("WebSocketManager", "Skipped buffering message with null type: $message")
+        }
+    }
+    private fun saveBinaryMessageToBuffer(binary: BinaryBufferObject) {
+        binary.type?.let { type ->
+            val list = websocketBinaryBuffer.getOrPut(type) { mutableListOf() }
+            list.add(binary)
+        } ?: run {
+            Log.w("WebSocketManager", "Skipped buffering binary message with null type: $binary")
+        }
     }
 
     private fun handleUnauthorized() {
-        CoroutineScope(Dispatchers.IO).launch {
+        coroutine.launch {
             Log.d("refreshToken", "Websocket, token")
             val responseCode = JWTNetworkCaller.refreshAccessToken()
             Log.d("StatusCode", responseCode.toString())
@@ -506,10 +560,13 @@ object WebSocketManager {
     }
 
     private fun handleForbidden() {
-        CoroutineScope(Dispatchers.IO).launch {
+        coroutine.launch {
             SessionManager.resetCustomerData()
             shouldReconnect = false
         }
+    }
+    fun clearWebsocketBuffer(type: WsDataType){
+        websocketBuffer.remove(type)
     }
 }
 
@@ -520,4 +577,39 @@ fun deEscapeContent(escapedContent: String): String {
         .replace("\\b", "\b")
         .replace("\\\"", "\"")
         .replace("\\\\", "\\")
+}
+enum class WsDataType{
+    GistFormUnsubscription,
+    GistRoomChat,
+    PersonalMessageType,
+    Shots,
+    BioVM,
+    FetchGistMembers,
+    LoadOlderGistMessages,
+    UnsubscribeForGistSetting,
+    HomeOnlineContacts,
+    ShotsRefresh
+}
+data class BufferObject(
+    val type: WsDataType? = null,
+    val message: String,
+    val bufferedAt: Long = System.currentTimeMillis()
+)
+data class BinaryBufferObject(
+    val type: WsDataType? = null,
+    val data: ByteArray,
+    val bufferedAt: Long = System.currentTimeMillis()
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as BinaryBufferObject
+
+        return data.contentEquals(other.data)
+    }
+
+    override fun hashCode(): Int {
+        return data.contentHashCode()
+    }
 }

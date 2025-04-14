@@ -716,7 +716,7 @@ fun BottomNavigationBar(navController: NavController) {
             icon = { Icon(Icons.Filled.Book, contentDescription = "Bookshelf", tint = iconColor) },
             label = { Text("Bookshelf", style = textStyle) },
             selected = currentRoute == Screen.Bookshelf.route,
-            onClick = { if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(navController) }
+            onClick = { if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(navController) },
         )
     }
 }
