@@ -203,6 +203,7 @@ fun CustomCRTopAppBar(
         }
     }
 }
+
 @Composable
 fun ChatRoomContent(
     navController: NavController,
@@ -227,7 +228,9 @@ fun ChatRoomContent(
         lastSeenMessageCount = chatRoomMessages.size
     }
     LaunchedEffect(chatRoomMessages.size) {
-        if (isAtBottom){ lastSeenMessageCount = chatRoomMessages.size }
+        if (isAtBottom) {
+            lastSeenMessageCount = chatRoomMessages.size
+        }
     }
     LaunchedEffect(toastWarning) {
         if (toastWarning != null) {
@@ -268,12 +271,15 @@ fun ChatRoomContent(
                     .imePadding(),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
-                Icon(Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom",
-                    tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(
+                    Icons.Default.ArrowDownward, contentDescription = "Scroll to bottom",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
         }
     }
 }
+
 @Composable
 fun ChatRoomMessageItem(
     message: ChatRoomMessage,
@@ -318,8 +324,9 @@ fun ChatRoomMessageItem(
                         text = message.content,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
                     ChatRoomMessageType.CIMAGE -> {
-                        ChatRoomImageItem(
+                        ShotRoomImageItem(
                             image = message.localPath,
                             shape = shape,
                             navController = navController
@@ -416,34 +423,15 @@ fun CrTextBoxAndMedia(
     }
 }
 
-@Composable
-fun ChatRoomImageItem(image: Uri?, shape: Shape, navController: NavController) {
-    var bitmap by remember { mutableStateOf<Bitmap?>(null) }
-    val context = LocalContext.current
-    LaunchedEffect(image) {
-        bitmap = image?.let { convertJpgToBitmap(context, it) }
-    }
-    bitmap?.let { bmp ->
-        Image(
-            bitmap = bmp.asImageBitmap(),
-            contentDescription = null,
-            modifier = Modifier
-                .height(200.dp)
-                .clip(shape)
-                .clickable { MediaVM.setBitmap(bmp); navController.navigate("fullScreenImage") }
-        )
-    } ?: Text(
-        text = "Image Loading",
-        color = MaterialTheme.colorScheme.onPrimary
-    )
-}
+
 suspend fun getChatRoomUriFromByteArray(
     byteArray: ByteArray,
     context: Context,
     mediaType: ChatRoomMediaType
 ): Uri {
     return withContext(Dispatchers.IO) {
-        val customCacheDir = File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_ROOM_CACHE.directoryName)
+        val customCacheDir =
+            File(context.cacheDir, KliqueCacheDirString.CUSTOM_CHAT_ROOM_CACHE.directoryName)
         if (!customCacheDir.exists()) {
             customCacheDir.mkdir()
         }

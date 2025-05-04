@@ -1,5 +1,6 @@
 package com.justself.klique
 
+import android.util.Log
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -11,6 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentLinkedQueue
 
 @Composable
 fun VerifiedIcon(modifier: Modifier = Modifier, paddingFigure: Int = 0) {
@@ -59,5 +67,61 @@ fun getCustomRelativeTimeSpanString(time: Long, now: Long): String {
             val years = diff / YEAR_MILLIS
             "$years yr${if (years > 1) "s" else ""}"
         }
+    }
+}
+object AckBatcher {
+    private val messageIds = ConcurrentLinkedQueue<String>()
+    private var timerJob: Job? = null
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    private const val BATCH_DELAY_MS = 5000L
+
+    fun add(messageId: String) {
+        messageIds.add(messageId)
+
+        if (timerJob == null) {
+            timerJob = scope.launch {
+                delay(BATCH_DELAY_MS)
+                flush()
+            }
+        }
+    }
+
+    private suspend fun flush() {
+        val batch = mutableListOf<String>()
+        while (messageIds.isNotEmpty()) {
+            messageIds.poll()?.let { batch.add(it) }
+        }
+        if (batch.isNotEmpty()) {
+            ChatVMObject.acknowledgeMessages(batch)
+        }
+
+        timerJob = if (messageIds.isNotEmpty()) {
+            scope.launch {
+                delay(BATCH_DELAY_MS)
+                flush()
+            }
+        } else {
+            null
+        }
+    }
+
+    fun clear() {
+        messageIds.clear()
+        timerJob?.cancel()
+        timerJob = null
+    }
+}
+object Logger {
+    fun d(tag: String, message: String) {
+        if (BuildConfig.DEBUG) Log.d(tag, message)
+    }
+
+    fun i(tag: String, message: String) {
+        if (BuildConfig.DEBUG) Log.i(tag, message)
+    }
+
+    fun e(tag: String, message: String) {
+        if (BuildConfig.DEBUG) Log.e(tag, message)
     }
 }

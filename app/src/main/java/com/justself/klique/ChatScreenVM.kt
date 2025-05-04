@@ -48,8 +48,6 @@ class ChatScreenViewModel(
     private val _chats = MutableStateFlow<List<ChatList>>(emptyList())
     val chats: StateFlow<List<ChatList>> get() = _chats
 
-    val myUserId = MutableStateFlow(0)
-
     private val _personalChats = MutableStateFlow<List<PersonalChat>>(emptyList())
     val personalChats: StateFlow<List<PersonalChat>> get() = _personalChats
 
@@ -78,7 +76,7 @@ class ChatScreenViewModel(
         WebSocketManager.setChatScreenViewModel(this)
         retryPendingMessages(getApplication<Application>().applicationContext)
         checkContactUpdate()
-        loadChats(myUserId.value)
+        loadChats(SessionManager.customerId.value)
         gatherMessages()
         calculateUnreadMsg()
     }
@@ -104,18 +102,20 @@ class ChatScreenViewModel(
             }
 
             PrivateChatReceivingType.P_TEXT -> {
-                launchAndParse(jsonObject, ::handleIncomingWebsocketCaller)
+                launchAndParseForNonMediaType(jsonObject, ::handleIncomingWebsocketCaller)
             }
 
             PrivateChatReceivingType.P_IMAGE,
             PrivateChatReceivingType.P_AUDIO,
             PrivateChatReceivingType.P_VIDEO -> {
+                loggerD("AckCheck"){"onMessageReceived"}
                 val messageId = jsonObject.optString("messageId", "")
                 viewModelScope.launch(Dispatchers.IO) {
                     try {
+                        loggerD("AckCheck"){"onMessageReceived 2"}
                         maybeParseAndReturnMessage(messageId, jsonObject)?.let { parsedMessage ->
                             handleIncomingWebsocketCaller(parsedMessage)
-                        }
+                        } ?: loggerD("AckCheck"){"onMessageReceived 3"}
                     } catch (e: Exception) {
                         loggerD("Websocket") { "Error processing message $messageId: ${e.message}" }
                     }
@@ -123,10 +123,10 @@ class ChatScreenViewModel(
             }
             PrivateChatReceivingType.P_GIST_INVITE -> {
                 loggerD("Websocket") { "PGistInvite Function called" }
-                launchAndParse(jsonObject, ::handleIncomingWebsocketCaller)
+                launchAndParseForNonMediaType(jsonObject, ::handleIncomingWebsocketCaller)
             }
             PrivateChatReceivingType.P_GIST_CREATION -> {
-                launchAndParse(jsonObject, ::handleIncomingWebsocketCaller)
+                launchAndParseForNonMediaType(jsonObject, ::handleIncomingWebsocketCaller)
             }
 
             PrivateChatReceivingType.ACK -> {
@@ -217,13 +217,13 @@ class ChatScreenViewModel(
 
     fun deleteChat(enemyId: Int, context: Context) {
         viewModelScope.launch(Dispatchers.IO) {
-            val messages = personalChatDao.getPersonalChatsByEnemyId(myUserId.value, enemyId)
+            val messages = personalChatDao.getPersonalChatsByEnemyId(SessionManager.customerId.value, enemyId)
             messages.forEach { message ->
                 message.mediaUri?.let { deleteMediaFile(context, it) }
             }
-            personalChatDao.deletePersonalChatsForEnemy(myId = myUserId.value, enemyId = enemyId)
+            personalChatDao.deletePersonalChatsForEnemy(myId = SessionManager.customerId.value, enemyId = enemyId)
             chatDao.deleteChat(enemyId)
-            loadChats(myUserId.value)
+            loadChats(SessionManager.customerId.value)
         }
     }
 
@@ -274,10 +274,6 @@ class ChatScreenViewModel(
                 _searchResults.value = chatList
             }
         }
-    }
-
-    fun setMyUserId(userId: Int) {
-        myUserId.value = userId
     }
 
     fun enterChat(enemyId: Int) {
@@ -344,19 +340,21 @@ class ChatScreenViewModel(
     }
 
     private fun handleIncomingWebsocketCaller(message: PersonalChat) {
+        loggerD("AckCheck"){"handleIncomingWsCaller"}
         handleIncomingPersonalMessage(message, NetworkType.WEBSOCKET)
     }
 
-    private fun handleIncomingHttpCaller(message: PersonalChat) {
-        handleIncomingPersonalMessage(message, NetworkType.HTTP)
+    private fun handleIncomingHttpCaller(message: PersonalChat, acknowledgment: () -> Unit) {
+        handleIncomingPersonalMessage(message, NetworkType.HTTP, acknowledgment)
     }
 
-    private fun handleIncomingPersonalMessage(newMessage: PersonalChat, network: NetworkType) {
+    private fun handleIncomingPersonalMessage(newMessage: PersonalChat, network: NetworkType, upperAcknowledgment: (() -> Unit)? = null) {
         loggerD("Incoming") { "newMessage is $newMessage" }
         viewModelScope.launch(Dispatchers.IO) {
             val chatExists = checkChatExistsSync(newMessage.myId, newMessage.enemyId)
             loggerD("Websocket") { "Is New Incoming is ${!chatExists}" }
             val messageExists = personalChatDao.getPersonalChatById(newMessage.messageId) != null
+            loggerD("AckCheck"){"phase 1, $network, ${newMessage.mediaUri?.startsWith("http") == true}"}
             val acknowledgement = when (network) {
                 NetworkType.WEBSOCKET -> {
                     if (newMessage.mediaUri?.startsWith("http") == true) {
@@ -367,7 +365,7 @@ class ChatScreenViewModel(
                 }
 
                 NetworkType.HTTP -> {
-                    {}
+                    upperAcknowledgment
                 }
             }
             if (!messageExists) {
@@ -376,15 +374,20 @@ class ChatScreenViewModel(
                 }
                 addAndProcessPersonalChat(newMessage, chatExists, acknowledgement)
             } else {
-                loggerD("MessageExists") {
+                loggerD("AckCheck") {
                     "Message with id ${newMessage.messageId} already exists"
+                }
+                if (acknowledgement != null) {
+                    acknowledgement()
+                } else if (upperAcknowledgment != null) {
+                    upperAcknowledgment()
                 }
             }
         }
     }
 
     private fun reasonOutEnemyId(message: PersonalChat): Int {
-        return if (message.myId == myUserId.value) message.enemyId else message.myId
+        return if (message.myId == SessionManager.customerId.value) message.enemyId else message.myId
     }
 
     private fun updateChatListWithNewMessage(newMessage: PersonalChat, chatExists: Boolean) {
@@ -423,21 +426,21 @@ class ChatScreenViewModel(
                 lastMsg = lastMsg,
                 lastMsgAddTime = timeStamp,
                 profilePhoto = "",
-                myId = myUserId.value,
-                unreadMsgCounter = if (_currentChat.value != enemyId && newMessage.myId != myUserId.value) 1 else 0
+                myId = SessionManager.customerId.value,
+                unreadMsgCounter = if (_currentChat.value != enemyId && newMessage.myId != SessionManager.customerId.value) 1 else 0
             )
             if (!chatExists) {
                 viewModelScope.launch(Dispatchers.Main) {
                     chatDao.addChat(chat)
                     sendJsonToUpdateProfile(listOf(enemyId))
-                    loadChats(myUserId.value)
+                    loadChats(SessionManager.customerId.value)
                 }
-                loggerD("isNewChat") { "add chat called with $chat" }
+                loggerD("AckChecker") { "add chat called with $chat" }
             } else {
-                loggerD("isNewChat") { "not added $chat" }
+                loggerD("AckChecker") { "not added ${newMessage.myId}, ${newMessage.enemyId}" }
                 reinsertUpdatedChatEntry(enemyId)
             }
-            if (newMessage.enemyId == myUserId.value) {
+            if (newMessage.enemyId == SessionManager.customerId.value) {
                 updatePopUp(newMessage.myId, lastMsg)
             }
         }
@@ -500,12 +503,12 @@ class ChatScreenViewModel(
         loggerD("MessageExists") { "addAndProcessPersonalChat called" }
         viewModelScope.launch(Dispatchers.IO) {
             val enemyId =
-                if (personalChat.myId == myUserId.value) personalChat.enemyId else personalChat.myId
+                if (personalChat.myId == SessionManager.customerId.value) personalChat.enemyId else personalChat.myId
             if (_currentChat.value != enemyId) {
                 loggerD("currentChat") { "Current chat is ${_currentChat.value}" }
                 val existingMessage = personalChatDao.getPersonalChatById(personalChat.messageId)
                 val notExists = existingMessage == null
-                val notSelfSent = personalChat.myId != myUserId.value
+                val notSelfSent = personalChat.myId != SessionManager.customerId.value
                 if (notExists && notSelfSent) {
                     loggerD("currentChat") { "Current chat is ${_currentChat.value}" }
                     incrementUnreadMsgCounter(enemyId)
@@ -672,9 +675,12 @@ class ChatScreenViewModel(
         }
     }
 
-    private fun launchAndParse(jsonObject: JSONObject, handle: (PersonalChat) -> Unit) {
+    private fun launchAndParseForNonMediaType(jsonObject: JSONObject, handle: (PersonalChat) -> Unit) {
         viewModelScope.launch {
-            parsePersonalChatFromJson(jsonObject)?.let { handle(it) }
+            val messageId = jsonObject.optString("messageId", "")
+            if (messageId.isNotEmpty()){
+                maybeParseAndReturnMessage(messageId, jsonObject)?.let { handle(it) }
+            }
         }
     }
 
@@ -775,7 +781,7 @@ class ChatScreenViewModel(
     }
 
     suspend fun fetchRelevantIds(): List<Int> = withContext(Dispatchers.IO) {
-        chatDao.getAllChats(myUserId.value).map { it.enemyId }.distinct()
+        chatDao.getAllChats(SessionManager.customerId.value).map { it.enemyId }.distinct()
     }
 
     fun handleRecordedAudio(
@@ -842,12 +848,15 @@ class ChatScreenViewModel(
 
     private fun reinsertUpdatedChatEntry(enemyId: Int) {
         viewModelScope.launch(Dispatchers.IO) {
-            val latestMessage = personalChatDao.getLatestMessageBetween(myUserId.value, enemyId)
+            loggerD("AckChecker"){"REINSERTED CALLED: Session.${SessionManager.customerId.value}"}
+            val latestMessage = personalChatDao.getLatestMessageBetween(SessionManager.customerId.value, enemyId)
             val profileData = chatDao.getChatByEnemyId(enemyId)
 
             if (latestMessage == null) {
-                loggerD("ChatReinsert") { "No latest message found for $enemyId, skipping update." }
+                loggerD("AckChecker") { "No latest message found for $enemyId, skipping update. ${SessionManager.customerId.value}" }
                 return@launch
+            } else {
+                loggerD("AckChecker") { "Latest message found for $enemyId: ${latestMessage.content}" }
             }
 
             val chatToInsertOrUpdate = ChatList(
@@ -856,12 +865,11 @@ class ChatScreenViewModel(
                 lastMsg = latestMessage.displayableContent(),
                 lastMsgAddTime = latestMessage.timeStamp,
                 profilePhoto = profileData?.profilePhoto ?: "",
-                myId = myUserId.value,
+                myId = SessionManager.customerId.value,
                 unreadMsgCounter = profileData?.unreadMsgCounter ?: 0,
                 isVerified = profileData?.isVerified ?: false
             )
-
-            chatDao.addChat(chatToInsertOrUpdate)
+            chatDao.updateLastMessage(enemyId, latestMessage.displayableContent(), latestMessage.timeStamp)
 
             withContext(Dispatchers.Main) {
                 _chats.update { current ->
@@ -878,7 +886,7 @@ class ChatScreenViewModel(
     fun searchChats(query: String) {
         viewModelScope.launch(Dispatchers.IO) {
             if (query.isNotEmpty()) {
-                val result = chatDao.searchChats(myUserId.value, "%$query%")
+                val result = chatDao.searchChats(SessionManager.customerId.value, "%$query%")
                 _searchResults.value = result
             }
         }
@@ -1004,7 +1012,7 @@ class ChatScreenViewModel(
         val personalChat = PersonalChat(
             messageId = messageId,
             enemyId = 0,
-            myId = myUserId.value,
+            myId = SessionManager.customerId.value,
             content = topic,
             status = PersonalMessageStatus.PENDING,
             messageType = PersonalMessageType.P_GIST_INVITE,
@@ -1019,6 +1027,7 @@ class ChatScreenViewModel(
     }
 
     private fun sendDeliveryAcknowledgment(messageId: String) {
+        loggerD("AckCheck"){"Delivery ack sending"}
         val acknowledgmentJson = """
         {
             "type": "myIdDeliveryAck",
@@ -1048,48 +1057,30 @@ class ChatScreenViewModel(
 
     private suspend fun processHttpResponse(response: networkTriple) {
         loggerD("fetchUndelivered") { "Response: $response" }
+
         val messagesArray = JSONArray(response.second)
-        val processedIds = mutableListOf<String>()
+
         for (i in 0 until messagesArray.length()) {
             val jsonMessage = messagesArray.getJSONObject(i)
             val messageId = jsonMessage.optString("messageId", "")
-            if (messageId.isNotEmpty()) {
-                val parsedMessage = maybeParseAndReturnMessage(messageId, jsonMessage)
-                if (parsedMessage != null) {
-                    loggerD("fetchUndelivered") { "Parsed message: $parsedMessage" }
-                    handleIncomingHttpCaller(parsedMessage)
-                    if (parsedMessage.messageType !in listOf(
-                            PersonalMessageType.P_IMAGE,
-                            PersonalMessageType.P_AUDIO,
-                            PersonalMessageType.P_VIDEO
-                        ) || (parsedMessage.mediaUri?.startsWith("http") == false)
-                    ) {
-                        processedIds.add(messageId)
+            val parsedMessage = if (messageId.isNotEmpty()) {
+                maybeParseAndReturnMessage(messageId, jsonMessage)
+            } else null
+
+            parsedMessage?.let { message ->
+                val shouldAck = message.messageType !in listOf(
+                    PersonalMessageType.P_IMAGE,
+                    PersonalMessageType.P_AUDIO,
+                    PersonalMessageType.P_VIDEO
+                ) || (message.mediaUri?.startsWith("http") == false)
+
+                handleIncomingHttpCaller(message) {
+                    if (shouldAck) {
+                        AckBatcher.add(messageId)
                     }
                 }
             }
         }
-        acknowledgeMessages(processedIds)
-    }
-
-    private suspend fun acknowledgeMessages(messageIds: List<String>) {
-        val jsonBody = JSONObject().apply {
-            put("messageIds", JSONArray(messageIds))
-        }.toString()
-        val action: suspend (NetworkUtils.JwtTriple) -> Unit = { responseTriple ->
-            if (responseTriple is NetworkUtils.JwtTriple.Value) {
-                loggerD("AckMessages") { "Response code: ${responseTriple.responseCode}" }
-            }
-        }
-        val errorAction: suspend (NetworkUtils.JwtTriple) -> Unit = {}
-        NetworkUtils.makeJwtRequest(
-            endpoint = "acknowledgeMessages",
-            method = KliqueHttpMethod.POST,
-            params = emptyMap(),
-            jsonBody = jsonBody,
-            action = action,
-            errorAction = errorAction
-        )
     }
 
     private suspend fun maybeParseAndReturnMessage(
@@ -1104,7 +1095,6 @@ class ChatScreenViewModel(
                 return dbMessage
             }
         }
-        processingMediaMessages.add(messageId)
         return try {
             parsePersonalChatFromJson(json)
         } finally {
@@ -1140,7 +1130,7 @@ class ChatScreenViewModel(
             else -> PersonalMessageType.P_TEXT
         }
         val status = defaultStatus ?: when (messageType) {
-            PersonalMessageType.P_TEXT -> PersonalMessageStatus.SENT
+            PersonalMessageType.P_TEXT, PersonalMessageType.P_GIST_INVITE, PersonalMessageType.P_GIST_CREATION -> PersonalMessageStatus.SENT
             else -> PersonalMessageStatus.DELIVERED
         }
         if (messageType == PersonalMessageType.P_IMAGE ||
@@ -1148,6 +1138,7 @@ class ChatScreenViewModel(
             messageType == PersonalMessageType.P_VIDEO
         ) {
             if (processingMediaMessages.contains(messageId)) {
+                loggerD("AckCheck") { "Already processing message $messageId" }
                 return null
             } else {
                 processingMediaMessages.add(messageId)

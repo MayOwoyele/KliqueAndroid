@@ -48,9 +48,8 @@ fun NavigationHost(
         )
     }
     val chatScreenViewModel: ChatScreenViewModel = viewModel(factory = viewModelFactory)
-//    val mediaViewModel: MediaViewModel = viewModel(factory = MediaViewModelFactory(application))
     profileUpdateData?.let {
-        Log.d("Worked", "It worked")
+        Logger.d("Worked", "It worked")
         ProfileRepository.clearProfileData()
     }
     val profileViewModel: ProfileViewModel = viewModel(factory = ProfileViewModelFactory(chatScreenViewModel))
@@ -138,7 +137,7 @@ fun NavigationHost(
         ) { backStackEntry ->
             val videoUri = Uri.parse(backStackEntry.arguments?.getString("videoUri"))
             val sourceScreen = backStackEntry.arguments?.getString("sourceScreen") ?: ""
-            Log.d("Video Status", "$videoUri, $sourceScreen")
+            Logger.d("Video Status", "$videoUri, $sourceScreen")
             VideoTrimmingScreen(
                 appContext = LocalContext.current,
                 uri = videoUri,
@@ -171,7 +170,7 @@ fun NavigationHost(
         ) { backStackEntry ->
             val gistId = backStackEntry.arguments?.getString("gistId")
                 ?: throw IllegalStateException("where is the gistId")
-            Log.d("GistId", "The gist Id is: $gistId")
+            Logger.d("GistId", "The gist Id is: $gistId")
             GistSettings(navController, sharedCliqueViewModel)
         }
         composable(
@@ -187,7 +186,7 @@ fun NavigationHost(
         ) { backStackEntry ->
             val videoUriString = backStackEntry.arguments?.getString("videoUri")
                 ?: throw IllegalStateException("where is the videoUri")
-            Log.d("VideoView", "video uri $videoUriString")
+            Logger.d("VideoView", "video uri $videoUriString")
             FullScreenVideo(videoUri = videoUriString, navController = navController)
         }
         composable(
@@ -229,7 +228,7 @@ fun NavigationHost(
             route = Screen.Campuses.route,
             deepLinks = listOf(navDeepLink { uriPattern = Screen.Campuses.deepLink })
         ) {
-            Log.d("Navigated", "Navigated")
+            Logger.d("Navigated", "Navigated")
             ChatRoomsCategory(navController = navController, campuses = true)
         }
         composable(
@@ -258,7 +257,7 @@ fun NavigationHost(
             val optionId = backStackEntry.arguments?.getString("chatRoomId")
                 ?: throw IllegalStateException("where is the chatRoomId")
             val chatRoomOptionId = optionId.toIntOrNull()
-            Log.d("ChatRoom", "The id is $optionId")
+            Logger.d("ChatRoom", "The id is $optionId")
             if (chatRoomOptionId != null) {
                 ChatRoom(
                     navController,
@@ -376,7 +375,7 @@ sealed class Screen(val route: String, val deepLink: String) {
         fun createRoute(videoUri: String, sourceScreen: String) =
             "VideoTrimScreen/${Uri.encode(videoUri)}/$sourceScreen"
         fun navigate(navController: NavController, videoUri: String, sourceScreen: String) {
-            Log.d("Video Status", "$videoUri, $sourceScreen")
+            Logger.d("Video Status", "$videoUri, $sourceScreen")
             navController.navigate(createRoute(videoUri, sourceScreen))
         }
     }

@@ -35,7 +35,7 @@ fun ChatRoomOptions(
     categoryId: Int,
     viewModel: ChatRoomOptionsViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
-    Log.d("CategoryId", "CRoomOptions $categoryId")
+    Logger.d("CategoryId", "CRoomOptions $categoryId")
     val options = viewModel.options.collectAsState().value
     LaunchedEffect(Unit) {
         viewModel.fetchOptions(categoryId)
@@ -70,7 +70,7 @@ fun OptionItem(option: ChatRoomOption, navController: NavController) {
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .clickable {
-                Log.d("ChatRoom", "The Option room id is ${option.chatRoomId}")
+                Logger.d("ChatRoom", "The Option room id is ${option.chatRoomId}")
                 navController.navigate("chatRoom/${option.chatRoomId}") },
         verticalAlignment = Alignment.CenterVertically
     ) {

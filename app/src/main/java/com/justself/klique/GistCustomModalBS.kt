@@ -123,7 +123,7 @@ fun CommentSection(
                     if (!loading) {
                         loading = true
                         coroutineScope.launch {
-                            Log.d("LastComment", "${comments.last().id}, ${comments.last().comment}, first: ${comments.first().comment}")
+                            Logger.d("LastComment", "${comments.last().id}, ${comments.last().comment}, first: ${comments.first().comment}")
                             viewModel.fetchGistComments(true, comments.last().id, customerId)
                             loading = false
                         }
@@ -182,7 +182,7 @@ fun CommentSection(
                     capitalization = KeyboardCapitalization.Sentences
                 )
             )
-            Log.d("text", text.value)
+            Logger.d("text", text.value)
             IconButton(onClick = {
                 if (text.value.isNotEmpty()) {
                     viewModel.sendGistComment(

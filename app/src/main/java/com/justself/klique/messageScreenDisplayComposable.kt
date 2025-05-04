@@ -138,7 +138,7 @@ fun DisplayVideo(
                     detectTapGestures(
                         onLongPress = { onLongPressLambda() },
                         onTap = {
-                            Log.d("isSelectionMode", "Video Selected $isSelectionMode")
+                            Logger.d("isSelectionMode", "Video Selected $isSelectionMode")
                             onTapLambda()
                         }
                     )

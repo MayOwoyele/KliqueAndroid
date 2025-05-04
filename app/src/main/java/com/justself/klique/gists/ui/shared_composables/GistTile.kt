@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.rememberAsyncImagePainter
 import com.justself.klique.GistType
+import com.justself.klique.Logger
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
@@ -97,7 +98,7 @@ fun GistTile(
                     } else {
                         "file://$decodedVideoPath"
                     }
-                    Log.d("BackgroundCaller", "GistTile: formatted postVideo $formattedVideoPath")
+                    Logger.d("BackgroundCaller", "GistTile: formatted postVideo $formattedVideoPath")
 
                     val file = File(Uri.parse(formattedVideoPath).path ?: "")
                     if (!file.exists()) {
@@ -110,15 +111,15 @@ fun GistTile(
                     retriever.setDataSource(context, Uri.parse(formattedVideoPath))
                     val durationStr =
                         retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                    Log.d("BackgroundCaller", "Video durationStr: $durationStr")
+                    Logger.d("BackgroundCaller", "Video durationStr: $durationStr")
                     val duration = durationStr?.toLongOrNull() ?: 0L
-                    Log.d("BackgroundCaller", "Video duration: $duration ms")
+                    Logger.d("BackgroundCaller", "Video duration: $duration ms")
 
                     val targetFps = 12
                     val frameIntervalUs = 1000000L / targetFps
                     val fpsStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)
                     val nativeFps = fpsStr?.toFloatOrNull() ?: 12f
-                    Log.d("BackgroundCaller", "Native FPS: $nativeFps")
+                    Logger.d("BackgroundCaller", "Native FPS: $nativeFps")
                     val scaleFactor = nativeFps / targetFps
                     val samplingDurationUs = min(duration * 1000, 5_000_000L)
                     val maxFrames = 60
@@ -134,7 +135,7 @@ fun GistTile(
                         }
                         if (bitmap != null) {
                             frameBitmaps.add(bitmap.asImageBitmap())
-                            Log.d("BackgroundCaller", "Loaded frame at time $currentTimeUs µs")
+                            Logger.d("BackgroundCaller", "Loaded frame at time $currentTimeUs µs")
                             if (!isCacheReady.value && frameBitmaps.size >= 24) {  // minFramesToSwitch now 24
                                 isCacheReady.value = true
                             }
@@ -153,9 +154,9 @@ fun GistTile(
                         currentTimeUs += (frameIntervalUs * scaleFactor).toLong()
                         loadedFrames++
                     }
-                    Log.d("BackgroundCaller", "Preloaded ${frameBitmaps.size} frames")
+                    Logger.d("BackgroundCaller", "Preloaded ${frameBitmaps.size} frames")
                     isCacheReady.value = true
-                    Log.d("BackgroundCaller", "Preloaded ${frameBitmaps.size} frames")
+                    Logger.d("BackgroundCaller", "Preloaded ${frameBitmaps.size} frames")
                     isCacheReady.value = true
                 } catch (e: Exception) {
                     Log.e("BackgroundCaller", "Error preloading video frames", e)
@@ -211,7 +212,7 @@ fun GistTile(
         } else if (!postImage.isNullOrEmpty()) {
             val formattedPath =
                 if (postImage.startsWith("file://")) postImage else "file://$postImage"
-            Log.d("BackgroundCaller", "GistTile: formatted postImage $formattedPath")
+            Logger.d("BackgroundCaller", "GistTile: formatted postImage $formattedPath")
             Image(
                 painter = rememberAsyncImagePainter(formattedPath),
                 contentDescription = null,

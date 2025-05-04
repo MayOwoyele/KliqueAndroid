@@ -14,6 +14,7 @@ import com.justself.klique.ContactEntity
 import com.justself.klique.ContactsDatabase
 import com.justself.klique.DatabaseProvider
 import com.justself.klique.KliqueHttpMethod
+import com.justself.klique.Logger
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
 import com.justself.klique.toContact
@@ -48,7 +49,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
 
     fun getContacts(context: Context): List<Contact> {
         val contactList: MutableList<Contact> = mutableListOf()
-        Log.d("Check 2", "Check")
+        Logger.d("Check 2", "Check")
 
         val cursor = contentResolver.query(
             ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
@@ -83,7 +84,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
             put("userId", SessionManager.customerId.value)
             put("numbers", jsonArray)
         }.toString()
-        Log.d("number", jsonObject)
+        Logger.d("number", jsonObject)
         val users = mutableListOf<ServerContactResponse>()
         try {
             val response = NetworkUtils.makeRequest(
@@ -104,7 +105,7 @@ class ContactsRepository(private val contentResolver: ContentResolver, context: 
                     users.add(theData)
                 }
             }
-            Log.d("number", users.toString())
+            Logger.d("number", users.toString())
         } catch (e: Exception) {
             e.printStackTrace()
         }

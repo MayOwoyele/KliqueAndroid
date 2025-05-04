@@ -6,7 +6,9 @@ import android.util.Log
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.NavController
 import com.justself.klique.MyKliqueApp.Companion.appContext
+import com.justself.klique.gists.ui.viewModel.CliqueViewModelNavigator
 import com.justself.klique.gists.ui.viewModel.DownloadState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -30,7 +32,8 @@ data class DmMessage(
     val timeStamp: Long,
     val externalUrl: String? = null,
     val localPath: Uri? = null,
-    val status: DmMessageStatus
+    val status: DmMessageStatus,
+    val inviteId: String? = null
 )
 
 enum class DmMediaType {
@@ -51,7 +54,8 @@ enum class DmMessageStatus {
 
 enum class DmMessageType(val inString: String) {
     DText("DText"),
-    DImage("DImage")
+    DImage("DImage"),
+    DGistCreation("DGistCreation")
 }
 
 class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
@@ -109,10 +113,10 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     }
 
     override fun onMessageReceived(type: DmReceivingType, jsonObject: JSONObject) {
-        Log.d("Parsing", "type is ${type.name}")
+        Logger.d("Parsing", "type is ${type.name}")
         when (type) {
             DmReceivingType.D_TEXT -> {
-                Log.d("DText", "Plaim Error")
+                Logger.d("DText", "Plaim Error")
                 try {
                     val messageId = jsonObject.getString("messageId")
                     val senderId = jsonObject.getInt("senderId")
@@ -128,7 +132,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                     )
                     _dmMessages.value = listOf(newMessage) + _dmMessages.value
                 } catch (e: Exception) {
-                    Log.d("DText", "Error: $e")
+                    Logger.d("DText", "Error: $e")
                 }
             }
             DmReceivingType.D_IMAGE -> {
@@ -148,15 +152,32 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                 )
                 _dmMessages.value = listOf(newMessage) + _dmMessages.value
                 if (externalUrl.isNotEmpty()) {
-                    Log.d("External url", externalUrl)
+                    Logger.d("External url", externalUrl)
                     handleMediaDownload(newMessage)
                 }
             }
+            DmReceivingType.D_GIST_CREATION -> {
+                val messageId = jsonObject.getString("messageId")
+                val senderId = jsonObject.getInt("senderId")
+                val message = jsonObject.getString("content")
+                val timeStamp = jsonObject.getLong("timeStamp")
+                val inviteId = jsonObject.getString("inviteId")
+                val newMessage = DmMessage(
+                    messageId = messageId,
+                    senderId = senderId,
+                    content = message,
+                    messageType = DmMessageType.DGistCreation,
+                    status = DmMessageStatus.SENT,
+                    inviteId = inviteId,
+                    timeStamp = timeStamp
+                )
+                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+            }
             DmReceivingType.DM_KC_ERROR -> {
-                Log.d("Websocket", "DmKc triggered: $jsonObject")
+                Logger.d("Websocket", "DmKc triggered: $jsonObject")
                 val messageId = jsonObject.getString("messageId")
                 val message = jsonObject.getString("message")
-                Log.d("Websocket", "DmKc triggered: $message")
+                Logger.d("Websocket", "DmKc triggered: $message")
                 _dmMessages.value = _dmMessages.value.map {
                     if (messageId == it.messageId) {
                         it.copy(status = DmMessageStatus.UNSENT)
@@ -167,10 +188,10 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                 _toastWarning.value = message
             }
             DmReceivingType.PREVIOUS_DM_MESSAGES -> {
-                Log.d("Parsing", "Logging previous")
+                Logger.d("Parsing", "Logging previous")
                 try {
                     val messagesArray = jsonObject.getJSONArray("messages")
-                    Log.d("Parsing", "messagesArray length: ${messagesArray.length()}")
+                    Logger.d("Parsing", "messagesArray length: ${messagesArray.length()}")
 
                     val previousMessages = (0 until messagesArray.length()).map { i ->
                         val message = messagesArray.getJSONObject(i)
@@ -207,7 +228,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                         if (!externalUrl.isNullOrBlank()) {
                             viewModelScope.launch {
                                 delay(10)
-                                Log.d("External url", externalUrl)
+                                Logger.d("External url", externalUrl)
                                 handleMediaDownload(messageInstance)
                             }
                         }
@@ -265,7 +286,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
 
     fun sendTextMessage(message: String, dmRoomId: Int, myId: Int) {
         val messageId = generateMessageId()
-        Log.d("Dm", "messageId: $messageId")
+        Logger.d("Dm", "messageId: $messageId")
         val timeStamp = System.currentTimeMillis()
         val status = DmMessageStatus.SENDING
 
@@ -291,7 +312,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     }
     private fun updateDmMessages(newMessages: List<DmMessage>) {
         _dmMessages.value = newMessages
-        Log.d("Parsing", "Updated _dmMessages: ${_dmMessages.value}")
+        Logger.d("Parsing", "Updated _dmMessages: ${_dmMessages.value}")
     }
 
     fun send(textToSend: BufferObject) {
@@ -300,18 +321,18 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
 
     private fun handleMediaDownload(message: DmMessage) {
-        Log.d("Parsing", "Called download")
+        Logger.d("Parsing", "Called download")
         if (message.externalUrl != null && message.localPath == null) {
             when (val state = downloadedMediaUrls[message.externalUrl]) {
                 is DownloadState.Downloaded -> {
-                    Log.d("Parsing", "Called download 3")
-                    Log.d("Parsing", "Local Path 3: ${state.uri}")
+                    Logger.d("Parsing", "Called download 3")
+                    Logger.d("Parsing", "Local Path 3: ${state.uri}")
                     updateMessageLocalPath(message.messageId, state.uri)
                     return
                 }
 
                 is DownloadState.Downloading -> {
-                    Log.d("Parsing", "Called download 4")
+                    Logger.d("Parsing", "Called download 4")
                     return
                 }
 
@@ -323,12 +344,12 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
             downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
 
             viewModelScope.launch(Dispatchers.IO) {
-                Log.d("Parsing", "Called download 2")
+                Logger.d("Parsing", "Called download 2")
                 try {
                     val byteArray = downloadFromUrl(message.externalUrl)
                     val uri =
                         getDMRoomUriFromByteArray(byteArray, context, DmMediaType.IMAGE)
-                    Log.d("Parsing", "Local Path 2: $uri")
+                    Logger.d("Parsing", "Local Path 2: $uri")
                     downloadedMediaUrls[message.externalUrl] = DownloadState.Downloaded(uri)
                     updateMessageLocalPath(message.messageId, uri)
                 } catch (e: Exception) {
@@ -341,7 +362,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     private fun updateMessageLocalPath(messageId: String, uri: Uri) {
         val updatedMessages = _dmMessages.value.map {
             if (it.messageId == messageId) {
-                Log.d("Parsing", "Local path updated?")
+                Logger.d("Parsing", "Local path updated?")
                 it.copy(localPath = uri)
             } else {
                 it
@@ -373,9 +394,23 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
         """.trimIndent()
         send(BufferObject(WsDataType.ShotsRefresh, theJson))
 //        downloadedMediaUrls.forEach { (url, state) ->
-//            Log.d("DownloadHashMap", "URL: $url, State: $state")
+//            Logger.d("DownloadHashMap", "URL: $url, State: $state")
 //        }
-//        Log.d("Parsing", "loaded again?")
+//        Logger.d("Parsing", "loaded again?")
+    }
+    fun createGistForStranger(
+        inviteId: String,
+        messageContent: String,
+        enemyId: Int,
+        navController: NavController
+    ) {
+        CliqueViewModelNavigator.setNavigator(
+            messageContent,
+            "public",
+            inviteId,
+            enemyId,
+            navController
+        )
     }
 }
 

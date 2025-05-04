@@ -84,7 +84,7 @@ object SessionManager {
         val token = sharedPreferences.getString(KliqueFirebaseMessagingService.FIREBASE_TOKEN_KEY, null)
 
         if (!token.isNullOrEmpty()) {
-            Log.d("Token", "Sending token to server: $token")
+            Logger.d("Token", "Sending token to server: $token")
 
             CoroutineScope(Dispatchers.IO).launch {
                 val userId = customerId.value
@@ -106,7 +106,7 @@ object SessionManager {
                         params = emptyMap(),
                         jsonBody = jsonBody,
                         action = { response ->
-                            Log.d("SendToken", "Token successfully sent to server: ${response.toNetworkTriple().second}")
+                            Logger.d("SendToken", "Token successfully sent to server: ${response.toNetworkTriple().second}")
                         },
                         errorAction = { errorResponse ->
                             Log.e("SendToken", "Error sending token: ${errorResponse.toNetworkTriple().second}")
@@ -117,7 +117,7 @@ object SessionManager {
                 }
             }
         } else {
-            Log.d("Token", "No token found to send to server.")
+            Logger.d("Token", "No token found to send to server.")
         }
     }
 }

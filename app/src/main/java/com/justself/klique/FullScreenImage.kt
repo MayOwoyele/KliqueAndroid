@@ -45,13 +45,13 @@ fun FullScreenImage(navController: NavController) {
         navController.popBackStack()
     }
     LaunchedEffect(Unit) {
-        Log.d("FullScreenImage", "Launched effect triggered: ${bitmap != null}")
+        Logger.d("FullScreenImage", "Launched effect triggered: ${bitmap != null}")
     }
 
     bitmap?.let {
         val bitmapWidthPx = it.width.toFloat()
         val bitmapHeightPx = it.height.toFloat()
-        Log.d("FullScreenImage", "Bitmap width is $bitmapWidthPx, bitmap height is $bitmapHeightPx")
+        Logger.d("FullScreenImage", "Bitmap width is $bitmapWidthPx, bitmap height is $bitmapHeightPx")
 
         Box(modifier = Modifier.fillMaxSize()) {
             Canvas(modifier = Modifier

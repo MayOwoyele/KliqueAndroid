@@ -45,7 +45,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     NetworkUtils.makeRequest("fetchProfile", KliqueHttpMethod.GET, params)
                 if (response.first) {
                     val jsonResponse = response.second
-                    Log.d("CommentStatus", response.second.toString())
+                    Logger.d("CommentStatus", response.second.toString())
                     val jsonObject = JSONObject(jsonResponse)
 
                     val profileAssigned = Profile(
@@ -62,7 +62,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     _profile.value = profileAssigned
                 }
             } catch (e: Exception) {
-                Log.d("CommentStatus", e.toString())
+                Logger.d("CommentStatus", e.toString())
             }
         }
     }
@@ -99,7 +99,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                 totalComments = postJson.getInt("totalComments"),
                 kcLikesCount = postJson.getInt("kcLikesCount")
             )
-            Log.d("fetchProfile", postJson.getString("content"))
+            Logger.d("fetchProfile", postJson.getString("content"))
             posts.add(post)
         }
         return posts
@@ -178,7 +178,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     params = emptyMap(),
                     jsonBody = json,
                     action = {
-                        Log.d("Response", "response successful")
+                        Logger.d("Response", "response successful")
                         _profile.value = _profile.value?.copy(
                             isSpectator = true,
                             seatedCount = (_profile.value?.seatedCount ?: 1) + 1
@@ -218,7 +218,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         replyingToId: Int?,
         postId: String
     ) {
-        Log.d("CommentStatus", "called")
+        Logger.d("CommentStatus", "called")
         viewModelScope.launch {
             try {
                 NetworkUtils.makeJwtRequest(
@@ -253,7 +253,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                     }
                 )
             } catch (e: Exception) {
-                Log.d("CommentStatus", "Exception: ${e.message}")
+                Logger.d("CommentStatus", "Exception: ${e.message}")
             }
         }
     }
@@ -288,7 +288,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         commentsList.add(statusComment)
                     }
                     _postComments.value = commentsList
-                    Log.d("PostComments", "$commentsList")
+                    Logger.d("PostComments", "$commentsList")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

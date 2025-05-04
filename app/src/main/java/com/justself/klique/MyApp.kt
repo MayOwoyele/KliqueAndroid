@@ -4,7 +4,13 @@ import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.google.firebase.FirebaseApp
+import com.justself.klique.MyKliqueApp.Companion.appContext
+import com.justself.klique.SessionManager.customerId
+import com.justself.klique.SessionManager.fullName
 
 class MyKliqueApp : Application() {
     override fun onCreate() {
@@ -29,6 +35,7 @@ class MyKliqueApp : Application() {
             sendCrashReportByEmail(crashLog)
         }
         scheduleDiaryBackupWork(appContext)
+        ProcessLifecycleOwner.get().lifecycle.addObserver(AppLifecycleTracker)
     }
 
     private fun sendCrashReportByEmail(crashLog: String) {
@@ -50,5 +57,17 @@ class MyKliqueApp : Application() {
     companion object {
         lateinit var appContext: Context
             private set
+    }
+}
+object AppLifecycleTracker : DefaultLifecycleObserver {
+    override fun onStart(owner: LifecycleOwner) {
+        if (!WebSocketManager.isConnected.value) {
+            WebSocketManager.connect(customerId.value, fullName.value, appContext, "Lifecycle")
+        }
+    }
+
+    override fun onStop(owner: LifecycleOwner) {
+        Logger.d("AppLifecycleTracker", "App entered background")
+        WebSocketManager.close()
     }
 }

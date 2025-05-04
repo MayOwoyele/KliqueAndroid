@@ -103,13 +103,13 @@ fun ImageCropTool(
         }
     }
     LaunchedEffect(key1 = bitmap) {
-        Log.d("kliqueBitmap", "${bitmap == null}")
+        Logger.d("kliqueBitmap", "${bitmap == null}")
     }
 
     bitmap?.let {
         val bitmapWidthPx = it.width.toFloat()
         val bitmapHeightPx = it.height.toFloat()
-        Log.d("FullScreenImage", "Bitmap width is $bitmapWidthPx, bitmap height is $bitmapHeightPx")
+        Logger.d("FullScreenImage", "Bitmap width is $bitmapWidthPx, bitmap height is $bitmapHeightPx")
 
         Box(modifier = Modifier.fillMaxSize()) {
             val onPrimary = MaterialTheme.colorScheme.onPrimary

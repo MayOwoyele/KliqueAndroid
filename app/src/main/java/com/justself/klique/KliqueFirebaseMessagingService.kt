@@ -25,14 +25,14 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     private val notificationList = mutableListOf<String>()
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        Log.d("Firebase", "Firebase triggered")
+        Logger.d("Firebase", "Firebase triggered")
         if (remoteMessage.notification != null) {
-            Log.d("Firebase", "Notification + Data Message: ${remoteMessage.notification}")
+            Logger.d("Firebase", "Notification + Data Message: ${remoteMessage.notification}")
             handleNotificationWithData(remoteMessage.notification!!)
             return
         }
         if (remoteMessage.data.isNotEmpty()) {
-            Log.d("Firebase", "Data Message Received: ${remoteMessage.data}")
+            Logger.d("Firebase", "Data Message Received: ${remoteMessage.data}")
             handleDataMessage(remoteMessage.data)
         }
     }
@@ -83,7 +83,7 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     ) {
         val groupKey = "com.justself.klique.NOTIFICATION_GROUP"
         notificationList.add(messageBody)
-        Log.d("Firebase", "Notification List: $notificationList")
+        Logger.d("Firebase", "Notification List: $notificationList")
         val destination = data["destination"] ?: "home"
         val pChat = "pChat"
         val enemyId = if (destination == pChat) {
@@ -92,7 +92,9 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
             0
         }
         if (destination == pChat){
-            ChatVMObject.callFetch()
+            if (!WebSocketManager.isConnected.value){
+                ChatVMObject.callFetch()
+            }
         }
         val deepLinkUri = when (destination) {
             pChat -> {
@@ -161,7 +163,6 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
             .setContentIntent(pendingIntent)
         notificationManager.notify(notificationId, notificationBuilder.build())
 
-        // If this is a pChat notification, record its ID.
         if (destination == pChat && enemyId != 0) {
             val list = pChatNotificationIds.getOrPut(enemyId) { mutableListOf() }
             list.add(notificationId)
@@ -200,7 +201,7 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.d("NewToken", "on new token called")
+        Logger.d("NewToken", "on new token called")
         saveTokenToPreferences(token)
         SessionManager.sendDeviceTokenToServer()
     }
@@ -210,7 +211,7 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
         val editor = sharedPreferences.edit()
         editor.putString(FIREBASE_TOKEN_KEY, token)
         editor.apply()
-        Log.d("TokenSave", "Token saved: $token")
+        Logger.d("TokenSave", "Token saved: $token")
     }
 
     override fun onDestroy() {

@@ -46,7 +46,7 @@ object FileUtils {
         }
 
         val path = tempFile.absolutePath
-        Log.d("FileUtils", "Copied File Path: $path")
+        Logger.d("FileUtils", "Copied File Path: $path")
         return path
     }
 
@@ -59,7 +59,7 @@ object FileUtils {
                 name = cursor.getString(nameIndex)
             }
         }
-        Log.d("FileUtils", "File Name: $name")
+        Logger.d("FileUtils", "File Name: $name")
         return name
     }
     @Throws(IOException::class)

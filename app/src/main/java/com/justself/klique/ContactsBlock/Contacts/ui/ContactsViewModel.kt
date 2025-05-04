@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
+import com.justself.klique.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -40,11 +41,11 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
                 dbContact != null && dbContact.name != phoneContact.name
             }
             if (deletedContacts.isNotEmpty()) {
-                Log.d("Klique Deleted Contacts", "Deleted: ${deletedContacts.map { it.phoneNumber }}")
+                Logger.d("Klique Deleted Contacts", "Deleted: ${deletedContacts.map { it.phoneNumber }}")
                 _contactsRepository.deleteContactsFromDatabase(deletedContacts)
             }
             if (editedContacts.isNotEmpty()) {
-                Log.d("Klique Edited Contacts", "Edited: ${editedContacts.map { it.phoneNumber }}")
+                Logger.d("Klique Edited Contacts", "Edited: ${editedContacts.map { it.phoneNumber }}")
                 _contactsRepository.updateContactsInDatabase(editedContacts)
             }
             val localContacts = _contactsRepository.getContacts(context)

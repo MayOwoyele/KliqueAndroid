@@ -63,12 +63,12 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
                 when (what) {
                     MediaPlayer.MEDIA_INFO_BUFFERING_START -> {
                         isBuffering.value = true
-                        Log.d("MarketVideoPlayer", "Buffering started")
+                        Logger.d("MarketVideoPlayer", "Buffering started")
                     }
                     MediaPlayer.MEDIA_INFO_BUFFERING_END,
                     MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START-> {
                         isBuffering.value = false
-                        Log.d("MarketVideoPlayer", "Buffering ended")
+                        Logger.d("MarketVideoPlayer", "Buffering ended")
                     }
                 }
                 true
@@ -185,7 +185,7 @@ fun FullScreenVideo(videoUri: String, navController: NavController) {
                                     isBuffering.value = false
                                 }
                             }
-                            Log.d("State variables", "$isPlaying, $isPrepared, $position")
+                            Logger.d("State variables", "$isPlaying, $isPrepared, $position")
                         }
                     }
 

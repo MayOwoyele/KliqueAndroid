@@ -213,13 +213,13 @@ fun MainScreen(
         GlobalEventBus.snackBarEvent.collect { messageData ->
             currentSnackBarData = messageData
             snackBarVisible = true
-            Log.d("SnackBar", "Broadcast received")
+            Logger.d("SnackBar", "Broadcast received")
         }
     }
     val context = LocalContext.current
     val navigationRoute by NotificationIntentManager.navigationRoute.collectAsState()
     LaunchedEffect(navigationRoute) {
-        Log.d("Navigated", "Navigated")
+        Logger.d("Navigated", "Navigated")
         if (navigationRoute != null) {
             delay(1000)
             val navigationLambda =
@@ -234,10 +234,10 @@ fun MainScreen(
         if (searchText.length > 2) {
             val results = userDetailsViewModel.searchUsers(searchText)
             if (results.isNotEmpty()) {
-                Log.d("KliqueSearch", "Results")
+                Logger.d("KliqueSearch", "Results")
                 searchResults = results
             } else {
-                Log.d("KliqueSearch", "Empty Results")
+                Logger.d("KliqueSearch", "Empty Results")
                 cannotFindUser = true
             }
         } else {
@@ -292,7 +292,7 @@ fun MainScreen(
                     imeVisible,
                     showEmojiPicker,
                     onEmojiPickerVisibilityChange = {
-                        Log.d("EmojiVisibility", "To test visibility of: $it")
+                        Logger.d("EmojiVisibility", "To test visibility of: $it")
                         showEmojiPicker = it
                     },
                     onEmojiSelected = { emoji -> selectedEmoji = emoji },
@@ -302,7 +302,7 @@ fun MainScreen(
                         gistStarterName = theText; gistStarterId = userId
                     }
                 )
-                Log.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
+                Logger.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
                 if (isSearchMode && (searchResults.isNotEmpty() || cannotFindUser)) {
                     Column(
                         modifier = Modifier
@@ -324,7 +324,7 @@ fun MainScreen(
                                         },
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Log.d("KliqueSearch", "UI 1")
+                                    Logger.d("KliqueSearch", "UI 1")
                                     Image(
                                         painter = rememberAsyncImagePainter(user.profilePictureUrl),
                                         contentDescription = "Profile Picture",
@@ -405,11 +405,11 @@ fun MainContent(
 ) {
     val customerId by SessionManager.customerId.collectAsState()
     val fullName by SessionManager.fullName.collectAsState()
-    Log.d("Names", "Full Name: $fullName")
+    Logger.d("Names", "Full Name: $fullName")
     val context = LocalContext.current
     val webSocketUrl = context.getString(R.string.websocket_url)
-    val lifecycleOwner = LocalLifecycleOwner.current
-    Log.d("WebSocketURL", "WebSocket URL: $webSocketUrl")
+//    val lifecycleOwner = LocalLifecycleOwner.current
+    Logger.d("WebSocketURL", "WebSocket URL: $webSocketUrl")
     LaunchedEffect(key1 = customerId) {
         if (customerId != 0) {
             userDetailsViewModel.fetchCustomerDetails(customerId)
@@ -418,52 +418,47 @@ fun MainContent(
 
     LaunchedEffect(key1 = customerId, key2 = fullName) {
         if (customerId != 0) {
-            Log.d(
-                "WebSocket",
-                "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
-            )
+            Logger.d("WebSocket", "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId")
             if (!WebSocketManager.isConnected.value) {
                 WebSocketManager.connect(customerId, fullName, context, "Main")
             }
             SessionManager.sendDeviceTokenToServer()
         }
     }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_STOP -> {
-                    if (WebSocketManager.isConnected.value) {
-                        WebSocketManager.close()
-                        Log.d("LifecycleEvent", "App moved to background. WebSocket closed.")
-                    }
-                }
-
-                Lifecycle.Event.ON_START -> {
-                    if (customerId != 0 && fullName.isNotBlank() && !WebSocketManager.isConnected.value) {
-                        WebSocketManager.connect(
-                            customerId,
-                            fullName,
-                            context,
-                            "Main"
-                        )
-                        Log.d("LifecycleEvent", "App moved to foreground. WebSocket reconnected.")
-                    }
-                }
-
-                else -> Unit
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-            WebSocketManager.close()
-            Log.d("onDispose", "WebSocket closed. Composable disposed.")
-        }
-    }
-    Log.d(
-        "InnerPadding",
-        "start: ${innerPadding.calculateStartPadding(LocalLayoutDirection.current)}, top: ${innerPadding.calculateTopPadding()}, end: ${
+//    DisposableEffect(lifecycleOwner) {
+//        val observer = LifecycleEventObserver { _, event ->
+//            when (event) {
+//                Lifecycle.Event.ON_STOP -> {
+//                    if (WebSocketManager.isConnected.value) {
+//                        WebSocketManager.close()
+//                        Logger.d("LifecycleEvent", "App moved to background. WebSocket closed.")
+//                    }
+//                }
+//
+//                Lifecycle.Event.ON_START -> {
+//                    if (customerId != 0 && fullName.isNotBlank() && !WebSocketManager.isConnected.value) {
+//                        WebSocketManager.connect(
+//                            customerId,
+//                            fullName,
+//                            context,
+//                            "Main"
+//                        )
+//                        Logger.d("LifecycleEvent", "App moved to foreground. WebSocket reconnected.")
+//                    }
+//                }
+//
+//                else -> Unit
+//            }
+//        }
+//        lifecycleOwner.lifecycle.addObserver(observer)
+//
+//        onDispose {
+//            lifecycleOwner.lifecycle.removeObserver(observer)
+//            WebSocketManager.close()
+//            Logger.d("onDispose", "WebSocket closed. Composable disposed.")
+//        }
+//    }
+    Logger.d("InnerPadding", "start: ${innerPadding.calculateStartPadding(LocalLayoutDirection.current)}, top: ${innerPadding.calculateTopPadding()}, end: ${
             innerPadding.calculateEndPadding(LocalLayoutDirection.current)
         }, bottom: ${innerPadding.calculateBottomPadding()}"
     )
@@ -535,7 +530,7 @@ fun MainContent(
                     .align(Alignment.BottomCenter)
             ) {
                 EmojiPickerView(onEmojiSelected = {
-                    Log.d("EmojiVisibility", "The emojiVisible: $it")
+                    Logger.d("EmojiVisibility", "The emojiVisible: $it")
                     onEmojiSelected(it)
                     onEmojiPickerVisibilityChange(true)
                 }, emojiPickerHeight = emojiPickerHeight)
@@ -664,20 +659,20 @@ fun CustomAppBar(
 fun BottomNavigationBar(navController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    Log.d("CurrentRoute", "The current route is: $currentRoute")
+    Logger.d("CurrentRoute", "The current route is: $currentRoute")
     val unreadMessages by GlobalEventBus.unreadMessageCount.collectAsState()
     val textStyle = TextStyle(
         color = MaterialTheme.colorScheme.onPrimary,
         fontFamily = AfacadFamily,
         fontSize = 12.sp
     )
-    val iconColor = MaterialTheme.colorScheme.onPrimary
+    val iconColor = Color.Gray
 
     NavigationBar(
-        containerColor = MaterialTheme.colorScheme.primary,
+        containerColor = MaterialTheme.colorScheme.background,
     ) {
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home", tint = iconColor) },
+            icon = { Icon(Icons.Filled.Home, contentDescription = "Home", tint = if (currentRoute == Screen.Home.route) MaterialTheme.colorScheme.primary else iconColor) },
             label = { Text("Home", style = textStyle) },
             selected = currentRoute == Screen.Home.route,
             onClick = { if (currentRoute != Screen.Home.route) Screen.Home.navigate(navController) },
@@ -688,7 +683,7 @@ fun BottomNavigationBar(navController: NavController) {
                     Icon(
                         Icons.AutoMirrored.Filled.Chat,
                         contentDescription = "Chats",
-                        tint = iconColor
+                        tint = if (currentRoute == Screen.Chats.route) MaterialTheme.colorScheme.primary else iconColor
                     )
                     if (unreadMessages > 0) {
                         Box(
@@ -713,7 +708,7 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { if (currentRoute != Screen.Chats.route) Screen.Chats.navigate(navController) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.Book, contentDescription = "Bookshelf", tint = iconColor) },
+            icon = { Icon(Icons.Filled.Book, contentDescription = "Bookshelf", tint = if (currentRoute == Screen.Bookshelf.route) MaterialTheme.colorScheme.primary else iconColor) },
             label = { Text("Bookshelf", style = textStyle) },
             selected = currentRoute == Screen.Bookshelf.route,
             onClick = { if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(navController) },
@@ -767,7 +762,7 @@ fun IncomingMessageSnackBar(
     onClick: (SnackBarMessageData) -> Unit,
 ) {
     LaunchedEffect(Unit) {
-        Log.d("SnackBar", "The snack bar display: $visible")
+        Logger.d("SnackBar", "The snack bar display: $visible")
     }
     AnimatedVisibility(
         visible = visible,
@@ -825,12 +820,12 @@ private fun checkAndSendToken(context: Context) {
     val token = sharedPreferences.getString("firebase_token", null)
 
     if (!token.isNullOrEmpty()) {
-        Log.d("TokenCheck", "Token exists and has not been sent. Sending to server: $token")
+        Logger.d("TokenCheck", "Token exists and has not been sent. Sending to server: $token")
         sendDeviceTokenToServer(token)
     } else if (token.isNullOrEmpty()) {
-        Log.d("TokenCheck", "No token found in SharedPreferences.")
+        Logger.d("TokenCheck", "No token found in SharedPreferences.")
     } else {
-        Log.d("TokenCheck", "Token already sent to the server.")
+        Logger.d("TokenCheck", "Token already sent to the server.")
     }
 }
 

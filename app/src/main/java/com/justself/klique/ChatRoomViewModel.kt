@@ -94,7 +94,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                         }
                         val timeStamp = messageObject.getLong("timeStamp")
                         val externalUrl = messageObject.optString("externalUrl")
-                        Log.d("ChatRoom", "external url is $externalUrl")
+                        Logger.d("ChatRoom", "external url is $externalUrl")
                         val status = ChatRoomStatus.SENT
                     val theMessage = ChatRoomMessage(
                         messageId = messageId,
@@ -133,7 +133,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                 val messageExists = _chatRoomMessages.value.any{it.messageId == messageId}
                 if (!messageExists) {
                     _chatRoomMessages.value = listOf(newMessage) + _chatRoomMessages.value
-                    Log.d("RawWebsocket", "${_chatRoomMessages.value}")
+                    Logger.d("RawWebsocket", "${_chatRoomMessages.value}")
                 }
             }
 
@@ -158,11 +158,11 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                 )
                 val messageExists = _chatRoomMessages.value.any{it.messageId == messageId}
                 if (!messageExists) {
-                    Log.d("RawWebsocket", "C image enter, $messageId")
+                    Logger.d("RawWebsocket", "C image enter, $messageId")
                     _chatRoomMessages.value = listOf(theMessage) + _chatRoomMessages.value
-                    Log.d("RawWebsocket", "${_chatRoomMessages.value}")
+                    Logger.d("RawWebsocket", "${_chatRoomMessages.value}")
                 } else {
-                    Log.d("RawWebsocket", "C image not")
+                    Logger.d("RawWebsocket", "C image not")
                 }
                 if (externalUrl.isNotEmpty()) {
                     handleMediaDownload(theMessage)
@@ -341,7 +341,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
             try {
                 val response =
                     NetworkUtils.makeRequest("chatRoomDetails", KliqueHttpMethod.GET, params)
-                Log.d("ChatRoom", "Chat room details: $response")
+                Logger.d("ChatRoom", "Chat room details: $response")
                 if (response.first) {
                     val jsonResponse = JSONObject(response.second)
                     val chatRoomName = jsonResponse.getString("optionName")
@@ -361,7 +361,7 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
     private val downloadedMediaUrls = ConcurrentHashMap<String, DownloadState>()
 
     private fun handleMediaDownload(message: ChatRoomMessage) {
-        Log.d("ChatRoom", "Called 1")
+        Logger.d("ChatRoom", "Called 1")
         if (message.externalUrl != null && message.localPath == null) {
             when (val state = downloadedMediaUrls[message.externalUrl]) {
                 is DownloadState.Downloaded -> {
@@ -377,23 +377,23 @@ class ChatRoomViewModel(application: Application) : AndroidViewModel(application
                     // Proceed to download
                 }
             }
-            Log.d("ChatRoom", "Called 2")
+            Logger.d("ChatRoom", "Called 2")
             val context = getApplication<Application>().applicationContext
             downloadedMediaUrls[message.externalUrl] = DownloadState.Downloading
 
             viewModelScope.launch(Dispatchers.IO) {
-                Log.d("ChatRoom", "Called 3")
+                Logger.d("ChatRoom", "Called 3")
                 try {
-                    Log.d("ChatRoom", "Called 4")
+                    Logger.d("ChatRoom", "Called 4")
                     val byteArray = downloadFromUrl(message.externalUrl)
-                    Log.d("ChatRoom", "Called 5")
+                    Logger.d("ChatRoom", "Called 5")
                     val uri =
                         getChatRoomUriFromByteArray(byteArray, context, ChatRoomMediaType.IMAGE)
-                    Log.d("ChatRoom", "Uri from byte array: $uri")
+                    Logger.d("ChatRoom", "Uri from byte array: $uri")
                     downloadedMediaUrls[message.externalUrl] = DownloadState.Downloaded(uri)
                     updateMessageLocalPath(message.messageId, uri)
                 } catch (e: Exception) {
-                    Log.d("ChatRoom", "Exception: $e")
+                    Logger.d("ChatRoom", "Exception: $e")
                     downloadedMediaUrls.remove(message.externalUrl)
                 }
             }

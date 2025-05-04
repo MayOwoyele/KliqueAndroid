@@ -32,7 +32,7 @@ class DmListViewModel : ViewModel() {
                     action = { response ->
                         try {
                             val jsonArray = JSONArray(response.toNetworkTriple().second)
-                            Log.d("Parsing", response.toNetworkTriple().second)
+                            Logger.d("Parsing", response.toNetworkTriple().second)
                             val dmItems = (0 until jsonArray.length()).map { i ->
                                 val jsonObject = jsonArray.getJSONObject(i)
 

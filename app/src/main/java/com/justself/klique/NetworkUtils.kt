@@ -24,7 +24,7 @@ object NetworkUtils {
 
     fun initialize(context: Context) {
         baseUrl = context.getString(R.string.base_url)
-        Log.d("NetworkUtils", "Base URL: $baseUrl")
+        Logger.d("NetworkUtils", "Base URL: $baseUrl")
     }
     sealed class JwtTriple {
         data class Value(
@@ -53,16 +53,18 @@ object NetworkUtils {
         action: suspend (JwtTriple) -> Unit,
         errorAction: suspend (JwtTriple) -> Unit
     ) {
-        val (success, response, code) = makeRequest(
-            endpoint = endpoint,
-            method = method,
-            params = params,
-            jsonBody = jsonBody,
-            binaryBody = binaryBody,
-            useJWT = true
-        )
-        val result = { JwtTriple.create(success, response, code) }
-        JWTNetworkCaller.performReusableNetworkCalls(result, action, errorAction)
+        val responseLambda: suspend () -> JwtTriple = {
+            val (success, response, code) = makeRequest(
+                endpoint = endpoint,
+                method = method,
+                params = params,
+                jsonBody = jsonBody,
+                binaryBody = binaryBody,
+                useJWT = true
+            )
+            JwtTriple.create(success, response, code)
+        }
+        JWTNetworkCaller.performReusableNetworkCalls(responseLambda, action, errorAction)
     }
 
     suspend fun makeRequest(
@@ -73,7 +75,7 @@ object NetworkUtils {
         binaryBody: ByteArray? = null,
         useJWT: Boolean = false
     ): networkTriple {
-        Log.d("GistDescription", endpoint)
+        Logger.d("GistDescription", endpoint)
         val baseUrl = baseUrl
             ?: throw IllegalStateException("NetworkUtils is not initialized. Call initialize() first.")
         return withContext(Dispatchers.IO) {
@@ -84,7 +86,7 @@ object NetworkUtils {
             } else ""
 
             val url = URL(baseUrl + endpoint + query)
-            Log.d("NetworkUtils", "The url is $url")
+            Logger.d("NetworkUtils", "The url is $url")
 
             val connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = method.method
@@ -129,10 +131,10 @@ object NetworkUtils {
             } finally {
                 connection.disconnect()
             }
-            Log.d("NetworkUtils", "HTTP $method Response Code: ${connection.responseCode}")
+            Logger.d("NetworkUtils", "HTTP $endpoint:  $method Response Code: ${connection.responseCode}")
 
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
-            Log.d("NetworkUtils", "response is $response, $isSuccessful")
+            Logger.d("NetworkUtils", "response is $response, $isSuccessful")
             Triple(isSuccessful, response, connection.responseCode)
         }
     }
@@ -154,7 +156,7 @@ object NetworkUtils {
 
                 val accessToken = JWTNetworkCaller.fetchAccessToken()
                     ?: throw IllegalStateException("Access token is null. Ensure you're logged in.")
-                Log.d("refreshToken", "make multipart: $accessToken")
+                Logger.d("refreshToken", "make multipart: $accessToken")
                 setRequestProperty("Authorization", "Bearer $accessToken")
             }
 
@@ -185,7 +187,7 @@ object NetworkUtils {
             } finally {
                 connection.disconnect()
             }
-            Log.d("refreshToken", "multipart again: ${connection.responseCode}, $response")
+            Logger.d("refreshToken", "multipart again: ${connection.responseCode}, $response")
 
             val isSuccessful = connection.responseCode == HttpURLConnection.HTTP_OK
             NetworkUtils.JwtTriple.create(

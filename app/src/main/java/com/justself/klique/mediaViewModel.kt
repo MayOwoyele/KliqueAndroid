@@ -56,14 +56,14 @@ object MediaVM {
         scope.launch {
             while (true) {
                 delay(3000)
-                Log.d("HomeScreenUri", "current value $_homeScreenUri")
+                Logger.d("HomeScreenUri", "current value $_homeScreenUri")
             }
         }
     }
 
     fun setBitmap(bitmap: Bitmap) {
         _bitmap.value = bitmap
-        Log.d("BitmapSet", "Bitmap Set")
+        Logger.d("BitmapSet", "Bitmap Set")
     }
 
     fun setBitmapFromUri(uri: Uri, context: Context) {
@@ -85,7 +85,7 @@ object MediaVM {
             val bitmap = ImageUtils.getImageFromDevice(context, uri)!!
             bitmap
         } catch (e: Exception) {
-            Log.d("StackTrace", e.toString())
+            Logger.d("StackTrace", e.toString())
             null
         }
     }
@@ -104,7 +104,7 @@ object MediaVM {
         context: Context, uri: Uri, startMs: Long, endMs: Long, sourceScreen: String
     ) {
         scope.launch(Dispatchers.IO) {
-            Log.d("Video Status", "This function called")
+            Logger.d("Video Status", "This function called")
             performTrimmingAndDownscaling(context, uri, startMs, endMs, sourceScreen)
         }
     }
@@ -114,7 +114,7 @@ object MediaVM {
     ) {
         val result = withContext(Dispatchers.IO) {
             val trimmedUri = performTrimming(context, uri, startMs, endMs)
-            Log.d("onTrim", "Trimming result: $trimmedUri")
+            Logger.d("onTrim", "Trimming result: $trimmedUri")
             if (trimmedUri != null) {
                 val file = trimmedUri.path?.let { File(it) }
                 if (file != null) {
@@ -147,9 +147,9 @@ object MediaVM {
     }
 
     private fun sendStatusVideo(videoUri: Uri?, context: Context) {
-        Log.d("KliqueVideoStatus", SessionManager.customerId.value.toString())
+        Logger.d("KliqueVideoStatus", SessionManager.customerId.value.toString())
         videoUri?.let { uri ->
-            Log.d("Video Status", "Video Uri: $uri")
+            Logger.d("Video Status", "Video Uri: $uri")
             val videoBytes = FileUtils.loadFileAsByteArray(context, uri)
 
             videoBytes?.let {
@@ -175,7 +175,7 @@ object MediaVM {
                                 )
                             },
                             action = { response ->
-                                Log.d("KliqueVideoStatus", "Video uploaded successfully")
+                                Logger.d("KliqueVideoStatus", "Video uploaded successfully")
                                 Toast.makeText(
                                     context,
                                     "Video has successfully been uploaded",
@@ -237,9 +237,7 @@ object MediaVM {
                 performReusableNetworkCalls(
                     response = { NetworkUtils.makeMultipartRequest("sendImageStatus", fields) },
                     action = { response ->
-                        Log.d(
-                            "UploadSuccess",
-                            "Image uploaded successfully: ${response.toNetworkTriple().second}"
+                        Logger.d("UploadSuccess", "Image uploaded successfully: ${response.toNetworkTriple().second}"
                         )
                         withContext(Dispatchers.Main) {
                             Toast.makeText(
@@ -279,7 +277,7 @@ object MediaVM {
     }
 
     fun uploadAudioFile(context: Context, uri: Uri) {
-        Log.d("Audio", "Called")
+        Logger.d("Audio", "Called")
         scope.launch(Dispatchers.IO) {
             try {
                 val byteArray = FileUtils.loadFileAsByteArray(context, uri)
@@ -299,9 +297,7 @@ object MediaVM {
                     performReusableNetworkCalls(
                         response = { NetworkUtils.makeMultipartRequest("sendAudioStatus", fields) },
                         action = { response ->
-                            Log.d(
-                                "UploadSuccess",
-                                "Audio file uploaded successfully: ${response.toNetworkTriple().second}"
+                            Logger.d("UploadSuccess", "Audio file uploaded successfully: ${response.toNetworkTriple().second}"
                             )
                             withContext(Dispatchers.Main) {
                                 _audioStatusSubmissionResult.value = true

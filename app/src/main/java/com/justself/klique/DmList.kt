@@ -63,7 +63,7 @@ fun DmListItem(dmItem: DmItem, navController: NavController) {
             .clickable { navController.navigate("dmChatScreen/${dmItem.enemyId}/${dmItem.fullName}") },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Log.d("ImageItem", dmItem.imageLink)
+        Logger.d("ImageItem", dmItem.imageLink)
         Image(
             painter = rememberAsyncImagePainter(model = dmItem.imageLink),
             contentDescription = null,

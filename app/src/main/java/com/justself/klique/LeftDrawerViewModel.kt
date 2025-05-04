@@ -19,7 +19,7 @@ class LeftDrawerViewModel : ViewModel() {
     }
 
     fun fetchProfile() {
-        Log.d("UpdateProfile", "Called")
+        Logger.d("UpdateProfile", "Called")
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
@@ -37,7 +37,7 @@ class LeftDrawerViewModel : ViewModel() {
                     withContext(Dispatchers.Main) {
                         _tinyProfileDetails.value = tinyDetails
                     }
-                    Log.d("LeftViewModel", _tinyProfileDetails.value.toString())
+                    Logger.d("LeftViewModel", _tinyProfileDetails.value.toString())
                 }
                 val error: suspend (NetworkUtils.JwtTriple) -> Unit = {}
                 NetworkUtils.makeJwtRequest(
@@ -48,7 +48,7 @@ class LeftDrawerViewModel : ViewModel() {
                     errorAction = error
                 )
             } catch (e: Exception) {
-                Log.d("LeftViewModel", "${e}")
+                Logger.d("LeftViewModel", "${e}")
             }
         }
     }

@@ -36,9 +36,9 @@ class ChatRoomsCategoryViewModel : ViewModel() {
                     KliqueHttpMethod.GET,
                     params
                 )
-                Log.d("ChatRoom", "$response")
+                Logger.d("ChatRoom", "$response")
                 if (response.first) {
-                    Log.d("ChatRoomCategories", response.second)
+                    Logger.d("ChatRoomCategories", response.second)
                     val campusList = mutableListOf<ChatRoomCategory>()
                     val interestList = mutableListOf<ChatRoomCategory>()
                     val responseJson = JSONArray(response.second)

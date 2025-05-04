@@ -68,7 +68,7 @@ object JWTNetworkCaller {
         errorAction: suspend (NetworkUtils.JwtTriple) -> Unit
     ) {
         val statusCode = refreshAccessToken()
-        Log.d("refreshToken", "status code : $statusCode")
+        Logger.d("refreshToken", "status code : $statusCode")
 
         if (statusCode == 403) {
             SessionManager.resetCustomerData()
@@ -122,7 +122,7 @@ object JWTNetworkCaller {
         try {
             val refreshToken = fetchRefreshToken(appContext)
             if (refreshToken != null) {
-                Log.d("refreshToken", "the actual token: $refreshToken")
+                Logger.d("refreshToken", "the actual token: $refreshToken")
                 try {
                     val response = NetworkUtils.makeRequest(
                         "refreshToken",
@@ -131,13 +131,13 @@ object JWTNetworkCaller {
                         jsonBody = JSONObject().put("refreshToken", refreshToken)
                             .put("userId", SessionManager.customerId.value).toString()
                     )
-                    Log.d("refreshToken", response.second)
+                    Logger.d("refreshToken", response.second)
                     if (response.third == 200) {
                         val newAccessToken = JSONObject(response.second).getString("accessToken")
                         val newRefreshToken = JSONObject(response.second).getString("refreshToken")
-                        Log.d("refreshToken", "new refresh token $newRefreshToken")
+                        Logger.d("refreshToken", "new refresh token $newRefreshToken")
                         saveTokens(appContext, newAccessToken, newRefreshToken)
-                        Log.d("refreshToken", "Check saved token ${fetchRefreshToken(appContext)}")
+                        Logger.d("refreshToken", "Check saved token ${fetchRefreshToken(appContext)}")
                     }
                     return response.third
                 } catch (e: Exception) {

@@ -149,7 +149,7 @@ fun ProfilePictureSection(
     Box(modifier = Modifier.padding(16.dp)) {
         val imageToDisplay = newProfilePictureUri ?: profilePictureUrl
         LaunchedEffect(key1 = Unit) {
-            Log.d("ProfileImageUri", "$newProfilePictureUri, $profilePictureUrl")
+            Logger.d("ProfileImageUri", "$newProfilePictureUri, $profilePictureUrl")
         }
         Image(
             painter = rememberAsyncImagePainter(model = imageToDisplay),

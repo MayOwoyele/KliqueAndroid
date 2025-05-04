@@ -29,7 +29,7 @@ object GlobalEventBus {
     }
 
     fun updateUnreadMessageCount(count: Int) {
-        Log.d("GlobalEventBus", "updateUnreadMessageCount called with $count")
+        Logger.d("GlobalEventBus", "updateUnreadMessageCount called with $count")
         _unreadMessageCount.value = count
     }
 
@@ -46,7 +46,7 @@ object GlobalEventBus {
     fun fetchGistBackground(gistModels: List<GistModel>) {
         for (gist in gistModels) {
             if (gist.postImage != null) {
-                Log.d("BackgroundCaller", "fetchGistBackground called with ${gist.postImage}")
+                Logger.d("BackgroundCaller", "fetchGistBackground called with ${gist.postImage}")
                 cacheMediaForGist(appContext, gist.gistId, gist.postImage, GistBackMedia.IMAGE)
             }
             if (gist.postVideo != null) {
@@ -78,7 +78,7 @@ fun cacheMediaForGist(
     remoteUrl: String,
     mediaType: GistBackMedia
 ) {
-    Log.d("BackgroundCaller", "cacheMediaForGist called with $mediaType")
+    Logger.d("BackgroundCaller", "cacheMediaForGist called with $mediaType")
     val cacheDir = File(context.cacheDir, "gist_media").apply { if (!exists()) mkdirs() }
     val extension = when (mediaType) {
         GistBackMedia.IMAGE -> "jpg"
@@ -90,9 +90,7 @@ fun cacheMediaForGist(
 
     if (file.exists()) {
         val localPath = file.absolutePath
-        Log.d(
-            "BackgroundCaller",
-            "Local path: $localPath: GistBackMedia ${if (mediaType == GistBackMedia.IMAGE) "image" else "video"}"
+        Logger.d("BackgroundCaller", "Local path: $localPath: GistBackMedia ${if (mediaType == GistBackMedia.IMAGE) "image" else "video"}"
         )
         if (mediaType == GistBackMedia.IMAGE) {
             GlobalEventBus.updateMediaPaths(gistId, MediaPaths(postImage = localPath))
@@ -103,21 +101,19 @@ fun cacheMediaForGist(
     }
 
     downloadFile(NetworkUtils.fixLocalHostUrl(remoteUrl), file, MediaVM.scope) { success ->
-        Log.d(
-            "BackgroundCaller",
-            "GistBackMedia ${if (mediaType == GistBackMedia.IMAGE) "image" else "video"}"
+        Logger.d("BackgroundCaller", "GistBackMedia ${if (mediaType == GistBackMedia.IMAGE) "image" else "video"}"
         )
         if (success && file.exists()) {
-            Log.d("BackgroundCaller", "Success!")
+            Logger.d("BackgroundCaller", "Success!")
             val localPath = file.absolutePath
             if (mediaType == GistBackMedia.IMAGE) {
                 GlobalEventBus.updateMediaPaths(gistId, MediaPaths(postImage = localPath))
             } else {
                 GlobalEventBus.updateMediaPaths(gistId, MediaPaths(postVideo = localPath))
             }
-            Log.d("BackgroundCaller", "File length: ${file.length()} bytes")
+            Logger.d("BackgroundCaller", "File length: ${file.length()} bytes")
         } else {
-            Log.d("BackgroundCaller", "Failed!")
+            Logger.d("BackgroundCaller", "Failed!")
         }
     }
 }
@@ -144,12 +140,12 @@ fun downloadFile(
                         response.body?.byteStream()?.copyTo(output)
                     }
                     success = true
-                    Log.d("BackgroundCaller", "Download successful on attempt $attempt")
+                    Logger.d("BackgroundCaller", "Download successful on attempt $attempt")
                 } else {
-                    Log.d("BackgroundCaller", "Attempt $attempt failed: $response")
+                    Logger.d("BackgroundCaller", "Attempt $attempt failed: $response")
                 }
             } catch (e: Exception) {
-                Log.d("BackgroundCaller", "Attempt $attempt exception: $e")
+                Logger.d("BackgroundCaller", "Attempt $attempt exception: $e")
             }
             if (!success && attempt < maxAttempts) {
                 delay(delayMillis)

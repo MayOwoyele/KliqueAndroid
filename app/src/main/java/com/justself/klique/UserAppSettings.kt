@@ -22,16 +22,6 @@ object UserAppSettings {
             .putBoolean(KEY_SUPPRESS_ADMIN_TIP, suppress)
             .apply()
     }
-    fun fetchShowInviteModal(context: Context): Boolean {
-        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_SHOW_INVITE_MODAL, true)
-    }
-    fun setShowInviteModal(context: Context, show: Boolean) {
-        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_SHOW_INVITE_MODAL, show)
-            .apply()
-    }
     fun fetchExceededContactList(context: Context): Boolean {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .getBoolean(EXCEEDED_CONTACT_LIST, false)
@@ -64,6 +54,6 @@ object UserAppSettings {
 }
 inline fun loggerD(tag: String, lazyMessage: () -> String) {
     if (BuildConfig.DEBUG) {
-        Log.d(tag, lazyMessage())
+        Logger.d(tag, lazyMessage())
     }
 }

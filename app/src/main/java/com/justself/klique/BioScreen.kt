@@ -402,7 +402,7 @@ fun BioScreen(
                         .background(MaterialTheme.colorScheme.onSecondary)
 
                 ) {
-                    Log.d("Animated Padding", "${animatedPadding.value.dp}")
+                    Logger.d("Animated Padding", "${animatedPadding.value.dp}")
                     item {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -760,7 +760,7 @@ fun PostItem(post: Post, navController: NavController, onViewAllComments: (Strin
         }
     }
     Column(modifier = Modifier) {
-        Log.d("logging states", "$isPlaying, $isVideoCached")
+        Logger.d("logging states", "$isPlaying, $isVideoCached")
         when (post.type) {
             "image" -> {
                 Image(

@@ -316,12 +316,13 @@ class Converters {
     }
 }
 fun PersonalChat.displayableContent(): String {
+    val prefix = if (this.myId == SessionManager.customerId.value) "You: " else ""
     return when (messageType) {
-        PersonalMessageType.P_TEXT -> content
-        PersonalMessageType.P_IMAGE -> "Photo"
-        PersonalMessageType.P_VIDEO -> "Video"
-        PersonalMessageType.P_AUDIO -> "Audio"
-        PersonalMessageType.P_GIST_INVITE -> "Gist Invite..."
-        PersonalMessageType.P_GIST_CREATION -> "Gist Creation..."
+        PersonalMessageType.P_TEXT -> prefix + content
+        PersonalMessageType.P_IMAGE -> prefix + "Photo"
+        PersonalMessageType.P_VIDEO -> prefix + "Video"
+        PersonalMessageType.P_AUDIO -> prefix + "Audio"
+        PersonalMessageType.P_GIST_INVITE -> prefix + "Gist Invite..."
+        PersonalMessageType.P_GIST_CREATION -> prefix + "Gist Creation..."
     }
 }

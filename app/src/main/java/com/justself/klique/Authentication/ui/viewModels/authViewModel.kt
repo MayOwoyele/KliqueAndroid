@@ -8,6 +8,7 @@ import com.justself.klique.AppUpdateManager.updateDismissedFlow
 import com.justself.klique.Authentication.ui.screens.Gender
 import com.justself.klique.JWTNetworkCaller
 import com.justself.klique.KliqueHttpMethod
+import com.justself.klique.Logger
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
@@ -159,7 +160,7 @@ class AuthViewModel : ViewModel() {
                     }
                 }
             } catch (e: Exception) {
-                Log.d("KliqueCode", e.toString())
+                Logger.d("KliqueCode", e.toString())
             }
         }
     }
@@ -191,7 +192,7 @@ class AuthViewModel : ViewModel() {
                     _errorMessage.value = responseString.second
                 }
             } catch (e: IOException) {
-                Log.d("SignUpError", e.toString())
+                Logger.d("SignUpError", e.toString())
                 _errorMessage.value =
                     "I'm sorry, something went wrong and we do not know. Please try again soon"
             }
@@ -242,7 +243,7 @@ class AuthViewModel : ViewModel() {
                     _errorMessage.value = response.second
                 }
             } catch (e: Exception) {
-                Log.d("KliqueName", e.toString())
+                Logger.d("KliqueName", e.toString())
             }
         }
     }
@@ -318,7 +319,7 @@ class AuthViewModel : ViewModel() {
                         response.refreshToken!!
                     )
                     saveCountryToSharedPreferences(country.value!!)
-                    Log.d("refreshToken", "During login, ${response.refreshToken}")
+                    Logger.d("refreshToken", "During login, ${response.refreshToken}")
                 }
                 return true
             } else {
@@ -329,7 +330,7 @@ class AuthViewModel : ViewModel() {
         } catch (e: IOException) {
             _errorMessage.value =
                 "An error occurred and we are not sure what it is. Please try again soon"
-            Log.d("Final", "$completeRegistrationData")
+            Logger.d("Final", "$completeRegistrationData")
         }
         return false
     }

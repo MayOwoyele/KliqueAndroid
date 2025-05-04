@@ -44,11 +44,11 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
     }
 
     override fun onCleared() {
-        Log.d("UpdateProfile", "on cleared called")
+        Logger.d("UpdateProfile", "on cleared called")
     }
 
     fun fetchProfile() {
-        Log.d("UpdateProfile", "Called")
+        Logger.d("UpdateProfile", "Called")
         val params = mapOf("userId" to "${SessionManager.customerId.value}")
         viewModelScope.launch {
             try {
@@ -65,7 +65,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                         _tinyProfileDetails.value = tinyDetails
                         _loaded.value = true
                     }
-                    Log.d("Profile", _tinyProfileDetails.value.toString())
+                    Logger.d("Profile", _tinyProfileDetails.value.toString())
 
                 }
                 val error: suspend (NetworkUtils.JwtTriple) -> Unit = {}
@@ -77,7 +77,7 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                     errorAction = error
                 )
             } catch (e: Exception) {
-                Log.d("Profile", e.toString())
+                Logger.d("Profile", e.toString())
             }
         }
     }
@@ -100,12 +100,12 @@ class ProfileViewModel(private val chatScreenViewModel: ChatScreenViewModel) : V
                         customerId
                     )
                 } else {
-                    Log.d("Profile Picture", "Byte array null")
+                    Logger.d("Profile Picture", "Byte array null")
                 }
             }
         }
         if (newBio != _tinyProfileDetails.value.bioText) {
-            Log.d("Update Profile", "Bio is called?")
+            Logger.d("Update Profile", "Bio is called?")
             updateBio(newBio, customerId)
         }
     }

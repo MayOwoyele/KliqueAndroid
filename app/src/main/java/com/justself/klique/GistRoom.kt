@@ -266,9 +266,9 @@ fun GistRoom(
     }
 
     LaunchedEffect(homeScreenUri) {
-        Log.d("onTrim", "ontrim triggered again with value $homeScreenUri")
+        Logger.d("onTrim", "ontrim triggered again with value $homeScreenUri")
         homeScreenUri?.let {
-            Log.d("onTrim", "ontrim 2 triggered again with value $homeScreenUri")
+            Logger.d("onTrim", "ontrim 2 triggered again with value $homeScreenUri")
             viewModel.handleTrimmedVideo(it)
             MediaVM.clearUris()
         }
@@ -371,7 +371,7 @@ fun GistRoom(
             coroutineScope.launch {
                 try {
                     val audioByteArray = FileUtils.fileToByteArray(it)
-                    Log.d("ChatRoom", "Audio Byte Array: ${audioByteArray.size} bytes")
+                    Logger.d("ChatRoom", "Audio Byte Array: ${audioByteArray.size} bytes")
 
                     val messageId = viewModel.generateUUIDString()
                     if (gistId != null) {
@@ -684,7 +684,7 @@ fun MessageContent(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         items(reversedMessages) { message ->
-            Log.d("ChatRoom", "Rendering message: ${message.localPath}")
+            Logger.d("ChatRoom", "Rendering message: ${message.localPath}")
             val isCurrentUser = message.senderId == customerId
             val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
             val shape = if (isCurrentUser)
@@ -749,7 +749,7 @@ fun MessageContent(
                         GistMessageType.K_IMAGE -> {
                             var bitmap by remember { mutableStateOf<Bitmap?>(null) }
                             LaunchedEffect(message.localPath) {
-                                Log.d("Local path", "Local path called or not: $message")
+                                Logger.d("Local path", "Local path called or not: $message")
                                 bitmap = message.localPath?.let { convertJpgToBitmap(context, it) }
                             }
                             if (bitmap != null) {
@@ -1336,7 +1336,7 @@ fun handleImageUri(
         coroutineScope.launch(Dispatchers.IO) {
             try {
                 val imageByteArray = ImageUtils.processImageToByteArray(context, uri, 720)
-                Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
+                Logger.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
 
                 val messageId = viewModel.generateUUIDString()
                 viewModel.sendBinary(
@@ -1412,13 +1412,13 @@ const val gistMediaCacheDir = "gistMedia"
 
 fun convertJpgToBitmap(context: Context, uri: Uri): Bitmap? {
     return try {
-        Log.d("Bitmap Error", "No error converting jpg to Bitmap")
+        Logger.d("Bitmap Error", "No error converting jpg to Bitmap")
         val inputStream = context.contentResolver.openInputStream(uri)
         BitmapFactory.decodeStream(inputStream).also {
             inputStream?.close()
         }
     } catch (e: Exception) {
-        Log.d("Bitmap Error", "Error converting jpg to Bitmap")
+        Logger.d("Bitmap Error", "Error converting jpg to Bitmap")
         e.printStackTrace()
         null
     }

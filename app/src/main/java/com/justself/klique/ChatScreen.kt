@@ -106,7 +106,7 @@ fun ChatListScreen(
     val pastExceededList by remember { mutableStateOf(UserAppSettings.fetchExceededContactList(
         appContext)) }
     LaunchedEffect(pastExceededList) {
-        Log.d("pastExceededList", "$pastExceededList")
+        Logger.d("pastExceededList", "$pastExceededList")
     }
     if (!pastExceededList){
         val number = 6
@@ -179,9 +179,8 @@ fun ChatListScreen(
     }
     LaunchedEffect(Unit) {
         viewModel.loadChats(customerId)
-        viewModel.setMyUserId(customerId)
         viewModel.fetchNewMessagesFromServer()
-        Log.d("loadChats", "Chat has been loaded")
+        Logger.d("loadChats", "Chat has been loaded")
     }
     LaunchedEffect(searchQuery) {
         if (searchQuery.isEmpty()) {
@@ -348,7 +347,7 @@ fun ChatListScreen(
                 .fillMaxSize()
                 .padding(25.dp)
         ) {
-            Log.d("isSelectionMode", "$isSelectionMode")
+            Logger.d("isSelectionMode", "$isSelectionMode")
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -488,7 +487,7 @@ fun ChatItem(
         ) {
             Box {
                 Image(
-                    painter = rememberAsyncImagePainter(chat.profilePhoto),
+                    painter = rememberAsyncImagePainter(NetworkUtils.fixLocalHostUrl(chat.profilePhoto)),
                     contentDescription = null,
                     modifier = Modifier
                         .size(50.dp)

@@ -9,7 +9,7 @@ object NotificationIntentManager {
     private var _navigationRoute = MutableStateFlow<String?>(null)
     val navigationRoute = _navigationRoute.asStateFlow()
     fun updateNavigationRoute(route: String) {
-        Log.d("NotificationIntentManager", "Setting navigation route: $route")
+        Logger.d("NotificationIntentManager", "Setting navigation route: $route")
         _navigationRoute.value = route
     }
     private fun clearNavigationRoute() {

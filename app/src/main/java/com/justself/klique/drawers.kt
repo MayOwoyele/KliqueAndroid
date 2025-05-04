@@ -217,7 +217,7 @@ fun LeftDrawer(
 //            onClick = {
 //                navController.navigate("campuses")
 //                onDeExpansion()
-//                Log.d("Navigation Trigger", "Navigation triggered")
+//                Logger.d("Navigation Trigger", "Navigation triggered")
 //            }
 //        )
 //        LeftDrawerItem(
@@ -227,7 +227,7 @@ fun LeftDrawer(
 //            onClick = {
 //                navController.navigate("interests")
 //                onDeExpansion()
-//                Log.d("Navigation Trigger", "Navigation interest triggered")
+//                Logger.d("Navigation Trigger", "Navigation interest triggered")
 //            }
 //        )
 //    }

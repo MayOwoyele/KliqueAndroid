@@ -46,7 +46,7 @@ class UserDetailsViewModel : ViewModel() {
             if (result.first) {
                 withContext(Dispatchers.IO) {
                     try {
-                        Log.d("KliqueSearch", "Success: ${result.second}")
+                        Logger.d("KliqueSearch", "Success: ${result.second}")
                         val jsonArray = JSONArray(result.second)
                         for (i in 0 until jsonArray.length()) {
                             val jsonObject = jsonArray.getJSONObject(i)
@@ -66,16 +66,16 @@ class UserDetailsViewModel : ViewModel() {
                                 isVerified = isVerified
                             )
                             users.add(user)
-                            Log.d("KliqueSearch", "Success again: $users")
+                            Logger.d("KliqueSearch", "Success again: $users")
                         }
                     } catch (e: Exception) {
-                        Log.d("KliqueSearch", "Error: $e")
+                        Logger.d("KliqueSearch", "Error: $e")
                         e.printStackTrace()
                     }
                 }
             }
         } catch (e: Exception) {
-            Log.d("search exception", e.toString())
+            Logger.d("search exception", e.toString())
         }
         return users
     }

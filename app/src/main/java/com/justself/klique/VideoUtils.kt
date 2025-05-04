@@ -68,7 +68,7 @@ object VideoUtils {
     }
 
     fun downscaleVideo(context: Context, uri: Uri): Uri? {
-        Log.d("onTrim", "downscaling called")
+        Logger.d("onTrim", "downscaling called")
         val resolution = getVideoResolution(context, uri)
         if (resolution == null) {
             Log.e(TAG, "No resolution found, cannot downscale.")
@@ -112,7 +112,7 @@ object VideoUtils {
         val rc = FFmpeg.execute(command)
         if (rc == Config.RETURN_CODE_SUCCESS) {
             Log.i(TAG, "Video downscaling successful. Output: $outputPath")
-            Log.d("onTrim", "Success! $outputPath")
+            Logger.d("onTrim", "Success! $outputPath")
             return Uri.fromFile(outputFile)
         } else {
             Log.e(TAG, "Video downscaling failed. FFmpeg return code: $rc")
@@ -171,7 +171,7 @@ fun VideoTrimmingScreen(
             setVideoURI(Uri.parse(decodedPath))
             setOnErrorListener { mp, what, extra ->
                 Log.e("VideoTrimmingScreen", "Error playing video: what=$what, extra=$extra")
-                Log.d("VideoTrimmingScreen", "URI: $uri")
+                Logger.d("VideoTrimmingScreen", "URI: $uri")
                 true
             }
             setOnPreparedListener { mp ->
@@ -415,17 +415,17 @@ fun performTrimming(context: Context, uri: Uri, startMs: Long, endMs: Long): Uri
         "-y", outputPath
     )
 
-    Log.d("performTrimming", "Executing FFmpeg command: ${command.joinToString(" ")}")
+    Logger.d("performTrimming", "Executing FFmpeg command: ${command.joinToString(" ")}")
 
     // Enable FFmpeg logs
     Config.enableLogCallback { logMessage ->
-        Log.d("FFmpeg", logMessage.text)
+        Logger.d("FFmpeg", logMessage.text)
     }
 
     // Execute the command
     val rc = FFmpeg.execute(command)
     return if (rc == Config.RETURN_CODE_SUCCESS) {
-        Log.d("performTrimming", "Trimming successful, outputPath: $outputPath")
+        Logger.d("performTrimming", "Trimming successful, outputPath: $outputPath")
         Uri.fromFile(outputFile)
     } else {
         Log.e("performTrimming", "Trimming failed with return code: $rc")

@@ -51,6 +51,7 @@ enum class ChatRoomReceivingType(val type: String){
 enum class DmReceivingType(val type: String) {
     D_TEXT("DText"),
     D_IMAGE("DImage"),
+    D_GIST_CREATION("DGistCreation"),
     DM_KC_ERROR("DmKcError"),
     PREVIOUS_DM_MESSAGES("previousDmMessages"),
     ADDITIONAL_DM_MESSAGES("additionalDmMessages"),

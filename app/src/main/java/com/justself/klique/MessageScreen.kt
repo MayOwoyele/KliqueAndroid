@@ -170,22 +170,22 @@ fun MessageScreen(
             viewModel.clearPersonalChat()
         }
     }
-    val myId by viewModel.myUserId.collectAsState()
+    val myId by SessionManager.customerId.collectAsState()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val isRecording = remember { mutableStateOf(false) }
     var theRealTrimmedUri by remember { mutableStateOf<Uri?>(null) }
     val messageScreenUri by MediaVM.messageScreenUri.observeAsState()
     LaunchedEffect(messageScreenUri) {
-        Log.d("onTrim", "ontrim triggered again with value $messageScreenUri")
+        Logger.d("onTrim", "ontrim triggered again with value $messageScreenUri")
         messageScreenUri?.let {
-            Log.d("onTrim", "ontrim triggered again 2 with value $messageScreenUri")
+            Logger.d("onTrim", "ontrim triggered again 2 with value $messageScreenUri")
             theRealTrimmedUri = messageScreenUri
         }
     }
     BackHandler {
         onEmojiPickerVisibilityChange(false)
-        Log.d("BackHandler", "BackHandler")
+        Logger.d("BackHandler", "BackHandler")
         navController.popBackStack()
     }
     val imagePickerLauncher =
@@ -194,7 +194,7 @@ fun MessageScreen(
                 coroutineScope.launch(Dispatchers.IO) {
                     try {
                         val imageByteArray = ImageUtils.processImageToByteArray(context, uri, 1080)
-                        Log.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
+                        Logger.d("ChatRoom", "Image Byte Array: ${imageByteArray.size} bytes")
                         val messageId = viewModel.generateMessageId()
                         viewModel.sendBinary(
                             imageByteArray,
@@ -212,9 +212,9 @@ fun MessageScreen(
             }
         }
     LaunchedEffect(theRealTrimmedUri) {
-        Log.d("onTrim", "ontrim triggered again 3 with value $messageScreenUri")
+        Logger.d("onTrim", "ontrim triggered again 3 with value $messageScreenUri")
         theRealTrimmedUri?.let { uri ->
-            Log.d("onTrim", "ontrim triggered again 4 with value $theRealTrimmedUri")
+            Logger.d("onTrim", "ontrim triggered again 4 with value $theRealTrimmedUri")
             coroutineScope.launch(Dispatchers.IO) {
                 val videoByteArray = context.contentResolver.openInputStream(uri)?.readBytes()
                 if (videoByteArray != null) {
@@ -228,7 +228,7 @@ fun MessageScreen(
                         contactName,
                         context
                     )
-                    Log.d("Add Personal", "This has been called again")
+                    Logger.d("Add Personal", "This has been called again")
                 }
             }
         }
@@ -487,7 +487,7 @@ fun MessageScreenContent(
         }.distinctUntilChanged().collect { (lastVisibleItemIndex, totalItems) ->
             val threshold = 1
             if (lastVisibleItemIndex >= totalItems - threshold && !viewModel.isLoading.value!! && personalChat.size >= viewModel.pageSize) {
-                Log.d("PersonalChats", "Load More loading")
+                Logger.d("PersonalChats", "Load More loading")
                 viewModel.loadPersonalChats(
                     myId, enemyId, loadMore = true, personalChat.last().messageId
                 )
@@ -539,10 +539,7 @@ fun MessageScreenContent(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(personalChat, key = { it.messageId }) { message ->
-                Log.d(
-                    "MessageLoading",
-                    "Displaying messageId: ${message.messageId}, type: ${message.messageType}, timeStamp: ${message.timeStamp}, content ${message.content}"
-                )
+                Logger.d("MessageLoading", "Displaying messageId: ${message.messageId}, type: ${message.messageType}, timeStamp: ${message.timeStamp}, content ${message.content}")
                 val isCurrentUser = message.myId == myId
                 val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
                 val shape = if (isCurrentUser) RoundedCornerShape(
@@ -604,7 +601,7 @@ fun MessageScreenContent(
                                     }
 
                                     PersonalMessageType.P_VIDEO -> {
-                                        Log.d("isSelectionMode", "is now $isSelectionMode")
+                                        Logger.d("isSelectionMode", "is now $isSelectionMode")
                                         DisplayVideo(
                                             message.mediaUri,
                                             shape,
@@ -615,7 +612,7 @@ fun MessageScreenContent(
                                     }
 
                                     PersonalMessageType.P_AUDIO -> {
-                                        Log.d("isSelectionMode", "is now $isSelectionMode")
+                                        Logger.d("isSelectionMode", "is now $isSelectionMode")
                                         DisplayAudio(
                                             message.mediaUri,
                                             onLongPressLambda,
@@ -1174,7 +1171,7 @@ fun MessageTimeStamp(
 }
 
 fun clearPChatNotifications(context: Context, enemyId: Int) {
-    Log.d("Firebase", "Klique notification cleared")
+    Logger.d("Firebase", "Klique notification cleared")
     val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
     KliqueFirebaseMessagingService.pChatNotificationIds[enemyId]?.forEach { id ->
         notificationManager.cancel(id)

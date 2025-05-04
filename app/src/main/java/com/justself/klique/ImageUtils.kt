@@ -8,6 +8,7 @@ import android.media.ExifInterface
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
+import com.justself.klique.Logger
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -130,12 +131,12 @@ object ImageUtils {
         }
 
         return if (shouldReturnOriginal && inputUri != null) {
-            Log.d("ImageLoad", "this is called for")
+            Logger.d("ImageLoad", "this is called for")
             context.contentResolver.openInputStream(inputUri)?.use { inputStream ->
                 inputStream.readBytes()
             } ?: throw IOException("Failed to read original JPEG data from URI: $inputUri")
         } else {
-            Log.d("ImageLoad", "this is also called for")
+            Logger.d("ImageLoad", "this is also called for")
             val byteArrayOutputStream = ByteArrayOutputStream()
             downscaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, byteArrayOutputStream)
             val byteArray = byteArrayOutputStream.toByteArray()
@@ -145,13 +146,13 @@ object ImageUtils {
             }
             correctedBitmap.recycle()
 
-            Log.d("ImageLoad", "Image size is ${byteArray.size}")
+            Logger.d("ImageLoad", "Image size is ${byteArray.size}")
             byteArray
         }
     }
 
     fun correctBitmapOrientation(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
-        Log.d("bitmapDimensions", "Width: ${bitmap.width}, Height: ${bitmap.height}")
+        Logger.d("bitmapDimensions", "Width: ${bitmap.width}, Height: ${bitmap.height}")
         val inputStream = context.contentResolver.openInputStream(uri)
         val exif = inputStream?.let { ExifInterface(it) }
         inputStream?.close()

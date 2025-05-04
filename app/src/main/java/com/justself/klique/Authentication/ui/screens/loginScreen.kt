@@ -46,6 +46,7 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
+import com.justself.klique.Logger
 import com.justself.klique.SessionManager
 import java.util.Calendar
 import java.util.Locale
@@ -615,7 +616,7 @@ fun RegistrationCompleteScreen(authViewModel: AuthViewModel) {
                     Checkbox(
                         checked = checkedState,
                         onCheckedChange = {
-                            Log.d("Eula", "Checkbox clicked: $it")
+                            Logger.d("Eula", "Checkbox clicked: $it")
                             checkedState = it
                         }
                     )

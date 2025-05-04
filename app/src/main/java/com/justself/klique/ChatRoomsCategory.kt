@@ -68,7 +68,7 @@ fun CategoryItem(category: ChatRoomCategory, navController: NavController, viewM
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp).clickable {
-                Log.d("Category Id", "${category.categoryId}")
+                Logger.d("Category Id", "${category.categoryId}")
                 navController.navigate("categoryOptions/${category.categoryId}") },
         verticalAlignment = Alignment.CenterVertically
     ) {

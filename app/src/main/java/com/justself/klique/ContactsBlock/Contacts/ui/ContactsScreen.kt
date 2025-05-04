@@ -70,6 +70,7 @@ import coil.size.Size
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ChatScreenViewModel
+import com.justself.klique.Logger
 import com.justself.klique.Screen
 import com.justself.klique.useful_extensions.initials
 import kotlinx.coroutines.delay
@@ -243,10 +244,6 @@ fun ContactTile(
         }
     }
 
-    LaunchedEffect(Unit) {
-        chatScreenViewModel.setMyUserId(customerId)
-    }
-
     Surface(
         modifier = Modifier
             .clickable { onTap() }
@@ -276,16 +273,10 @@ fun ContactTile(
                             .memoryCachePolicy(CachePolicy.ENABLED)
                             .listener(
                                 onStart = {
-                                    Log.d(
-                                        "Contact Tile",
-                                        "Image loading started for ${contact.thumbnailUrl}"
-                                    )
+                                    Logger.d("Contact Tile", "Image loading started for ${contact.thumbnailUrl}")
                                 },
                                 onSuccess = { _, _ ->
-                                    Log.d(
-                                        "Contact Tile",
-                                        "Image successfully loaded for ${contact.thumbnailUrl}"
-                                    )
+                                    Logger.d("Contact Tile", "Image successfully loaded for ${contact.thumbnailUrl}")
                                 },
                                 onError = { _, result ->
                                     Log.e(

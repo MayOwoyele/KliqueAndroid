@@ -76,7 +76,6 @@ fun ForwardChatsScreen(
     }
     LaunchedEffect(Unit) {
         viewModel.loadChats(customerId, true)
-        viewModel.setMyUserId(customerId)
     }
     LaunchedEffect(searchQuery) {
         viewModel.searchChats(searchQuery)

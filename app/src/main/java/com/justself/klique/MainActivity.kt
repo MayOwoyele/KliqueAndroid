@@ -43,7 +43,7 @@ class MainActivity : FragmentActivity() {
     private val requestPermissionLauncher: ActivityResultLauncher<Array<String>> =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             permissions.entries.forEach { (permission, granted) ->
-                Log.d("Permissions", "$permission granted: $granted")
+                Logger.d("Permissions", "$permission granted: $granted")
             }
             val allPermissionsGranted = permissions.entries.all { it.value }
 
@@ -76,19 +76,19 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        Log.d("Permissions", "Requesting permissions...")
+        Logger.d("Permissions", "Requesting permissions...")
         if (!allPermissionsGranted(requiredPermissions)) {
-            Log.d("Permissions", "Requesting required permissions...")
+            Logger.d("Permissions", "Requesting required permissions...")
             requestPermissionLauncher.launch(requiredPermissions)
         } else {
-            Log.d("Permissions", "Required permissions already granted")
+            Logger.d("Permissions", "Required permissions already granted")
         }
     }
 
     private fun allPermissionsGranted(permissions: Array<String>) = permissions.all {
         val granted =
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
-        Log.d("Permissions", "$it granted: $granted")
+        Logger.d("Permissions", "$it granted: $granted")
         granted
     }
 }
