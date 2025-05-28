@@ -21,6 +21,8 @@ class MyKliqueApp : Application() {
         FirebaseApp.initializeApp(this)
         NetworkUtils.initialize(this)
         AppUpdateManager.initialize()
+        CliqueScreenObject.initialize()
+        DroidAppUpdateManager.initCore(this)
         SessionManager.startSession()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             val crashLog = """

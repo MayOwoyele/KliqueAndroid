@@ -10,9 +10,11 @@ import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.viewModel.parseGistsFromResponse
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Locale
@@ -25,6 +27,10 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
     val profile = _profile.asStateFlow()
     private val _gistList = MutableStateFlow<List<GistModel>>(emptyList())
     val gistList = _gistList.asStateFlow()
+    private val _theClique = MutableStateFlow<List<Clique>>(emptyList())
+    val theClique = _theClique.asStateFlow()
+    var hasLoadedCliqueMembers = false
+
     init {
         WebSocketManager.bioViewModel = this
     }
@@ -66,6 +72,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
             }
         }
     }
+
     fun fetchMyGists(userId: Int) {
         viewModelScope.launch {
             try {
@@ -118,6 +125,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         }
         return comments
     }
+
     fun floatGist(gistId: String) {
         val floatGistId = """
             {
@@ -150,7 +158,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         )
                     },
                     errorAction = { response ->
-                        if (response is NetworkUtils.JwtTriple.Value){
+                        if (response is NetworkUtils.JwtTriple.Value) {
                             Log.e("Response", "Error leaving seat: ${response.response}")
                         }
                     }
@@ -160,6 +168,14 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                 Log.e("Response", "Exception: ${e.message}", e)
             }
         }
+    }
+
+    fun fetchCliqueMembers(enemyId: Int) {
+        hasLoadedCliqueMembers = true
+        fetchCliqueMembers(enemyId, { cliqueMembers ->
+            _theClique.value = cliqueMembers
+            hasLoadedCliqueMembers = true
+        }, viewModelScope)
     }
 
     fun takeSeat(enemyId: Int, customerId: Int) {
@@ -185,7 +201,7 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
                         )
                     },
                     errorAction = { response ->
-                        if (response is NetworkUtils.JwtTriple.Value){
+                        if (response is NetworkUtils.JwtTriple.Value) {
                             Log.e("Response", "Error taking seat: ${response.response}")
                         }
                     }
@@ -306,5 +322,40 @@ class BioViewModelFactory(
             return BioViewModel(contactsRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+@Serializable
+data class Clique(
+    val userId: Int,
+    val name: String,
+    val isVerified: Boolean,
+    val profileImage: String
+)
+
+fun fetchCliqueMembers(forWho: Int, delegation: (List<Clique>) -> Unit, scope: CoroutineScope) {
+    val params = mapOf("enemyId" to "$forWho")
+    scope.launch {
+        val result = NetworkUtils.makeRequest(
+            "fetchCliqueMembers",
+            KliqueHttpMethod.GET,
+            params
+        )
+        if (result.first) {
+            val jsonResponse = result.second
+            val jsonObject = JSONArray(jsonResponse)
+            val cliqueMembers = mutableListOf<Clique>()
+            for (i in 0 until jsonObject.length()) {
+                val cliqueJson = jsonObject.getJSONObject(i)
+                val userId = cliqueJson.getInt("userId")
+                val name = cliqueJson.getString("name")
+                val isVerified = cliqueJson.getBoolean("isVerified")
+                val profileImage = cliqueJson.getString("profilePicture")
+                val cliqueMember = Clique(userId, name, isVerified, profileImage)
+                cliqueMembers.add(cliqueMember)
+            }
+            Logger.d("CliqueMembers", cliqueMembers.toString())
+            delegation(cliqueMembers)
+        }
     }
 }

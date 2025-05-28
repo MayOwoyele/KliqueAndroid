@@ -1,5 +1,6 @@
 package com.justself.klique.gists.ui.shared_composables
 
+import android.graphics.drawable.ColorDrawable
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.util.Log
@@ -9,10 +10,12 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,7 +28,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.CornerSize
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -51,13 +53,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.justself.klique.GistType
 import com.justself.klique.Logger
 import com.justself.klique.MyKliqueApp.Companion.appContext
@@ -70,6 +77,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.absoluteValue
 import kotlin.math.min
 
 @Composable
@@ -207,7 +215,7 @@ fun GistTile(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                EmptyBackground()
+                EmptyBackground(gist.gistId)
             }
         } else if (!postImage.isNullOrEmpty()) {
             val formattedPath =
@@ -220,12 +228,12 @@ fun GistTile(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            EmptyBackground()
+            EmptyBackground(gist.gistId)
         }
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = if (postImage != null) animatedAlpha else 0f))
+                .background(MaterialTheme.colorScheme.background.copy(alpha = if (postVideo.isNullOrEmpty()) animatedAlpha else 0f))
         )
         val primaryColor = MaterialTheme.colorScheme.primary
         val onPrimaryColor = MaterialTheme.colorScheme.onPrimary
@@ -278,26 +286,7 @@ fun GistTile(
         ) {
             Column {
                 Row(modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)) {
-                    Surface(
-                        modifier = Modifier
-                            .size(150.dp)
-                            .padding(vertical = 8.dp, horizontal = 8.dp)
-                            .clip(CircleShape.copy(CornerSize(150.dp)))
-                    ) {
-                        if (image != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(image),
-                                contentDescription = "",
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(MaterialTheme.colorScheme.primary)
-                            )
-                        }
-                    }
+                    CircleAvatar(image)
                     Column {
 //                        Text(
 //                            text = gist.topic,
@@ -386,12 +375,72 @@ fun GistTile(
     }
 }
 @Composable
-fun EmptyBackground() {
-    Box(
-        modifier = Modifier
+fun EmptyBackground(
+    seed: String,
+    modifier: Modifier = Modifier,
+    dotRadius: Dp = 8.dp,
+    dotSpacing: Dp = 32.dp,
+    dotColor: Color = MaterialTheme.colorScheme.onPrimary,
+) {
+    val density = LocalDensity.current
+    val radiusPx = with(density) { dotRadius.toPx() }
+    val spacingPx = with(density) { dotSpacing.toPx() }
+    val hue = (seed.hashCode().absoluteValue % 360).toFloat()
+    val isDark = isSystemInDarkTheme()
+    val lightness = if (isDark) 0.3f else 0.7f
+    val backgroundColor = Color.hsl(hue, 0.5f, lightness)
+
+    Canvas(
+        modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    )
+            .background(backgroundColor)
+    ) {
+        val cols = (size.width / spacingPx).toInt() + 1
+        val rows = (size.height / spacingPx).toInt() + 1
+
+        for (row in 0..rows) {
+            val xOffset = if (row % 2 == 0) 0f else spacingPx / 2f
+            val y = row * spacingPx
+
+            for (col in 0..cols) {
+                val x = col * spacingPx + xOffset
+                if (x + radiusPx >= 0 && x - radiusPx <= size.width &&
+                    y + radiusPx >= 0 && y - radiusPx <= size.height
+                ) {
+                    drawCircle(
+                        color = dotColor,
+                        radius = radiusPx,
+                        center = Offset(x, y)
+                    )
+                }
+            }
+        }
+    }
+}
+@Composable
+fun CircleAvatar(
+    imageUrl: String?,
+    size: Dp = 150.dp,
+) {
+    val context = LocalContext.current
+    Surface(
+        modifier = Modifier
+            .size(size)
+            .padding(8.dp)
+            .clip(CircleShape),
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(imageUrl)
+                .crossfade(true)
+                .placeholder(ColorDrawable(MaterialTheme.colorScheme.primary.toArgb()))
+                .fallback(ColorDrawable(MaterialTheme.colorScheme.primary.toArgb()))
+                .build(),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+    }
 }
 data class LastGistComments(
     val senderName: String,

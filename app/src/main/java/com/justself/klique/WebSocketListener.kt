@@ -57,9 +57,14 @@ enum class DmReceivingType(val type: String) {
     ADDITIONAL_DM_MESSAGES("additionalDmMessages"),
     DM_DELIVERY("dmDelivery")
 }
+enum class CliqueRequestReceivingType(val type: String) {
+    CLIQUE_REQUESTS("cliqueJoinRequests"),
+    CLIQUE_DECLINE_REQUEST("cliqueRequestDecline")
+}
 enum class ListenerIdEnum(val theId: String){
     SHARED_CLIQUE("SharedCliqueViewModel"),
     PRIVATE_CHAT_SCREEN("ChatScreenViewModel"),
     CHAT_ROOM_VIEW_MODEL("ChatRoomViewModel"),
-    DM_ROOM_VIEW_MODEL("DmRoomViewModel")
+    DM_ROOM_VIEW_MODEL("DmRoomViewModel"),
+    CLIQUE_SCREEN("CliqueScreenViewModel")
 }

@@ -129,7 +129,6 @@ object MediaVM {
             }
             downscaledUri
         }
-        // Ensure result is not null before posting it
         if (result != null) {
             when (sourceScreen) {
                 "HomeScreen" -> _homeScreenUri.postValue(result)

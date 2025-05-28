@@ -1,6 +1,5 @@
 package com.justself.klique
 
-import android.util.Log
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,10 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import coil.compose.rememberAsyncImagePainter
-import coil.compose.rememberImagePainter
 
 @Composable
 fun DmList(navController: NavController, customerId: Int, dmListViewModel: DmListViewModel = viewModel()) {
@@ -78,6 +76,7 @@ fun DmListItem(dmItem: DmItem, navController: NavController) {
                 text = when (dmItem.lastMessage) {
                     is LastMessage.Text -> dmItem.lastMessage.content
                     is LastMessage.Photo -> "Photo"
+                    is LastMessage.GistCreation -> "Gist Creation request"
                 },
                 style = MaterialTheme.typography.bodyLarge
             )

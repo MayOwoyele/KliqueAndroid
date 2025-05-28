@@ -171,6 +171,14 @@ fun HomeScreen(
                 }
             }
             if (showForm) {
+                val contactViewModel: ContactsViewModel = remember {
+                    ContactsViewModel(
+                        ContactsRepository(
+                            appContext.contentResolver,
+                            appContext
+                        )
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -182,280 +190,13 @@ fun HomeScreen(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-//                    GistForm(viewModel = viewModel, onSubmit = { post, type, namesList, selectedType ->
-//                        coroutineScope.launch {
-//                            viewModel.startGist(post, type, namesList, selectedType, chatScreenViewModel)
-//                            showForm = false
-//                        }
-//                    }, onBack = { showForm = false }
-//                    )
                     StartGistDialog(
                         viewModel,
-                        ContactsViewModel(
-                            ContactsRepository(
-                                appContext.contentResolver,
-                                appContext
-                            )
-                        ),
+                        contactViewModel,
                         chatScreenViewModel,
                         onDismiss = { showForm = false })
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun GistForm(
-    viewModel: SharedCliqueViewModel,
-    onSubmit: (String, String, List<Int>, GistType) -> Unit,
-    onBack: () -> Unit
-) {
-    var hasContactsPermission by remember { mutableStateOf(false) }
-    val repository = remember { ContactsRepository(appContext.contentResolver, appContext) }
-    val contactViewModel = remember { ContactsViewModel(repository) }
-    val contacts by contactViewModel.contacts.collectAsState()
-    CheckContactsPermission(
-        onPermissionResult = { granted ->
-            hasContactsPermission = granted
-        },
-        onPermissionGranted = {
-            contactViewModel.updateContactFromHomeScreen(appContext)
-        }
-    )
-    if (!hasContactsPermission) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Contacts permission is required.")
-        }
-        return
-    }
-    var selectedType by remember { mutableStateOf(GistType.Public) }
-    val minPostLength = 5
-    val maxPostLength = 120
-    var showPostError by remember { mutableStateOf(false) }
-    val selectedUserIds = remember { mutableStateListOf<Int>() }
-    val info = when (selectedType) {
-        GistType.Public -> "This means any new member into the gist is a Speaker by default"
-        GistType.Private -> "You have to manually choose who gets to speak but everyone can drop comments"
-    }
-    val onlineContacts by viewModel.onlineContacts.collectAsState()
-    val mergedContacts = remember(contacts, onlineContacts) {
-        val appUsersOnly = contacts.filter { it.customerId != null }
-        val onlineSet = onlineContacts.toSet()
-        val onlineList = appUsersOnly.filter { it.customerId in onlineSet }
-        val offlineList = appUsersOnly.filter { it.customerId !in onlineSet }
-        onlineList.sortedBy { it.name } + offlineList.sortedBy { it.name }
-    }
-    var emptyText by remember { mutableStateOf("Loading your online contacts...") }
-    LaunchedEffect(mergedContacts) {
-        if (mergedContacts.isNotEmpty()) {
-            viewModel.askForHomeOnlineContacts(contacts)
-        }
-    }
-    LaunchedEffect(Unit) {
-        delay(5000)
-        emptyText = "You have no contacts, invite your friends to join klique"
-    }
-    DisposableEffect(Unit) {
-        WebSocketManager.isGistFormVisible = true
-        WebSocketManager.clearWebsocketBuffer(WsDataType.GistFormUnsubscription)
-        onDispose {
-            WebSocketManager.isGistFormVisible = false
-            viewModel.unsubscribeToGfUpdates()
-            WebSocketManager.clearWebsocketBuffer(WsDataType.HomeOnlineContacts)
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onPrimary
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "What is the gist?",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        OutlinedTextField(
-            value = viewModel.post,
-            onValueChange = { newText ->
-                viewModel.onPostChange(newText)
-                showPostError = newText.text.length < minPostLength
-            },
-            label = { Text("What's on your mind?", color = MaterialTheme.colorScheme.onPrimary) },
-            colors = OutlinedTextFieldDefaults.colors(
-                unfocusedBorderColor = MaterialTheme.colorScheme.onPrimary,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                focusedTextColor = MaterialTheme.colorScheme.onPrimary
-            )
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Spacer(modifier = Modifier.height(8.dp))
-        Row {
-            RadioButton(
-                selected = selectedType == GistType.Public,
-                onClick = { selectedType = GistType.Public },
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-            Text(
-                text = "Gist",
-                modifier = Modifier.clickable { selectedType = GistType.Public },
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            RadioButton(
-                selected = selectedType == GistType.Private,
-                onClick = { selectedType = GistType.Private },
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary,
-                    unselectedColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-            Text(
-                text = "News",
-                modifier = Modifier.clickable { selectedType = GistType.Private },
-                color = MaterialTheme.colorScheme.onPrimary
-            )
-        }
-        Text(text = info, color = MaterialTheme.colorScheme.onPrimary)
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Select at least one user:", color = MaterialTheme.colorScheme.onPrimary)
-        val cornerRadius = 12.dp
-        Box(
-            modifier = Modifier
-                .height(250.dp)
-                .fillMaxWidth()
-                .background(
-                    MaterialTheme.colorScheme.onPrimary,
-                    shape = RoundedCornerShape(cornerRadius)
-                )
-                .border(
-                    1.dp,
-                    MaterialTheme.colorScheme.background,
-                    shape = RoundedCornerShape(cornerRadius)
-                )
-                .clip(RoundedCornerShape(cornerRadius))
-        ) {
-            if (mergedContacts.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = emptyText,
-                        color = MaterialTheme.colorScheme.background
-                    )
-                }
-            } else {
-                LazyColumn {
-                    itemsIndexed(mergedContacts) { index, user ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    if (selectedUserIds.contains(user.customerId)) {
-                                        selectedUserIds.remove(user.customerId)
-                                    } else {
-                                        user.customerId?.let { selectedUserIds.add(it) }
-                                    }
-                                }
-                                .padding(8.dp)
-                        ) {
-                            Checkbox(
-                                checked = selectedUserIds.contains(user.customerId),
-                                onCheckedChange = { isChecked ->
-                                    if (isChecked) {
-                                        user.customerId?.let { selectedUserIds.add(it) }
-                                    } else {
-                                        selectedUserIds.remove(user.customerId)
-                                    }
-                                },
-                                colors = CheckboxDefaults.colors(
-                                    checkedColor = MaterialTheme.colorScheme.primary,
-                                    uncheckedColor = MaterialTheme.colorScheme.background
-                                )
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = user.name,
-                                color = MaterialTheme.colorScheme.background
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            if (user.customerId in onlineContacts) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .background(
-                                            MaterialTheme.colorScheme.primary,
-                                            shape = CircleShape
-                                        )
-                                )
-                            }
-                        }
-                        if (index < mergedContacts.lastIndex) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.background)
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                val isPostValid = viewModel.post.text.length in minPostLength..maxPostLength
-                val isUserSelectionValid = selectedUserIds.isNotEmpty()
-                if (isPostValid && isUserSelectionValid) {
-                    showPostError = false
-                    onSubmit(
-                        viewModel.post.text,
-                        selectedType.value,
-                        selectedUserIds.toList(),
-                        selectedType
-                    )
-                } else {
-                    showPostError = true
-                }
-            },
-            enabled = selectedUserIds.isNotEmpty()
-        ) {
-            Text("Submit", color = MaterialTheme.colorScheme.background)
-        }
-        if (showPostError) {
-            val errorMessage = if (selectedUserIds.isEmpty()) {
-                "Please select at least one user"
-            } else {
-                "Description must be between $minPostLength and $maxPostLength characters"
-            }
-            Text(
-                errorMessage,
-                color = MaterialTheme.colorScheme.background,
-                style = MaterialTheme.typography.bodySmall
-            )
         }
     }
 }
@@ -468,6 +209,21 @@ fun StartGistDialog(
     onDismiss: () -> Unit
 ) {
     val contacts by contactsVm.contacts.collectAsState()
+    var hasContactsPermission by remember { mutableStateOf(false) }
+    CheckContactsPermission(
+        onPermissionResult = { granted ->
+            hasContactsPermission = granted
+        },
+        onPermissionGranted = {
+            contactsVm.updateContactFromHomeScreen(appContext)
+        }
+    )
+    if (!hasContactsPermission) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("Contacts permission is required.")
+        }
+        return
+    }
     val onlineIds by viewModel.onlineContacts.collectAsState()
     val nonFriends by viewModel.nonFriends.collectAsState()
     val scope = rememberCoroutineScope()
@@ -478,7 +234,6 @@ fun StartGistDialog(
     val maxChars = 150
     val tooLong = viewModel.post.text.length > maxChars
     var emptyFriendsText by remember { mutableStateOf("Loading your friends…") }
-
     val appUsers = contacts.filter { it.customerId != null }
     val mergedFriends = remember(appUsers, onlineIds) {
         val myId = SessionManager.customerId.value
@@ -489,7 +244,8 @@ fun StartGistDialog(
     }
     val strangers = remember(nonFriends, mergedFriends) {
         val friendIds = mergedFriends.mapNotNull { it.customerId }.toSet()
-        nonFriends.filter { it.userId !in friendIds && it.userId != SessionManager.customerId.value }
+        nonFriends.filter { it.userId !in friendIds &&
+                it.userId != SessionManager.customerId.value }
     }
     LaunchedEffect(mergedFriends) {
         viewModel.askForHomeOnlineContacts(contacts)
@@ -538,7 +294,7 @@ fun StartGistDialog(
                         IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart)) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Pink700)
                         }
-                        Text("What’s the gist?", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.align(Alignment.Center))
+                        Text("What's going on around you?", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.align(Alignment.Center))
                     }
                 }
                 Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -564,7 +320,7 @@ fun StartGistDialog(
                                     }
                                     tooShort = filteredValue.text.isEmpty()
                                 },
-                                placeholder = { Text("What’s on your mind?") },
+                                placeholder = { Text("Gist us") },
                                 modifier = Modifier.fillMaxWidth(),
                                 maxLines = 1
                             )
@@ -640,7 +396,7 @@ fun StartGistDialog(
                                                         .padding(
                                                             start = 56.dp,
                                                             end = 0.dp
-                                                        ) // indent if you like
+                                                        )
                                                         .fillMaxWidth(),
                                                     thickness = 1.dp,
                                                     color = MaterialTheme.colorScheme.outline
@@ -695,8 +451,6 @@ fun StartGistDialog(
                                 .pointerInput(Unit) { /* pass touches through */ }
                         )
                     }
-
-                    // 3) Fade on the left when you’re not on the first page
                     if (pagerState.currentPage > 0) {
                         Box(
                             Modifier

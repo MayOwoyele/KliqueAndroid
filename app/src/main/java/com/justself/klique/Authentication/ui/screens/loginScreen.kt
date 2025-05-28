@@ -25,6 +25,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.TextField
@@ -37,6 +39,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
@@ -46,8 +49,11 @@ import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
+import com.justself.klique.CalendarBackgroundStyle
+import com.justself.klique.CalendarUI
 import com.justself.klique.Logger
 import com.justself.klique.SessionManager
+import java.time.YearMonth
 import java.util.Calendar
 import java.util.Locale
 
@@ -206,7 +212,9 @@ fun CountryCodePicker(selectedCountry: String, onCountrySelected: (String) -> Un
     }.sortedBy { it.first }
 
     var expanded by remember { mutableStateOf(false) }
-    Box(Modifier.wrapContentSize().background(MaterialTheme.colorScheme.onPrimary)) {
+    Box(Modifier
+        .wrapContentSize()
+        .background(MaterialTheme.colorScheme.onPrimary)) {
         Text(
             text = "+${getCountryCodeForRegion(selectedCountry)}",
             modifier = Modifier
@@ -246,116 +254,75 @@ fun isValidPhoneNumber(number: String, region: String, phoneUtil: PhoneNumberUti
 }
 
 @Composable
-fun ConfirmationCodeScreen(authViewModel: AuthViewModel) {
+fun ConfirmationCodeScreen(
+    authViewModel: AuthViewModel
+) {
     var confirmationCode by remember { mutableStateOf("") }
-    val focusRequester = remember { FocusRequester() }
-    var activeCell by remember { mutableIntStateOf(0) }
     val errorMessage by authViewModel.errorMessage.collectAsState()
     val countdown by authViewModel.countdown.collectAsState()
     val canResendCode by authViewModel.canResendCode.collectAsState()
-
+    LaunchedEffect(Unit) {
+        authViewModel.setErrorMessageToNull()
+        authViewModel.startCountdown()
+    }
 
     Column(
         modifier = Modifier
-            .padding(10.dp)
+            .padding(16.dp)
             .fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        LaunchedEffect(Unit) {
-            authViewModel.setErrorMessageToNull()
-            authViewModel.startCountdown()
-        }
         Text(
-            text = "Enter the confirmation code sent to your phone",
+            text = "Enter the 6‑digit confirmation code sent to your phone",
             style = MaterialTheme.typography.bodyLarge,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(bottom = 24.dp)
         )
-
-        // Display confirmation code in separate boxes
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        )  {
-            items(6) { index ->
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(
-                            if (activeCell == index) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.5f) else
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.5f)
-                        )
-                        .padding(8.dp)
-                        .clickable {
-                            activeCell = index
-                            focusRequester.requestFocus()
-                        }, // Request focus on click
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = confirmationCode.getOrNull(index)?.toString() ?: "",
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 18.sp),
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        TextField(
+        OutlinedTextField(
             value = confirmationCode,
             onValueChange = { newCode ->
-                if (newCode.length <= 6 && newCode.all { it.isDigit() }) { // Only digits allowed
+                if (newCode.length <= 6 && newCode.all(Char::isDigit)) {
                     confirmationCode = newCode
-                    activeCell = newCode.length
                 }
             },
-            label = { Text("Confirmation Code") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester) // Set focus requester
-                .alpha(0f), // Hide TextField UI
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            label = { Text("Confirmation Code", color = MaterialTheme.colorScheme.onPrimary) },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done
+            ),
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.background.copy(
+                    alpha = 0.5f
+                ),
+                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+            )
         )
 
-        Spacer(Modifier.height(16.dp))
-
-        if (errorMessage.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        if (errorMessage.isNotBlank()) {
             Text(
                 text = errorMessage,
                 color = Color.Red,
                 style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 16.dp)
             )
         }
-
         if (!canResendCode) {
             Text(
-                text = "Resend code available in $countdown seconds",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimary
+                text = "Resend code available in $countdown s",
+                style = MaterialTheme.typography.bodyMedium
             )
-        }
-
-        if (canResendCode) {
+        } else {
             Button(
-                onClick = { authViewModel.resendCode() }
-            ) {
-                Text("Resend Code")
-            }
+                onClick = { authViewModel.resendCode() },
+                modifier = Modifier.padding(bottom = 8.dp)
+            ) { Text("Resend Code") }
         }
-
         Button(
-            onClick = {
-                if (confirmationCode.length == 6) {
-                    authViewModel.retryConfirmationCode(confirmationCode)
-                }
-            },
+            onClick = { authViewModel.retryConfirmationCode(confirmationCode) },
             enabled = confirmationCode.length == 6
-        ) {
-            Text("Verify")
-        }
+        ) { Text("Verify") }
     }
 }
 
@@ -476,67 +443,91 @@ fun StyledRadioButton(selected: Boolean, onClick: () -> Unit, label: String) {
 
 @Composable
 fun YearOfBirthScreen(authViewModel: AuthViewModel) {
-    var showDatePicker by remember { mutableStateOf(false) }
+    var showCalendar by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf("") }
-    var selectedDay by remember { mutableStateOf(0) }
-    var selectedMonth by remember { mutableStateOf(0) }
-    var selectedYear by remember { mutableStateOf(0) }
+    var selectedDay by remember { mutableIntStateOf(0) }
+    var selectedMonth by remember { mutableIntStateOf(0) }
+    var selectedYear by remember { mutableIntStateOf(0) }
     val errorMessage by authViewModel.errorMessage.collectAsState()
+    var selectedYearMonth by remember { mutableStateOf<YearMonth?>(null) }
+
     LaunchedEffect(Unit) {
         authViewModel.setErrorMessageToNull()
     }
 
-    Column(
-        modifier = Modifier
-            .padding(16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.2f))
-    ) {
-        Text(
-            text = selectedDate.ifEmpty { "Select Year of Birth" },
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onPrimary,
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
             modifier = Modifier
-                .clickable { showDatePicker = true }
                 .padding(16.dp)
-
-                .clip(RoundedCornerShape(12.dp))
-                .fillMaxWidth()
-        )
-        if (errorMessage.isNotEmpty()) {
-            Text(
-                text = errorMessage,
-                color = MaterialTheme.colorScheme.background,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Button(
-            onClick = {
-                if (selectedDate.isNotEmpty()) {
-                    authViewModel.verifyBirthday(selectedDay, selectedMonth, selectedYear)
-                }
-            },
-            enabled = selectedDate.isNotEmpty(),
-            modifier = Modifier.padding(horizontal = 16.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.2f))
+                .align(Alignment.Center)
         ) {
-            Text("Continue")
+            Text(
+                text = selectedDate.ifEmpty { "Select Year of Birth" },
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .clickable { showCalendar = true }
+                    .padding(16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth()
+            )
+
+            if (errorMessage.isNotEmpty()) {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = {
+                    if (selectedDate.isNotEmpty()) {
+                        authViewModel.verifyBirthday(selectedDay, selectedMonth, selectedYear)
+                    }
+                },
+                enabled = selectedDate.isNotEmpty(),
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Text("Continue")
+            }
         }
 
-        if (showDatePicker) {
-            DatePickerDialogSample(
-                onDismissRequest = { showDatePicker = false },
-                onDateChange = { year, month, day ->
-                    selectedYear = year
-                    selectedMonth = month
-                    selectedDay = day
-                    selectedDate = formatDateToString(day, month, year)
-                    showDatePicker = false
-                }
+        if (showCalendar) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .clickable { showCalendar = false }
             )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(16.dp)
+            ) {
+                CalendarUI(
+                    onDayClick = { date ->
+                        selectedYear = date.year
+                        selectedMonth = date.monthValue
+                        selectedDay = date.dayOfMonth
+                        selectedDate = formatDateToString(
+                            date.dayOfMonth,
+                            date.monthValue,
+                            date.year
+                        )
+                        selectedYearMonth = YearMonth.of(date.year, date.month)
+                        showCalendar = false
+                    },
+                    allowFutureDates = false,
+                    calendarBackground = CalendarBackgroundStyle.Background,
+                    currentMonthParam = selectedYearMonth ?: YearMonth.now()
+                )
+            }
         }
     }
 }
@@ -659,13 +650,15 @@ By agreeing to these terms, you help create a safe and welcoming environment for
 
 Thank you for being part of Klique!
 """
+
 @Preview
 @Composable
 fun PreviewRegistrationCompleteScreen() {
     RegistrationCompleteScreen(authViewModel = AuthViewModel())
 }
+
 @Preview
 @Composable
-fun PreviewRegistration(){
+fun PreviewRegistration() {
     RegistrationScreen()
 }

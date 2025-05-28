@@ -65,6 +65,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
     val dmMessages: StateFlow<List<DmMessage>> = _dmMessages
     private val _toastWarning = MutableStateFlow<String?>(null)
     val toastWarning = _toastWarning.asStateFlow()
+    var presentDMRoomId: Int? = null
 
     init {
         WebSocketManager.registerListener(this)
@@ -130,7 +131,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                         status = DmMessageStatus.SENT,
                         timeStamp = timeStamp
                     )
-                    _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                    updateDmMessagesWithIncomingNewMessage(newMessage)
                 } catch (e: Exception) {
                     Logger.d("DText", "Error: $e")
                 }
@@ -150,7 +151,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                     timeStamp = timeStamp,
                     externalUrl = externalUrl
                 )
-                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                updateDmMessagesWithIncomingNewMessage(newMessage)
                 if (externalUrl.isNotEmpty()) {
                     Logger.d("External url", externalUrl)
                     handleMediaDownload(newMessage)
@@ -171,7 +172,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                     inviteId = inviteId,
                     timeStamp = timeStamp
                 )
-                _dmMessages.value = listOf(newMessage) + _dmMessages.value
+                updateDmMessagesWithIncomingNewMessage(newMessage)
             }
             DmReceivingType.DM_KC_ERROR -> {
                 Logger.d("Websocket", "DmKc triggered: $jsonObject")
@@ -188,7 +189,7 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                 _toastWarning.value = message
             }
             DmReceivingType.PREVIOUS_DM_MESSAGES -> {
-                Logger.d("Parsing", "Logging previous")
+                Logger.d("Parsing", "Logging previous: json: $jsonObject")
                 try {
                     val messagesArray = jsonObject.getJSONArray("messages")
                     Logger.d("Parsing", "messagesArray length: ${messagesArray.length()}")
@@ -202,8 +203,11 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                         val messageType = when (mType) {
                             DmMessageType.DText.inString -> DmMessageType.DText
                             DmMessageType.DImage.inString -> DmMessageType.DImage
+                            DmMessageType.DGistCreation.inString -> DmMessageType.DGistCreation
                             else -> DmMessageType.DText
                         }
+                        val inviteIdTemp: String = message.optString("inviteId", "")
+                        val inviteId = inviteIdTemp.ifBlank { null }
 
                         val senderId = message.getInt("senderId")
                         val timeStamp = message.getLong("timestamp")
@@ -221,10 +225,10 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                             senderId = senderId,
                             timeStamp = timeStamp,
                             status = DmMessageStatus.SENT,
-                            externalUrl = if (messageType != DmMessageType.DText) externalUrl else null
+                            externalUrl = if (messageType == DmMessageType.DImage) externalUrl else null,
+                            inviteId = inviteId
                         )
 
-                        // Initiate media download if `externalUrl` is not blank or null
                         if (!externalUrl.isNullOrBlank()) {
                             viewModelScope.launch {
                                 delay(10)
@@ -281,6 +285,11 @@ class DmRoomViewModel : ViewModel(), WebSocketListener<DmReceivingType> {
                     }
                 }
             }
+        }
+    }
+    private fun updateDmMessagesWithIncomingNewMessage(newMessage: DmMessage) {
+        if (newMessage.senderId == presentDMRoomId) {
+            _dmMessages.value = listOf(newMessage) + _dmMessages.value
         }
     }
 

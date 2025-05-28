@@ -132,6 +132,7 @@ fun DmRoom(
     }
     LaunchedEffect(Unit) {
         Logger.d("Dm", "$enemyId")
+        viewModel.presentDMRoomId = enemyId
         viewModel.loadDmMessages(enemyId)
     }
 
@@ -144,7 +145,6 @@ fun DmRoom(
                 navController,
                 innerPadding,
                 viewModel,
-                myId,
                 enemyId,
                 enemyName
             )
@@ -202,7 +202,6 @@ fun DmRoomContent(
     navController: NavController,
     innerPadding: PaddingValues,
     viewModel: DmRoomViewModel,
-    myId: Int,
     enemyId: Int,
     enemyName: String
 ) {
@@ -221,6 +220,7 @@ fun DmRoomContent(
                     lazyListState.layoutInfo.visibleItemsInfo.size < lazyListState.layoutInfo.totalItemsCount
         }
     }
+    val myId by SessionManager.customerId.collectAsState()
     LaunchedEffect(dmMessages.size) {
         if (isAtBottom) {
             lastSeenMessageCount = dmMessages.size
@@ -286,7 +286,6 @@ fun DmMessageItem(
     val alignment = if (isCurrentUser) Alignment.End else Alignment.Start
     val shape = if (isCurrentUser) RoundedCornerShape(16.dp, 0.dp, 16.dp, 16.dp)
     else RoundedCornerShape(0.dp, 16.dp, 16.dp, 16.dp)
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -469,7 +468,7 @@ fun ShotRoomGistCreation(
     enemyId: Int
 ) {
     Column {
-        Text(text = gistContent)
+        Text(text = "Create gist request: $gistContent")
         if (!isMyMessage) {
             Text(
                 "Start Gist",

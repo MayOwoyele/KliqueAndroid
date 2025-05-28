@@ -58,7 +58,7 @@ fun NavigationHost(
         startDestination = if (isLoggedIn) Screen.Home.route else Screen.Registration.route
     ) {
         composable(
-            route = "home?gistId={gistId}&commentId={commentId}",
+            route = Screen.Home.route,
             arguments = listOf(
                 navArgument("gistId") {
                     type = NavType.StringType
@@ -337,6 +337,23 @@ fun NavigationHost(
         ) {
             // Registration screen contents
         }
+        composable(
+            route = Screen.Clique.route,
+            arguments = listOf(
+                navArgument("source") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            ),
+            deepLinks = listOf(navDeepLink { uriPattern = Screen.Clique.deepLink })
+        ) { backStackEntry ->
+            val source = backStackEntry.arguments?.getString("source") ?: ""
+            val sourceScreen = CliqueScreenState.returnScreenState(source) ?: CliqueScreenState.REQUESTS
+            Logger.d("Source", source)
+            Logger.d("Source", "Source Screen: ${sourceScreen.title }")
+            CliqueScreen(navController, sourceScreen)
+        }
     }
 }
 
@@ -403,7 +420,7 @@ sealed class Screen(val route: String, val deepLink: String) {
         }
     }
     data object FullScreenVideo : Screen("fullScreenVideo/{videoUri}", "kliqueklique://fullScreenVideo/{videoUri}") {
-        fun createRoute(videoUri: String) = "fullScreenVideo/${Uri.encode(videoUri)}"
+        private fun createRoute(videoUri: String) = "fullScreenVideo/${Uri.encode(videoUri)}"
         fun navigate(navController: NavController, videoUri: String) {
             navController.navigate(createRoute(videoUri))
         }
@@ -491,6 +508,21 @@ sealed class Screen(val route: String, val deepLink: String) {
     data object TopGists : Screen("topGists", "kliqueklique://topGists") {
         fun navigate(navController: NavController) {
             navController.navigate(route)
+        }
+    }
+    data object Clique : Screen(
+        "clique?source={source}",
+        "kliqueklique://clique?source={source}"
+    ) {
+        private fun createRoute(optionalSource: String? = null): String {
+            return if (optionalSource != null) {
+                "clique?source=${Uri.encode(optionalSource)}"
+            } else {
+                "clique"
+            }
+        }
+        fun navigate(navController: NavController, optionalSource: String? = null) {
+            navController.navigate(createRoute(optionalSource))
         }
     }
 }

@@ -54,8 +54,6 @@ object WebSocketManager {
     private const val MAX_RECONNECT_ATTEMPTS = 10
     private const val RECONNECT_DELAY = 3000L
     private var shouldReconnect = true
-    private var customerId: Int = SessionManager.customerId.value
-    private var fullName: String = SessionManager.fullName.value
 
     private const val PING_INTERVAL = 5000L
     private const val PONG_TIMEOUT = 7000L
@@ -68,14 +66,12 @@ object WebSocketManager {
     private var isPingPongRunning = false
     private var isConnecting = false
     private var reconnectionJob: Job? = null
-    var isGistFormVisible = false
     private var websocketBuffer = mutableMapOf<WsDataType, MutableList<BufferObject>>()
     var inGistSettings = false
     private const val BUFFER_TIMEOUT = 30_000L
     private var websocketBinaryBuffer = mutableMapOf<WsDataType, MutableList<BinaryBufferObject>>()
     val coroutine = CoroutineScope(Dispatchers.IO)
     val coroutineMain = CoroutineScope(Dispatchers.Main)
-    private var setIsConnectedCount = 0
 
     @Volatile
     private var isReconnecting = false
@@ -126,10 +122,7 @@ object WebSocketManager {
                     }
                     aReconnection = false
                 }
-                bioViewModel?.fetchMyGists(
-                    SessionManager.customerId.value
-                )
-                chatRoomViewModel?.retrial()
+                CliqueScreenObject.fetchCliqueRequests()
                 sendTheBuffer()
                 sendTheBinaryBuffer()
             }
@@ -300,7 +293,7 @@ object WebSocketManager {
 
                     if (!_isConnected.value && shouldReconnect) {
                         Logger.d("Reconnection", "Attempting to reconnect [Attempt $reconnectionAttempts]...")
-                        connect(customerId, fullName, appContext, "scheduleReconnect")
+                        connect(SessionManager.customerId.value, SessionManager.fullName.value, appContext, "scheduleReconnect")
                     }
                 }
             }
@@ -418,15 +411,17 @@ object WebSocketManager {
     }
 
     private fun routeMessageToViewModel(type: String, targetId: String, jsonObject: JSONObject) {
-        Logger.d("Websocket", "Type is :$type")
+        Logger.d("CliqueJoin", "Type is :$type")
         val listenerId = when {
             SharedCliqueReceivingType.entries.any { it.type == type } -> ListenerIdEnum.SHARED_CLIQUE.theId
             PrivateChatReceivingType.entries.any { it.type == type } -> ListenerIdEnum.PRIVATE_CHAT_SCREEN.theId
             ChatRoomReceivingType.entries.any { it.type == type } -> ListenerIdEnum.CHAT_ROOM_VIEW_MODEL.theId
             DmReceivingType.entries.any { it.type == type } -> ListenerIdEnum.DM_ROOM_VIEW_MODEL.theId
+            CliqueRequestReceivingType.entries.any { it.type == type } -> ListenerIdEnum.CLIQUE_SCREEN.theId
             else -> targetId
         }
-
+        Logger.d("CliqueJoin", "ListenerId is :$listenerId")
+        Logger.d("CliqueJoin", "CliqueRequestReceivingType.entries elements: ${CliqueRequestReceivingType.entries}")
         listenerId.let { id ->
             when (id) {
                 ListenerIdEnum.SHARED_CLIQUE.theId -> {
@@ -471,6 +466,16 @@ object WebSocketManager {
                             jsonObject
                         )
                     }
+                }
+                ListenerIdEnum.CLIQUE_SCREEN.theId -> {
+                    val enumType = CliqueRequestReceivingType.entries.find { it.type == type }
+                    @Suppress("UNCHECKED_CAST")
+                    enumType?.let {
+                        (listeners[id] as? WebSocketListener<CliqueRequestReceivingType>)?.onMessageReceived(
+                            it,
+                            jsonObject
+                        )
+                    } ?: Logger.d("CliqueJoin", "Unknown message type: $type for CliqueScreenViewModel")
                 }
 
                 else -> {
@@ -583,7 +588,8 @@ enum class WsDataType{
     UnsubscribeForGistSetting,
     HomeOnlineContacts,
     ShotsRefresh,
-    Miscellaneous
+    Miscellaneous,
+    CliqueRequests
 }
 data class BufferObject(
     val type: WsDataType? = null,

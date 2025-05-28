@@ -1,18 +1,15 @@
 package com.justself.klique.Authentication.ui.viewModels
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.justself.klique.AppUpdateManager.isUpdateRequired
-import com.justself.klique.AppUpdateManager.updateDismissedFlow
 import com.justself.klique.Authentication.ui.screens.Gender
+import com.justself.klique.DroidAppUpdateManager
 import com.justself.klique.JWTNetworkCaller
 import com.justself.klique.KliqueHttpMethod
 import com.justself.klique.Logger
 import com.justself.klique.MyKliqueApp.Companion.appContext
 import com.justself.klique.NetworkUtils
 import com.justself.klique.SessionManager
-import com.justself.klique.SessionManager.customerId
 import com.justself.klique.SessionManager.saveCountryToSharedPreferences
 import com.justself.klique.SessionManager.saveCustomerIdToSharedPreferences
 import com.justself.klique.SessionManager.saveNameToSharedPreferences
@@ -22,6 +19,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,26 +38,22 @@ enum class RegistrationStep {
 enum class AppState {
     LoggedIn,
     LoggedOut,
-    UpdateRequired,
+//    UpdateRequired,
     Loading
 }
 
 class AuthViewModel : ViewModel() {
     val appState: StateFlow<AppState> =
-        combine(customerId, updateDismissedFlow) { customerId, updateDismissedFlow ->
-            val updateRequired = isUpdateRequired(appContext) && !updateDismissedFlow
-            when {
-                updateRequired -> AppState.UpdateRequired
-                customerId > 0 -> AppState.LoggedIn
-                customerId <= 0 -> AppState.LoggedOut
-                else -> AppState.Loading
+        SessionManager.customerId
+            .map { id ->
+                if (id > 0) AppState.LoggedIn
+                else        AppState.LoggedOut
             }
-        }.stateIn(
-            viewModelScope,
-            SharingStarted.Lazily,
-            AppState.Loading
-        )
-
+            .stateIn(
+                scope        = viewModelScope,
+                started      = SharingStarted.Lazily,
+                initialValue = AppState.Loading
+            )
     private val _registrationStep = MutableStateFlow(RegistrationStep.PHONE_NUMBER)
     val registrationStep: StateFlow<RegistrationStep> = _registrationStep.asStateFlow()
 

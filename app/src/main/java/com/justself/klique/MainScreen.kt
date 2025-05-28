@@ -50,7 +50,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -59,7 +58,6 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -81,14 +79,12 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
@@ -187,6 +183,7 @@ fun MainScreen(
     userDetailsViewModel: UserDetailsViewModel = viewModel(),
     navController: NavHostController
 ) {
+    var navigateToClique by remember { mutableStateOf(false) }
     val leftDrawerState = remember { mutableStateOf(false) }
     val rightDrawerState = remember { mutableStateOf(false) }
     val appState by authViewModel.appState.collectAsState()
@@ -247,8 +244,9 @@ fun MainScreen(
     val mainScreenTopPadding = 90.dp
     var gistStarterName by remember { mutableStateOf("") }
     var gistStarterId by remember { mutableIntStateOf(0) }
-    when (appState) {
-        AppState.Loading -> {
+    val contactsOffloaded by SessionManager.contactsOffloadedFlow.collectAsState()
+    when {
+        appState == AppState.Loading -> {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -259,7 +257,11 @@ fun MainScreen(
             }
         }
 
-        AppState.LoggedIn -> Scaffold(
+        appState == AppState.LoggedIn && !contactsOffloaded -> {
+            OffloadContactsScreen { navigateToClique = true }
+        }
+
+        appState == AppState.LoggedIn -> Scaffold(
             topBar = {
                 if (!(messageScreenGuy || bioScreenGuy || imageViewer || videoViewer || chatRoomGuy)) {
                     CustomAppBar(
@@ -300,7 +302,8 @@ fun MainScreen(
                     resetSelectedEmoji = { selectedEmoji = "" },
                     onDisplayTextChange = { theText, userId ->
                         gistStarterName = theText; gistStarterId = userId
-                    }
+                    },
+                    navigateToClique
                 )
                 Logger.d("KliqueSearch", "${searchResults.isNotEmpty()}, $cannotFindUser")
                 if (isSearchMode && (searchResults.isNotEmpty() || cannotFindUser)) {
@@ -378,13 +381,13 @@ fun MainScreen(
             }
         }
 
-        AppState.LoggedOut -> {
+        appState == AppState.LoggedOut -> {
             RegistrationScreen()
         }
 
-        AppState.UpdateRequired -> {
-            UpdateRequiredScreen(navController)
-        }
+//        AppState.UpdateRequired -> {
+//            UpdateRequiredScreen(navController)
+//        }
     }
 }
 
@@ -401,7 +404,8 @@ fun MainContent(
     onEmojiSelected: (String) -> Unit,
     selectedEmoji: String,
     resetSelectedEmoji: () -> Unit,
-    onDisplayTextChange: (String, Int) -> Unit
+    onDisplayTextChange: (String, Int) -> Unit,
+    navigateToClique: Boolean
 ) {
     val customerId by SessionManager.customerId.collectAsState()
     val fullName by SessionManager.fullName.collectAsState()
@@ -418,11 +422,22 @@ fun MainContent(
 
     LaunchedEffect(key1 = customerId, key2 = fullName) {
         if (customerId != 0) {
-            Logger.d("WebSocket", "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId")
+            Logger.d(
+                "WebSocket",
+                "Attempting to connect to WebSocket at $webSocketUrl with customer ID $customerId"
+            )
             if (!WebSocketManager.isConnected.value) {
                 WebSocketManager.connect(customerId, fullName, context, "Main")
             }
             SessionManager.sendDeviceTokenToServer()
+        }
+    }
+    LaunchedEffect(Unit){
+        if (navigateToClique) {
+            Screen.Clique.navigate(
+                navController,
+                CliqueScreenState.MY_CLIQUE.title
+            )
         }
     }
 //    DisposableEffect(lifecycleOwner) {
@@ -458,7 +473,9 @@ fun MainContent(
 //            Logger.d("onDispose", "WebSocket closed. Composable disposed.")
 //        }
 //    }
-    Logger.d("InnerPadding", "start: ${innerPadding.calculateStartPadding(LocalLayoutDirection.current)}, top: ${innerPadding.calculateTopPadding()}, end: ${
+    Logger.d(
+        "InnerPadding",
+        "start: ${innerPadding.calculateStartPadding(LocalLayoutDirection.current)}, top: ${innerPadding.calculateTopPadding()}, end: ${
             innerPadding.calculateEndPadding(LocalLayoutDirection.current)
         }, bottom: ${innerPadding.calculateBottomPadding()}"
     )
@@ -672,7 +689,13 @@ fun BottomNavigationBar(navController: NavController) {
         containerColor = MaterialTheme.colorScheme.background,
     ) {
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home", tint = if (currentRoute == Screen.Home.route) MaterialTheme.colorScheme.primary else iconColor) },
+            icon = {
+                Icon(
+                    Icons.Filled.Home,
+                    contentDescription = "Home",
+                    tint = if (currentRoute == Screen.Home.route) MaterialTheme.colorScheme.primary else iconColor
+                )
+            },
             label = { Text("Home", style = textStyle) },
             selected = currentRoute == Screen.Home.route,
             onClick = { if (currentRoute != Screen.Home.route) Screen.Home.navigate(navController) },
@@ -691,7 +714,10 @@ fun BottomNavigationBar(navController: NavController) {
                                 .align(Alignment.TopEnd)
                                 .offset(x = 4.dp, y = (-4).dp)
                                 .size(16.dp)
-                                .background(MaterialTheme.colorScheme.background, shape = CircleShape),
+                                .background(
+                                    MaterialTheme.colorScheme.background,
+                                    shape = CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -708,10 +734,20 @@ fun BottomNavigationBar(navController: NavController) {
             onClick = { if (currentRoute != Screen.Chats.route) Screen.Chats.navigate(navController) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.Book, contentDescription = "Bookshelf", tint = if (currentRoute == Screen.Bookshelf.route) MaterialTheme.colorScheme.primary else iconColor) },
+            icon = {
+                Icon(
+                    Icons.Filled.Book,
+                    contentDescription = "Bookshelf",
+                    tint = if (currentRoute == Screen.Bookshelf.route) MaterialTheme.colorScheme.primary else iconColor
+                )
+            },
             label = { Text("Bookshelf", style = textStyle) },
             selected = currentRoute == Screen.Bookshelf.route,
-            onClick = { if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(navController) },
+            onClick = {
+                if (currentRoute != Screen.Bookshelf.route) Screen.Bookshelf.navigate(
+                    navController
+                )
+            },
         )
     }
 }
@@ -742,12 +778,12 @@ fun EmojiPickerView(onEmojiSelected: (String) -> Unit, emojiPickerHeight: Dp) {
 }
 
 @Composable
-fun VerifiedBadge(isVerified: Boolean) {
+fun VerifiedBadge(isVerified: Boolean, color: Color = Color.Blue) {
     if (isVerified) {
         Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = "Verified",
-            tint = MaterialTheme.colorScheme.primary,
+            tint = color,
             modifier = Modifier.size(16.dp)
         )
     }
@@ -829,16 +865,56 @@ private fun checkAndSendToken(context: Context) {
     }
 }
 
-// Function to send the token to the server
 private fun sendDeviceTokenToServer(token: String) {
     val serviceScope = CoroutineScope(Dispatchers.IO)
     val params = mapOf("token" to token)
     serviceScope.launch {
         try {
             NetworkUtils.makeRequest("onFireBaseToken", params = params)
-            // Mark the token as sent in SharedPreferences
         } catch (e: Exception) {
             Log.e("SendToken", "Failed to send token to server: ${e.message}")
         }
+    }
+}
+
+@Composable
+fun OffloadContactsScreen(shouldNavigate: () -> Unit) {
+    val roundedCornerShape = RoundedCornerShape(16.dp)
+    Column(Modifier.fillMaxSize()) {
+        Spacer(Modifier.weight(1f))
+        Text(
+            "Form your digital clique with your real life friends",
+            style = MaterialTheme.typography.displayLarge,
+            modifier = Modifier.align(Alignment.CenterHorizontally),
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "Start Clique",
+            Modifier
+                .clickable {
+                    SessionManager.markContactsOffloaded()
+                    shouldNavigate()
+                }
+                .align(Alignment.CenterHorizontally)
+                .background(MaterialTheme.colorScheme.primary, roundedCornerShape)
+                .padding(16.dp),
+            style = MaterialTheme.typography.displayLarge,
+            color = MaterialTheme.colorScheme.background
+        )
+        Text(
+            "Skip for now",
+            Modifier
+                .clickable {
+                    SessionManager.markContactsOffloaded()
+                }
+                .padding(10.dp)
+                .background(MaterialTheme.colorScheme.onPrimary, roundedCornerShape)
+                .align(Alignment.CenterHorizontally)
+                .padding(16.dp)
+                .padding(horizontal = 50.dp),
+            color = MaterialTheme.colorScheme.background,
+            style = MaterialTheme.typography.displayLarge
+        )
+        Spacer(Modifier.weight(1f))
     }
 }

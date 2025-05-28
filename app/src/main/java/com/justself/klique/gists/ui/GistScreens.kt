@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -54,8 +55,11 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.justself.klique.Logger
 import com.justself.klique.Screen
 import com.justself.klique.getUserOverlayColor
 import com.justself.klique.gists.data.models.GistModel
@@ -78,17 +82,31 @@ object HomeScreens {
 }
 
 @Composable
+fun rememberCurrentHorizontalPage(listState: LazyListState): State<Int> {
+    return remember(listState) {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            if (layoutInfo.visibleItemsInfo.isEmpty()) return@derivedStateOf 0
+
+            val center = layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset / 2
+            layoutInfo.visibleItemsInfo.minByOrNull { item ->
+                kotlin.math.abs(item.offset + item.size / 2 - center)
+            }?.index ?: 0
+        }
+    }
+}
+
+@Composable
 fun GistScreen(customerId: Int, viewModel: SharedCliqueViewModel) {
     var selectedGist by remember { mutableStateOf<GistModel?>(null) }
     val uiState by viewModel.uiState.collectAsState()
     val lazyListState = HomeScreens.lazyListState
     val snapFlingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState)
     val coroutineScope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp.dp
-    val currentPage by remember {
-        derivedStateOf { HomeScreens.lazyListState.firstVisibleItemIndex }
-    }
+    val screenWidthPx = LocalWindowInfo.current.containerSize.width
+    val density = LocalDensity.current
+    val screenWidth: Dp = with(density) { screenWidthPx.toDp() }
+    val currentPage by rememberCurrentHorizontalPage(HomeScreens.lazyListState)
     val topBarHeight = 80.dp
     val topBarHeightPx = with(LocalDensity.current) { topBarHeight.roundToPx().toFloat() }
     val topBarOffset = remember { mutableFloatStateOf(0f) }
@@ -109,6 +127,7 @@ fun GistScreen(customerId: Int, viewModel: SharedCliqueViewModel) {
         animationSpec = tween(durationMillis = 100)
     )
     LaunchedEffect(currentPage) {
+        Logger.d("GistScreen", "The current page is $currentPage")
         when (currentPage) {
             0 -> viewModel.fetchTrendingGists(customerId)
             1 -> viewModel.fetchInteractions(customerId)
@@ -227,7 +246,7 @@ fun GistPreview(selectedGist: GistModel, onDismiss: () -> Unit, onGistStart: () 
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
-                    .fillMaxHeight(0.6f)
+                    .fillMaxHeight(0.7f)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Box(
@@ -247,102 +266,101 @@ fun GistPreview(selectedGist: GistModel, onDismiss: () -> Unit, onGistStart: () 
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     val listState = rememberLazyListState()
-                    Box(Modifier.fillMaxHeight(0.85f)) {
-                        Column {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                state = listState,
-                                reverseLayout = true
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth(),
+                        state = listState,
+                        reverseLayout = true
+                    ) {
+                        items(selectedGist.lastGistComments.reversed()) { comment ->
+                            val bubbleColor = lerp(
+                                Color.Gray,
+                                getUserOverlayColor(comment.userId, randomSeed),
+                                0.2f
+                            )
+                            val chatBubbleShape = GenericShape { size, _ ->
+                                val tailWidth = 20f
+                                val tailHeight = 10f
+                                val cornerRadius = 16f
+                                moveTo(cornerRadius, 0f)
+                                lineTo(size.width - cornerRadius, 0f)
+                                arcTo(
+                                    rect = Rect(
+                                        left = size.width - 2 * cornerRadius,
+                                        top = 0f,
+                                        right = size.width,
+                                        bottom = 2 * cornerRadius
+                                    ),
+                                    startAngleDegrees = -90f,
+                                    sweepAngleDegrees = 90f,
+                                    forceMoveTo = false
+                                )
+                                lineTo(
+                                    size.width,
+                                    size.height - cornerRadius - tailHeight
+                                )
+                                arcTo(
+                                    rect = Rect(
+                                        left = size.width - 2 * cornerRadius,
+                                        top = size.height - 2 * cornerRadius - tailHeight,
+                                        right = size.width,
+                                        bottom = size.height - tailHeight
+                                    ),
+                                    startAngleDegrees = 0f,
+                                    sweepAngleDegrees = 90f,
+                                    forceMoveTo = false
+                                )
+                                lineTo(
+                                    cornerRadius + tailWidth,
+                                    size.height - tailHeight
+                                )
+                                lineTo(tailWidth, size.height)
+                                lineTo(tailWidth, size.height - tailHeight)
+                                arcTo(
+                                    rect = Rect(
+                                        left = 0f,
+                                        top = size.height - 2 * cornerRadius - tailHeight,
+                                        right = 2 * cornerRadius,
+                                        bottom = size.height - tailHeight
+                                    ),
+                                    startAngleDegrees = 90f,
+                                    sweepAngleDegrees = 90f,
+                                    forceMoveTo = false
+                                )
+                                lineTo(0f, cornerRadius)
+                                arcTo(
+                                    rect = Rect(
+                                        left = 0f,
+                                        top = 0f,
+                                        right = 2 * cornerRadius,
+                                        bottom = 2 * cornerRadius
+                                    ),
+                                    startAngleDegrees = 180f,
+                                    sweepAngleDegrees = 90f,
+                                    forceMoveTo = false
+                                )
+                                close()
+                            }
+                            Surface(
+                                shape = chatBubbleShape,
+                                color = bubbleColor,
+                                modifier = Modifier.padding(
+                                    vertical = 4.dp,
+                                    horizontal = 8.dp
+                                )
                             ) {
-                                items(selectedGist.lastGistComments.reversed()) { comment ->
-                                    val bubbleColor = lerp(
-                                        Color.Gray,
-                                        getUserOverlayColor(comment.userId, randomSeed),
-                                        0.2f
-                                    )
-                                    val chatBubbleShape = GenericShape { size, _ ->
-                                        val tailWidth = 20f
-                                        val tailHeight = 10f
-                                        val cornerRadius = 16f
-                                        moveTo(cornerRadius, 0f)
-                                        lineTo(size.width - cornerRadius, 0f)
-                                        arcTo(
-                                            rect = Rect(
-                                                left = size.width - 2 * cornerRadius,
-                                                top = 0f,
-                                                right = size.width,
-                                                bottom = 2 * cornerRadius
-                                            ),
-                                            startAngleDegrees = -90f,
-                                            sweepAngleDegrees = 90f,
-                                            forceMoveTo = false
-                                        )
-                                        lineTo(
-                                            size.width,
-                                            size.height - cornerRadius - tailHeight
-                                        )
-                                        arcTo(
-                                            rect = Rect(
-                                                left = size.width - 2 * cornerRadius,
-                                                top = size.height - 2 * cornerRadius - tailHeight,
-                                                right = size.width,
-                                                bottom = size.height - tailHeight
-                                            ),
-                                            startAngleDegrees = 0f,
-                                            sweepAngleDegrees = 90f,
-                                            forceMoveTo = false
-                                        )
-                                        lineTo(
-                                            cornerRadius + tailWidth,
-                                            size.height - tailHeight
-                                        )
-                                        lineTo(tailWidth, size.height)
-                                        lineTo(tailWidth, size.height - tailHeight)
-                                        arcTo(
-                                            rect = Rect(
-                                                left = 0f,
-                                                top = size.height - 2 * cornerRadius - tailHeight,
-                                                right = 2 * cornerRadius,
-                                                bottom = size.height - tailHeight
-                                            ),
-                                            startAngleDegrees = 90f,
-                                            sweepAngleDegrees = 90f,
-                                            forceMoveTo = false
-                                        )
-                                        lineTo(0f, cornerRadius)
-                                        arcTo(
-                                            rect = Rect(
-                                                left = 0f,
-                                                top = 0f,
-                                                right = 2 * cornerRadius,
-                                                bottom = 2 * cornerRadius
-                                            ),
-                                            startAngleDegrees = 180f,
-                                            sweepAngleDegrees = 90f,
-                                            forceMoveTo = false
-                                        )
-                                        close()
-                                    }
-                                    Surface(
-                                        shape = chatBubbleShape,
-                                        color = bubbleColor,
-                                        modifier = Modifier.padding(
-                                            vertical = 4.dp,
-                                            horizontal = 8.dp
-                                        )
-                                    ) {
-                                        Text(
-                                            text = "${comment.senderName}: ${comment.comment}",
-                                            modifier = Modifier.padding(8.dp),
-                                            maxLines = 3,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = "${comment.senderName}: ${comment.comment}",
+                                    modifier = Modifier.padding(8.dp),
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
+
+
                     HorizontalDivider(
                         modifier = Modifier.fillMaxWidth(),
                         thickness = 1.dp,

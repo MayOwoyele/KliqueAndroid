@@ -10,12 +10,11 @@ plugins {
 android {
     namespace = "com.justself.klique"
     compileSdk = 35
-
     defaultConfig {
         applicationId = "com.justself.klique"
         minSdk = 28
         targetSdk = 35
-        versionCode = 16
+        versionCode = 19
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
@@ -27,16 +26,14 @@ android {
 
     buildTypes {
         debug {
-//            isMinifyEnabled = true
-//            isShrinkResources = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "base_url", "http://10.0.2.2:8080/")
-            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
+            resValue("string", "base_url", "http://192.168.100.6:8080/")
+            resValue("string", "websocket_url", "ws://192.168.100.6:3030/")
         }
         release {
             isMinifyEnabled = true
@@ -62,6 +59,20 @@ android {
         compose = true
         buildConfig = true
     }
+    composeOptions {
+        kotlinCompilerExtensionVersion = "2.0.21"
+    }
+//    defaultConfig {
+//        ndk {
+//            abiFilters += "arm64-v8a"
+//            abiFilters += "armeabi-v7a"
+//        }
+//    }
+//    externalNativeBuild {
+//        cmake {
+//            path = file("src/main/CMakeLists.txt")
+//        }
+//    }
 }
 
 dependencies {
@@ -78,6 +89,8 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.lifecycle.process)
+    implementation(libs.app.update.ktx)
+    implementation(libs.androidx.media3.transformer)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -91,11 +104,11 @@ dependencies {
     implementation(libs.dexter)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.composeUi)
-    implementation(libs.composeMaterialIconsExtended)
-    implementation(libs.composeMaterial3)
+//    implementation(libs.composeMaterialIconsExtended)
+//    implementation(libs.composeMaterial3)
     implementation(libs.materialComponents)
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.material3)
+//    implementation(libs.androidx.compose.ui)
+//    implementation(libs.androidx.compose.material3)
     debugImplementation(libs.androidx.compose.ui.tooling)
     implementation(libs.compose.runtime.livedata)
     implementation(libs.compose.runtime)
@@ -113,8 +126,12 @@ dependencies {
     implementation(libs.java.websocket)
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
-    implementation(libs.compose.foundation)
-    implementation(libs.compose.foundation.layout)
+    implementation(libs.androidx.material.icons.extended)
+
+    // Material-3 extended icons (latest stable 1.3.2)
+    implementation(libs.material3)
+//    implementation(libs.compose.foundation)
+//    implementation(libs.compose.foundation.layout)
     implementation(libs.emoji.compat)
     implementation(libs.emoji.compat.bundled)
     ksp(libs.room.compiler)
@@ -122,7 +139,6 @@ dependencies {
     implementation (libs.emoji2.views)
     implementation (libs.emoji2.views.helper)
     implementation (libs.emoji2.emojipicker)
-    implementation(libs.mobile.ffmpeg)
     implementation(libs.libphonenumber)
     implementation(libs.exoplayer.core)
     implementation(libs.exoplayer.ui)
@@ -130,6 +146,7 @@ dependencies {
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.messaging)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.datastore.preferences)
     implementation("org.jetbrains:annotations:23.0.0")
 }
 

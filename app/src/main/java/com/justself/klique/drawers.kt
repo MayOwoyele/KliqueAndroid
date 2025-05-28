@@ -126,6 +126,8 @@ fun LeftDrawer(
                         }
                     }
             ) {
+                val padding = 4.dp
+                val uncheckedCount by CliqueScreenObject.uncheckedListCount.collectAsState()
                 LeftDrawerItem(
                     modifier = Modifier.padding(bottom = 16.dp),
                     leading = {
@@ -159,13 +161,13 @@ fun LeftDrawer(
                     }
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(padding),
                     leading = { Icon(Icons.Rounded.Person, contentDescription = "Me") },
                     text = "Me",
                     onClick = {Screen.BioScreen.navigate(navController, customerId); drawerState.value = false}
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(padding),
                     leading = {
                         Icon(
                             Icons.AutoMirrored.Rounded.Message,
@@ -179,11 +181,20 @@ fun LeftDrawer(
                     }
                 )
                 LeftDrawerItem(
-                    modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp),
+                    modifier = Modifier.padding(padding),
                     leading = { Icon(Icons.Rounded.Star, contentDescription = "Top Gists") },
                     text = "Top Gists",
                     onClick = {
                         Screen.TopGists.navigate(navController)
+                        drawerState.value = false
+                    }
+                )
+                LeftDrawerItem(
+                    modifier = Modifier.padding(padding),
+                    leading = { Icon(Icons.Rounded.Groups2, contentDescription = "Clique") },
+                    text = "Clique${if (uncheckedCount > 0) "          $uncheckedCount" else ""}",
+                    onClick = {
+                        Screen.Clique.navigate(navController)
                         drawerState.value = false
                     }
                 )

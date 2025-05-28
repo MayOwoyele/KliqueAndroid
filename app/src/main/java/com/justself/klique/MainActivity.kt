@@ -4,9 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.view.WindowManager
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
@@ -18,12 +17,23 @@ import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.compose.rememberNavController
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.ktx.AppUpdateResult
+import com.google.android.play.core.ktx.isFlexibleUpdateAllowed
+import com.google.android.play.core.ktx.requestUpdateFlow
+import com.justself.klique.DroidAppUpdateManager.ASK_AFTER
+import com.justself.klique.DroidAppUpdateManager.FORCE_AFTER
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
+import com.google.android.play.core.ktx.isImmediateUpdateAllowed
+import kotlinx.coroutines.launch
 
-
-
+private const val REQ_IMMEDIATE_UPDATE = 1001
+private const val REQ_FLEX_UPDATE      = 1002
 class MainActivity : FragmentActivity() {
 
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -55,18 +65,20 @@ class MainActivity : FragmentActivity() {
                 finish()
             }
         }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val executor: Executor = Executors.newSingleThreadExecutor() // 4 threads in the pool
+        observeInAppUpdates()
+        val executor: Executor = Executors.newSingleThreadExecutor()
         val config: Config = BundledEmojiCompatConfig(this, executor)
         EmojiCompat.init(config)
         val notificationRoute = intent?.getStringExtra("route")
         if (notificationRoute != null) {
             NotificationIntentManager.updateNavigationRoute(notificationRoute)
         }
+        window.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
         setContent {
             val navController = rememberNavController()
             MyAppTheme {
@@ -82,6 +94,38 @@ class MainActivity : FragmentActivity() {
             requestPermissionLauncher.launch(requiredPermissions)
         } else {
             Logger.d("Permissions", "Required permissions already granted")
+        }
+    }
+    override fun onResume() {
+        super.onResume()
+        DroidAppUpdateManager.resumeFlexibleUpdates()
+    }
+
+    private fun observeInAppUpdates() {
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                AppUpdateManagerFactory
+                    .create(this@MainActivity)
+                    .requestUpdateFlow()
+                    .collect { result ->
+                        if (result is AppUpdateResult.Available) {
+                            val info      = result.updateInfo
+                            val elapsed   = System.currentTimeMillis() - DroidAppUpdateManager.getFirstSeen()
+                            val needForce = elapsed >= FORCE_AFTER
+                            val needAsk   = elapsed in ASK_AFTER until FORCE_AFTER
+
+                            when {
+                                needForce && info.isImmediateUpdateAllowed -> {
+                                    result.startImmediateUpdate(this@MainActivity, REQ_IMMEDIATE_UPDATE)
+                                }
+                                needAsk && info.isFlexibleUpdateAllowed &&
+                                        !DroidAppUpdateManager.updateDismissedFlow.value -> {
+                                    result.startFlexibleUpdate(this@MainActivity, REQ_FLEX_UPDATE)
+                                }
+                            }
+                        }
+                    }
+            }
         }
     }
 

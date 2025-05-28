@@ -125,10 +125,13 @@ object NetworkUtils {
                 }
             }
             val response = try {
+                Logger.d("NetworkUtils", "HTTP $endpoint:  $method Response Code: ${connection.responseCode}")
                 BufferedReader(InputStreamReader(connection.inputStream)).use { it.readText() }
             } catch (e: IOException) {
+                Logger.d("NetworkUtils", "HTTP catch $endpoint:  $method Response Code: ${connection.responseCode}")
                 BufferedReader(InputStreamReader(connection.errorStream)).use { it.readText() }
             } finally {
+                Logger.d("NetworkUtils", "HTTP finally $endpoint:  $method Response Code: ${connection.responseCode}")
                 connection.disconnect()
             }
             Logger.d("NetworkUtils", "HTTP $endpoint:  $method Response Code: ${connection.responseCode}")

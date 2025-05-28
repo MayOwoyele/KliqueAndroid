@@ -12,7 +12,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +21,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +32,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.VolumeOff
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Email
@@ -50,8 +47,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -70,12 +65,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
@@ -86,6 +79,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.ImageLoader
+import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -96,7 +90,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -114,6 +107,7 @@ fun BioScreen(
     val bioViewModel: BioViewModel = viewModel(
         factory = BioViewModelFactory(contactsRepository)
     )
+    val cliqueMembers by bioViewModel.theClique.collectAsState()
     val paddingFloat = 370f
     val profile by bioViewModel.profile.collectAsState()
     val bioGists by bioViewModel.gistList.collectAsState()
@@ -135,6 +129,9 @@ fun BioScreen(
     }
     var backgroundColor by remember { mutableStateOf(Color.Transparent) }
     var imagePainter by remember { mutableStateOf<BitmapPainter?>(null) }
+    var presentScreen by remember {
+        mutableStateOf(BioDisplayable.Gists)
+    }
 
     LaunchedEffect(profile?.bioImage) {
         profile?.bioImage?.let { bioImageUrl ->
@@ -408,10 +405,22 @@ fun BioScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         ) {
-                            Text(
-                                text = profile!!.fullName,
-                                style = MaterialTheme.typography.displayLarge,
-                                modifier = Modifier.padding(end = 8.dp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            ScreenRow(
+                                { presentScreen = BioDisplayable.Gists },
+                                presentScreen = presentScreen,
+                                thisScreen = BioDisplayable.Gists
+                            )
+                            Spacer(modifier = Modifier.weight(0.3f))
+                            ScreenRow(
+                                {
+                                    if (!bioViewModel.hasLoadedCliqueMembers) {
+                                        bioViewModel.fetchCliqueMembers(enemyId)
+                                    }
+                                    presentScreen = BioDisplayable.Clique
+                                },
+                                presentScreen = presentScreen,
+                                thisScreen = BioDisplayable.Clique
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             IconButton(
@@ -436,21 +445,31 @@ fun BioScreen(
                             }
                         }
                     }
-                    items(bioGists) { gist ->
-                        val mediaPaths = cachedMedia[gist.gistId]
-                        GistTile(
-                            enemyId,
-                            onTap = {
-                                Screen.Home.navigate(
-                                    navController, gist.gistId
+                    when (presentScreen) {
+                        BioDisplayable.Gists -> {
+                            items(bioGists) { gist ->
+                                val mediaPaths = cachedMedia[gist.gistId]
+                                GistTile(
+                                    enemyId,
+                                    onTap = {
+                                        Screen.Home.navigate(
+                                            navController, gist.gistId
+                                        )
+                                    },
+                                    onHoldClick = { bioViewModel.floatGist(gist.gistId) },
+                                    lastPostList = gist.lastGistComments,
+                                    postImage = mediaPaths?.postImage,
+                                    postVideo = mediaPaths?.postVideo,
+                                    gist = gist
                                 )
-                            },
-                            onHoldClick = { bioViewModel.floatGist(gist.gistId) },
-                            lastPostList = gist.lastGistComments,
-                            postImage = mediaPaths?.postImage,
-                            postVideo = mediaPaths?.postVideo,
-                            gist = gist
-                        )
+                            }
+                        }
+
+                        BioDisplayable.Clique -> {
+                            items(cliqueMembers) { clique ->
+                                CliqueTile(clique, navController)
+                            }
+                        }
                     }
                     items(profile!!.posts) { post ->
                         PostItem(
@@ -463,193 +482,193 @@ fun BioScreen(
                     }
                 }
             }
-            expandedPostId?.let { postId ->
-                bioViewModel.fetchPostComments(postId)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.onSecondary)
-                ) {
-                    var commentText by remember { mutableStateOf("") }
-                    Column {
-                        var replyingTo by remember { mutableStateOf<String?>(null) }
-                        var replyingToId by remember { mutableStateOf<Int?>(null) }
-                        IconButton(onClick = { expandedPostId = null }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.background
-                            )
-                        }
-                        Text(
-                            text = "Comments",
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-
-                        // LazyColumn for displaying comments
-                        LazyColumn(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                        ) {
-                            items(postComments) { comment ->
-                                var textLayoutResult by remember {
-                                    mutableStateOf<TextLayoutResult?>(
-                                        null
-                                    )
-                                }
-                                Text(
-                                    text = buildAnnotatedString {
-                                        pushStringAnnotation(
-                                            tag = "COMMENTER",
-                                            annotation = comment.customerId.toString()
-                                        )
-                                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
-                                            append("${comment.name}: ")
-                                        }
-                                        pop()
-                                        comment.replyingTo?.let { replyingTo ->
-                                            pushStringAnnotation(
-                                                tag = "REPLYING_TO",
-                                                annotation = comment.replyingToId.toString()
-                                            )
-                                            withStyle(style = SpanStyle(color = Color.Red)) {
-                                                append("@$replyingTo ")
-                                            }
-                                            pop()
-                                        }
-                                        append(comment.text)
-                                    },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    modifier = Modifier
-                                        .padding(bottom = 4.dp)
-                                        .pointerInput(Unit) {
-                                            detectTapGestures { tapOffset ->
-                                                textLayoutResult?.let { layoutResult ->
-                                                    val position =
-                                                        layoutResult.getOffsetForPosition(tapOffset)
-                                                    val annotations =
-                                                        layoutResult.layoutInput.text.getStringAnnotations(
-                                                            position,
-                                                            position
-                                                        )
-                                                    annotations
-                                                        .firstOrNull()
-                                                        ?.let { annotation ->
-                                                            when (annotation.tag) {
-                                                                "COMMENTER" -> navController.navigate(
-                                                                    "bioScreen/${annotation.item}"
-                                                                )
-
-                                                                "REPLYING_TO" -> navController.navigate(
-                                                                    "bioScreen/${annotation.item}"
-                                                                )
-                                                            }
-                                                        }
-                                                }
-                                            }
-                                        },
-                                    onTextLayout = { layoutResult ->
-                                        textLayoutResult = layoutResult
-                                    },
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                )
-                                Text(
-                                    text = "Reply ${comment.name}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = Color.Red,
-                                    modifier = Modifier
-                                        .padding(start = 20.dp)
-                                        .clickable {
-                                            replyingTo = comment.name
-                                            replyingToId = comment.customerId
-                                            commentText = ""
-                                        }
-                                )
-                            }
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 4.dp, vertical = 4.dp)
-                                .imePadding(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.onSecondary,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .weight(1f)
-                            ) {
-
-                                TextField(
-                                    value = (replyingTo?.let { "$it " } ?: "") + commentText,
-                                    onValueChange = { newText ->
-                                        val sanitizedText = newText.replace("\n", "")
-                                        if (replyingTo != null) {
-                                            val prefix = "$replyingTo "
-                                            if (!sanitizedText.startsWith(prefix)) {
-                                                replyingTo = null
-                                                replyingToId = null
-                                                commentText = sanitizedText.trimStart()
-                                            } else {
-                                                commentText = sanitizedText.removePrefix(prefix)
-                                            }
-                                        } else {
-                                            commentText = sanitizedText
-                                        }
-                                    },
-                                    placeholder = { Text("Add a comment...") },
-                                    modifier = Modifier
-                                        .background(MaterialTheme.colorScheme.onSecondary)
-                                        .fillMaxWidth(),
-                                    maxLines = 1,
-                                    colors = TextFieldDefaults.colors(
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                        unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                        cursorColor = MaterialTheme.colorScheme.primary,
-                                    )
-                                )
-                            }
-                            IconButton(onClick = {
-                                if (commentText.isNotEmpty()) {
-                                    val comment = JSONObject().apply {
-                                        put("replyingToId", replyingToId)
-                                        put("replyingTo", replyingTo)
-                                        put("postId", postId)
-                                        put("userId", customerId)
-                                        put("commentText", commentText)
-                                    }.toString()
-                                    bioViewModel.sendComment(
-                                        comment,
-                                        customerId,
-                                        commentText,
-                                        replyingTo,
-                                        replyingToId,
-                                        postId
-                                    )
-                                }
-                                commentText = ""
-                                replyingTo = null
-                                replyingToId = null
-                            }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Send",
-                                    tint = MaterialTheme.colorScheme.background
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+//            expandedPostId?.let { postId ->
+//                bioViewModel.fetchPostComments(postId)
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxSize()
+//                        .background(MaterialTheme.colorScheme.onSecondary)
+//                ) {
+//                    var commentText by remember { mutableStateOf("") }
+//                    Column {
+//                        var replyingTo by remember { mutableStateOf<String?>(null) }
+//                        var replyingToId by remember { mutableStateOf<Int?>(null) }
+//                        IconButton(onClick = { expandedPostId = null }) {
+//                            Icon(
+//                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+//                                contentDescription = "Back",
+//                                tint = MaterialTheme.colorScheme.background
+//                            )
+//                        }
+//                        Text(
+//                            text = "Comments",
+//                            style = MaterialTheme.typography.bodyLarge,
+//                            modifier = Modifier.padding(bottom = 8.dp),
+//                            color = MaterialTheme.colorScheme.onPrimary
+//                        )
+//
+//                        // LazyColumn for displaying comments
+//                        LazyColumn(
+//                            modifier = Modifier
+//                                .weight(1f)
+//                                .fillMaxWidth()
+//                        ) {
+//                            items(postComments) { comment ->
+//                                var textLayoutResult by remember {
+//                                    mutableStateOf<TextLayoutResult?>(
+//                                        null
+//                                    )
+//                                }
+//                                Text(
+//                                    text = buildAnnotatedString {
+//                                        pushStringAnnotation(
+//                                            tag = "COMMENTER",
+//                                            annotation = comment.customerId.toString()
+//                                        )
+//                                        withStyle(style = SpanStyle(color = MaterialTheme.colorScheme.primary)) {
+//                                            append("${comment.name}: ")
+//                                        }
+//                                        pop()
+//                                        comment.replyingTo?.let { replyingTo ->
+//                                            pushStringAnnotation(
+//                                                tag = "REPLYING_TO",
+//                                                annotation = comment.replyingToId.toString()
+//                                            )
+//                                            withStyle(style = SpanStyle(color = Color.Red)) {
+//                                                append("@$replyingTo ")
+//                                            }
+//                                            pop()
+//                                        }
+//                                        append(comment.text)
+//                                    },
+//                                    style = MaterialTheme.typography.bodyLarge,
+//                                    modifier = Modifier
+//                                        .padding(bottom = 4.dp)
+//                                        .pointerInput(Unit) {
+//                                            detectTapGestures { tapOffset ->
+//                                                textLayoutResult?.let { layoutResult ->
+//                                                    val position =
+//                                                        layoutResult.getOffsetForPosition(tapOffset)
+//                                                    val annotations =
+//                                                        layoutResult.layoutInput.text.getStringAnnotations(
+//                                                            position,
+//                                                            position
+//                                                        )
+//                                                    annotations
+//                                                        .firstOrNull()
+//                                                        ?.let { annotation ->
+//                                                            when (annotation.tag) {
+//                                                                "COMMENTER" -> navController.navigate(
+//                                                                    "bioScreen/${annotation.item}"
+//                                                                )
+//
+//                                                                "REPLYING_TO" -> navController.navigate(
+//                                                                    "bioScreen/${annotation.item}"
+//                                                                )
+//                                                            }
+//                                                        }
+//                                                }
+//                                            }
+//                                        },
+//                                    onTextLayout = { layoutResult ->
+//                                        textLayoutResult = layoutResult
+//                                    },
+//                                    color = MaterialTheme.colorScheme.onPrimary,
+//                                )
+//                                Text(
+//                                    text = "Reply ${comment.name}",
+//                                    style = MaterialTheme.typography.bodyLarge,
+//                                    color = Color.Red,
+//                                    modifier = Modifier
+//                                        .padding(start = 20.dp)
+//                                        .clickable {
+//                                            replyingTo = comment.name
+//                                            replyingToId = comment.customerId
+//                                            commentText = ""
+//                                        }
+//                                )
+//                            }
+//                        }
+//
+//                        Row(
+//                            modifier = Modifier
+//                                .fillMaxWidth()
+//                                .padding(horizontal = 4.dp, vertical = 4.dp)
+//                                .imePadding(),
+//                            verticalAlignment = Alignment.CenterVertically
+//                        ) {
+//                            Box(
+//                                modifier = Modifier
+//                                    .background(
+//                                        MaterialTheme.colorScheme.onSecondary,
+//                                        shape = RoundedCornerShape(4.dp)
+//                                    )
+//                                    .weight(1f)
+//                            ) {
+//
+//                                TextField(
+//                                    value = (replyingTo?.let { "$it " } ?: "") + commentText,
+//                                    onValueChange = { newText ->
+//                                        val sanitizedText = newText.replace("\n", "")
+//                                        if (replyingTo != null) {
+//                                            val prefix = "$replyingTo "
+//                                            if (!sanitizedText.startsWith(prefix)) {
+//                                                replyingTo = null
+//                                                replyingToId = null
+//                                                commentText = sanitizedText.trimStart()
+//                                            } else {
+//                                                commentText = sanitizedText.removePrefix(prefix)
+//                                            }
+//                                        } else {
+//                                            commentText = sanitizedText
+//                                        }
+//                                    },
+//                                    placeholder = { Text("Add a comment...") },
+//                                    modifier = Modifier
+//                                        .background(MaterialTheme.colorScheme.onSecondary)
+//                                        .fillMaxWidth(),
+//                                    maxLines = 1,
+//                                    colors = TextFieldDefaults.colors(
+//                                        focusedIndicatorColor = Color.Transparent,
+//                                        unfocusedIndicatorColor = Color.Transparent,
+//                                        focusedTextColor = MaterialTheme.colorScheme.onPrimary,
+//                                        unfocusedTextColor = MaterialTheme.colorScheme.onPrimary,
+//                                        cursorColor = MaterialTheme.colorScheme.primary,
+//                                    )
+//                                )
+//                            }
+//                            IconButton(onClick = {
+//                                if (commentText.isNotEmpty()) {
+//                                    val comment = JSONObject().apply {
+//                                        put("replyingToId", replyingToId)
+//                                        put("replyingTo", replyingTo)
+//                                        put("postId", postId)
+//                                        put("userId", customerId)
+//                                        put("commentText", commentText)
+//                                    }.toString()
+//                                    bioViewModel.sendComment(
+//                                        comment,
+//                                        customerId,
+//                                        commentText,
+//                                        replyingTo,
+//                                        replyingToId,
+//                                        postId
+//                                    )
+//                                }
+//                                commentText = ""
+//                                replyingTo = null
+//                                replyingToId = null
+//                            }) {
+//                                Icon(
+//                                    imageVector = Icons.AutoMirrored.Filled.Send,
+//                                    contentDescription = "Send",
+//                                    tint = MaterialTheme.colorScheme.background
+//                                )
+//                            }
+//                        }
+//                    }
+//                }
+//            }
         } else {
             Box(
                 modifier = Modifier
@@ -952,5 +971,48 @@ suspend fun downloadVideoFile(url: String, destination: File): Boolean {
             e.printStackTrace()
             false
         }
+    }
+}
+
+enum class BioDisplayable(val text: String) {
+    Gists("Gists"),
+    Clique("Clique")
+}
+
+@Composable
+fun ScreenRow(
+    onClick: () -> Unit,
+    presentScreen: BioDisplayable,
+    thisScreen: BioDisplayable
+) {
+    val backgroundColor = if (presentScreen == thisScreen) {
+        MaterialTheme.colorScheme.background
+    } else {
+        Color.Transparent
+    }
+    Text(
+        text = thisScreen.text,
+        color = MaterialTheme.colorScheme.onPrimary,
+        style = MaterialTheme.typography.displayLarge,
+        modifier = Modifier
+            .clickable { onClick() }
+            .background(backgroundColor, shape = RoundedCornerShape(10.dp))
+            .padding(10.dp)
+    )
+}
+
+@Composable
+fun CliqueTile(person: Clique, navController: NavController) {
+    val profileImage = NetworkUtils.fixLocalHostUrl(person.profileImage)
+    Row(modifier = Modifier
+        .clickable { Screen.BioScreen.navigate(navController, person.userId) }
+        .padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+        ProfileAvatar(profileImage, 40.dp)
+        Text(
+            person.name,
+            style = MaterialTheme.typography.displayLarge,
+            modifier = Modifier.padding(horizontal = 10.dp)
+        )
+        VerifiedBadge(person.isVerified, MaterialTheme.colorScheme.onPrimary)
     }
 }

@@ -37,13 +37,17 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
+import android.media.MediaCodec
+import android.media.MediaCodecInfo
+import android.media.MediaFormat
+import android.media.MediaMuxer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.core.app.ActivityCompat
-import com.arthenica.mobileffmpeg.FFmpeg
+import java.io.FileInputStream
 import java.io.FileOutputStream
 
 object AudioRecorder {
@@ -130,9 +134,92 @@ object AudioRecorder {
     }
 
     private fun convertPcmToM4a(pcmFilePath: String, m4aFilePath: String): Boolean {
-        val command = "-y -f s16le -ar 44100 -ac 1 -i $pcmFilePath -c:a aac -ar 44100 -b:a 160k $m4aFilePath"
-        val rc = FFmpeg.execute(command)
-        return rc == 0
+        val sampleRate = 44100
+        val channelCount = 1
+        val bitRate = 160_000
+        val format = MediaFormat.createAudioFormat(
+            MediaFormat.MIMETYPE_AUDIO_AAC,
+            sampleRate,
+            channelCount
+        ).apply {
+            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+            setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384)
+        }
+
+        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {
+            configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
+            start()
+        }
+
+        val muxer = MediaMuxer(m4aFilePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        var trackIndex = -1
+        var sawInputEOS = false
+        var sawOutputEOS = false
+
+        val inputStream = FileInputStream(pcmFilePath)
+        val buffer = ByteArray(2048)
+
+        val bufferInfo = MediaCodec.BufferInfo()
+
+        while (!sawOutputEOS) {
+            // Feed PCM data into encoder
+            if (!sawInputEOS) {
+                val inIndex = encoder.dequeueInputBuffer(10000)
+                if (inIndex >= 0) {
+                    val inputBuffer = encoder.getInputBuffer(inIndex)!!
+                    inputBuffer.clear()
+
+                    val readBytes = inputStream.read(buffer)
+                    if (readBytes == -1) {
+                        // end of stream -- send EOS
+                        encoder.queueInputBuffer(
+                            inIndex, 0, 0,
+                            0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                        )
+                        sawInputEOS = true
+                    } else {
+                        inputBuffer.put(buffer, 0, readBytes)
+                        encoder.queueInputBuffer(
+                            inIndex, 0, readBytes,
+                            System.nanoTime() / 1000, 0
+                        )
+                    }
+                }
+            }
+
+            // Retrieve encoded AAC packets and feed to muxer
+            val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
+            when {
+                outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                    // once output format is available, add track to muxer
+                    val newFormat = encoder.outputFormat
+                    trackIndex = muxer.addTrack(newFormat)
+                    muxer.start()
+                }
+                outIndex >= 0 -> {
+                    val encodedData = encoder.getOutputBuffer(outIndex)!!
+                    if (bufferInfo.size > 0 && trackIndex >= 0) {
+                        encodedData.position(bufferInfo.offset)
+                        encodedData.limit(bufferInfo.offset + bufferInfo.size)
+                        muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
+                    }
+                    encoder.releaseOutputBuffer(outIndex, false)
+                    if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        sawOutputEOS = true
+                    }
+                }
+            }
+        }
+
+        // 3) Release everything
+        inputStream.close()
+        encoder.stop()
+        encoder.release()
+        muxer.stop()
+        muxer.release()
+
+        return true
     }
 }
 @Composable

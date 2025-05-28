@@ -27,6 +27,14 @@ object SessionManager {
     fun startSession(){
         fetchCustomerDataFromSharedPreferences()
     }
+    private const val KEY_CONTACTS_OFFLOADED = "contacts_offloaded"
+    private val prefs = appContext.getSharedPreferences("klique", Context.MODE_PRIVATE)
+    val contactsOffloadedFlow = MutableStateFlow(prefs.getBoolean(KEY_CONTACTS_OFFLOADED, false))
+
+    fun markContactsOffloaded() {
+        prefs.edit().putBoolean(KEY_CONTACTS_OFFLOADED, true).apply()
+        contactsOffloadedFlow.value = true
+    }
     fun fetchCustomerDataFromSharedPreferences() {
         val sharedPreferences = appContext.getSharedPreferences(KLIQUE_APP_USER, Context.MODE_PRIVATE)
         val savedCustomerId = sharedPreferences.getInt(CUSTOMER_ID, -1)

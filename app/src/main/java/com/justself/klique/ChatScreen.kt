@@ -2,7 +2,6 @@ package com.justself.klique
 
 import android.content.Intent
 import android.text.format.DateUtils
-import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -355,7 +354,7 @@ fun ChatListScreen(
                 AnimatedVisibility(
                     visible = menuExpanded && !isSelectionMode && !isSearchVisible,
                     enter = slideInVertically(
-                        initialOffsetY = { it }, // Start from the bottom
+                        initialOffsetY = { it },
                         animationSpec = tween(durationMillis = 300)
                     ) + scaleIn(
                         initialScale = 0.8f,
@@ -424,7 +423,7 @@ fun TextOption(text: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AddButton(
+fun AddButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     icon: ImageVector,

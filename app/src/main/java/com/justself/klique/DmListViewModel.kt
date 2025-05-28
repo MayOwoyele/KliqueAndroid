@@ -18,6 +18,7 @@ data class DmItem(
 sealed class LastMessage {
     data class Text(val content: String) : LastMessage()
     data object Photo : LastMessage()
+    data object GistCreation : LastMessage()
 }
 
 class DmListViewModel : ViewModel() {
@@ -40,11 +41,11 @@ class DmListViewModel : ViewModel() {
                                     NetworkUtils.fixLocalHostUrl(jsonObject.getString("imageLink"))
                                 val fullName = jsonObject.getString("fullName")
                                 val enemyId = jsonObject.getInt("enemyId")
-
                                 val lastMessageType = jsonObject.getString("lastMessageType")
                                 val lastMessage = when (lastMessageType) {
                                     "DText" -> LastMessage.Text(jsonObject.getString("lastMessageContent"))
                                     "DImage" -> LastMessage.Photo
+                                    "DGistCreation" -> LastMessage.GistCreation
                                     else -> LastMessage.Text("")
                                 }
                                 Log.e("fetchDmList", "image link: $imageLink")

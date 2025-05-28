@@ -671,7 +671,6 @@ fun MessageContent(
             currentTime.longValue = System.currentTimeMillis()
         }
     }
-
     var showOptionsDialog by remember { mutableStateOf(false) }
     var selectedMessage by remember { mutableStateOf<GistMessage?>(null) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
@@ -1027,7 +1026,6 @@ fun MessageContent(
         )
     }
 }
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun InputRow(
     message: TextFieldValue,

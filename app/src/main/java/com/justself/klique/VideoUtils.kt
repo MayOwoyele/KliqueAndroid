@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.VideoView
+import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,29 +21,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.arthenica.mobileffmpeg.Config
-import com.arthenica.mobileffmpeg.FFmpeg
-import kotlinx.coroutines.launch
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.ScaleAndRotateTransformation
+import androidx.media3.transformer.DefaultEncoderFactory
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.Effects
+import androidx.media3.transformer.TransformationRequest
+import androidx.media3.transformer.Transformer
+import androidx.media3.transformer.VideoEncoderSettings
 import androidx.navigation.NavController
+import kotlinx.coroutines.launch
 import java.io.File
+import androidx.core.net.toUri
+import androidx.core.graphics.createBitmap
 
 object VideoUtils {
     private const val TAG = "VideoUtils"
 
-    fun getVideoResolution(context: Context, uri: Uri): Pair<Int, Int>? {
+    private fun getVideoResolution(context: Context, uri: Uri): Pair<Int, Int>? {
         val retriever = MediaMetadataRetriever()
         try {
             retriever.setDataSource(context, uri)
@@ -67,57 +72,59 @@ object VideoUtils {
         }
     }
 
-    fun downscaleVideo(context: Context, uri: Uri): Uri? {
-        Logger.d("onTrim", "downscaling called")
-        val resolution = getVideoResolution(context, uri)
-        if (resolution == null) {
-            Log.e(TAG, "No resolution found, cannot downscale.")
-            return null
+    @OptIn(UnstableApi::class)
+    suspend fun downscaleVideo(
+        context: Context,
+        inputUri: Uri,
+        maxDimension: Int = 480
+    ): Uri? {
+
+        // 0) Grab input size safely
+        val retriever = MediaMetadataRetriever()
+        val (srcW, srcH) = try {
+            retriever.setDataSource(context, inputUri)
+            val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt() ?: return null
+            val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt() ?: return null
+            w to h
+        } finally {
+            retriever.release()
         }
 
-        if (resolution.first <= 360 && resolution.second <= 360) {
-            Log.i(TAG, "No downscaling needed as video is within size limits.")
-            return uri
-        }
+        // If already small, skip work
+        if (maxOf(srcW, srcH) <= maxDimension) return inputUri
 
-        val inputPath = FileUtils.getPath(context, uri)
-        if (inputPath == null) {
-            Log.e(TAG, "Failed to get path from URI.")
-            return null
-        }
+        // 1) Compute scale factor & new dims
+        val scale = maxDimension.toFloat() / maxOf(srcW, srcH)
 
-        val outputFile = File(context.cacheDir, "scaled_video.mp4")
-        val outputPath = outputFile.absolutePath
-        val scale = if (resolution.first > resolution.second) "480:-2" else "-2:480"
+        // 2) Build the GPU-accelerated effect
+        val scaleEffect = ScaleAndRotateTransformation.Builder()
+            .setScale(scale, scale)
+            .build()
 
-        val command = arrayOf(
-            "-i", inputPath,
-            "-vf", "scale=$scale",
-            "-c:v", "mpeg4",
-            "-crf", "28",
-            "-preset", "veryfast",
-            "-c:a", "aac",
-            "-strict", "experimental",
-            "-b:a", "192k",
-            "-y", outputPath
-        )
+        val editedItem = EditedMediaItem.Builder(MediaItem.fromUri(inputUri))
+            .setEffects(Effects( emptyList(), listOf(scaleEffect)))
+            .build()
 
-        Log.i(TAG, "Starting video downscaling. Command: ${command.joinToString(" ")}")
+        // 3) Encoder settings (bitrate + fps cap)
+        val encoderFactory = DefaultEncoderFactory.Builder(context)
+            .setRequestedVideoEncoderSettings(
+                VideoEncoderSettings.Builder()
+                    .setBitrate(3_000_000)
+                    .build()
+            )
+            .build()
 
-        // Setting up the log callback to capture FFmpeg logs
-        Config.enableLogCallback { message ->
-            Log.e(TAG, message.text)
-        }
+        // 4) Kick off transform
+        val outputFile = File(context.cacheDir, "scaled_video.mp4").apply { delete() }
 
-        val rc = FFmpeg.execute(command)
-        if (rc == Config.RETURN_CODE_SUCCESS) {
-            Log.i(TAG, "Video downscaling successful. Output: $outputPath")
-            Logger.d("onTrim", "Success! $outputPath")
-            return Uri.fromFile(outputFile)
-        } else {
-            Log.e(TAG, "Video downscaling failed. FFmpeg return code: $rc")
-            return null
-        }
+        Transformer.Builder(context)
+            .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setAudioMimeType(MimeTypes.AUDIO_AAC)
+            .setEncoderFactory(encoderFactory)
+            .build()
+            .start(editedItem, outputFile.absolutePath)
+
+        return outputFile.takeIf { it.exists() }?.let { Uri.fromFile(it) }
     }
 
     fun getVideoThumbnail(context: Context, videoUri: Uri): Bitmap? {
@@ -135,7 +142,7 @@ object VideoUtils {
 }
 
 fun createPlaceholderImage(width: Int, height: Int, backgroundColor: Int, textColor: Int): Bitmap {
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(width, height)
     val canvas = Canvas(bitmap)
     val paint = Paint().apply {
         color = backgroundColor
@@ -163,12 +170,12 @@ fun VideoTrimmingScreen(
     var endMs by remember { mutableLongStateOf(30000L) } // 30 seconds by default
     val maxTrimDuration = 30000L // 30 seconds
     val minTrimDuration = 1000L
-    var isPlaying by remember { mutableStateOf(false)}
+    var isPlaying by remember { mutableStateOf(false) }
     val handler = Handler(Looper.getMainLooper())
     val decodedPath = Uri.decode(uri.toString())
     val videoView = remember {
         VideoView(appContext).apply {
-            setVideoURI(Uri.parse(decodedPath))
+            setVideoURI(decodedPath.toUri())
             setOnErrorListener { mp, what, extra ->
                 Log.e("VideoTrimmingScreen", "Error playing video: what=$what, extra=$extra")
                 Logger.d("VideoTrimmingScreen", "URI: $uri")
@@ -330,9 +337,15 @@ fun VideoTrimmingScreen(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)
             ) {
-                Text(text = if (isPlaying) "Pause" else "Play", color = MaterialTheme.colorScheme.onPrimary)
+                Text(
+                    text = if (isPlaying) "Pause" else "Play",
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
             }
-            Button(onClick = stopVideo, colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)) {
+            Button(
+                onClick = stopVideo,
+                colors = ButtonDefaults.buttonColors(containerColor = backgroundColor)
+            ) {
                 Text(text = "Stop", color = onPrimaryColor)
             }
         }
@@ -385,51 +398,37 @@ suspend fun performTrimmingAndDownscaling(
 
  */
 
-fun performTrimming(context: Context, uri: Uri, startMs: Long, endMs: Long): Uri? {
-    val inputPath = FileUtils.getPath(context, uri)
+@OptIn(UnstableApi::class)
+fun performTrimming(
+    context: Context,
+    inputUri: Uri,
+    startMs: Long,
+    endMs: Long
+): Uri? {
+    val inputPath = FileUtils.getPath(context, inputUri) ?: return null
+    if (!File(inputPath).exists()) return null
+    val clippedMediaItem = MediaItem.Builder()
+        .setUri(inputUri)
+        .setClippingConfiguration(
+            MediaItem.ClippingConfiguration.Builder()
+                .setStartPositionMs(startMs)
+                .setEndPositionMs(endMs)
+                .build()
+        )
+        .build()
 
-    if (inputPath == null) {
-        Log.e("performTrimming", "Failed to get input path")
-        return null
+    val editedItem = EditedMediaItem.Builder(clippedMediaItem)
+        .build()
+    val outputFile = File(context.cacheDir, "trimmed_video.mp4").apply {
+        if (exists()) delete()
     }
-
-    // Check if the input file exists
-    val inputFile = File(inputPath)
-    if (!inputFile.exists()) {
-        Log.e("performTrimming", "Input file does not exist: $inputPath")
-        return null
-    }
-
-    val outputFile = File(context.cacheDir, "trimmed_video.mp4")
-    val outputPath = outputFile.absolutePath
-
-    val command = arrayOf(
-        "-i", inputPath,
-        "-ss", (startMs / 1000).toString(),
-        "-to", (endMs / 1000).toString(),
-        "-c:v", "mpeg4",
-        "-b:v", "1500k",
-        "-c:a", "aac",
-        "-strict", "experimental",
-        "-b:a", "192k",
-        "-y", outputPath
-    )
-
-    Logger.d("performTrimming", "Executing FFmpeg command: ${command.joinToString(" ")}")
-
-    // Enable FFmpeg logs
-    Config.enableLogCallback { logMessage ->
-        Logger.d("FFmpeg", logMessage.text)
-    }
-
-    // Execute the command
-    val rc = FFmpeg.execute(command)
-    return if (rc == Config.RETURN_CODE_SUCCESS) {
-        Logger.d("performTrimming", "Trimming successful, outputPath: $outputPath")
-        Uri.fromFile(outputFile)
-    } else {
-        Log.e("performTrimming", "Trimming failed with return code: $rc")
-        Log.e("performTrimming", "Error: ${Config.getLastCommandOutput()}")
-        null
-    }
+    Transformer.Builder(context)
+        .setVideoMimeType(MimeTypes.VIDEO_H264)
+        .setAudioMimeType(MimeTypes.AUDIO_AAC)
+        .build()
+        .start(
+            editedItem,
+            outputFile.absolutePath
+        )
+    return outputFile.takeIf { it.exists() }?.let { Uri.fromFile(it) }
 }
