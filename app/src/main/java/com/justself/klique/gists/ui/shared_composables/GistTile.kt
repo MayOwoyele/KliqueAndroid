@@ -380,7 +380,7 @@ fun EmptyBackground(
     modifier: Modifier = Modifier,
     dotRadius: Dp = 8.dp,
     dotSpacing: Dp = 32.dp,
-    dotColor: Color = MaterialTheme.colorScheme.onPrimary,
+    dotColor: Color = MaterialTheme.colorScheme.background,
 ) {
     val density = LocalDensity.current
     val radiusPx = with(density) { dotRadius.toPx() }

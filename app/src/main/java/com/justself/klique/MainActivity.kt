@@ -4,23 +4,24 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.RequiresApi
+import androidx.activity.viewModels
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.core.content.ContextCompat
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
+import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
+import androidx.fragment.app.commit
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.navigation.compose.rememberNavController
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
 import com.google.android.play.core.ktx.AppUpdateResult
 import com.google.android.play.core.ktx.isFlexibleUpdateAllowed
@@ -30,12 +31,20 @@ import com.justself.klique.DroidAppUpdateManager.FORCE_AFTER
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import com.google.android.play.core.ktx.isImmediateUpdateAllowed
+import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
+import com.justself.klique.ContactsBlock.Contacts.ui.ContactsViewModel
 import kotlinx.coroutines.launch
+import com.justself.klique.Authentication.ui.screens.RegistrationScreen
+import com.justself.klique.Authentication.ui.viewModels.AppState
+import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
+import com.justself.klique.databinding.ActivityMainBinding
+import com.justself.klique.fragments.BookShelfFrag
+import com.justself.klique.fragments.ChatsFrag
+import com.justself.klique.fragments.HomeFrag
 
 private const val REQ_IMMEDIATE_UPDATE = 1001
 private const val REQ_FLEX_UPDATE      = 1002
 class MainActivity : FragmentActivity() {
-
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
@@ -65,6 +74,7 @@ class MainActivity : FragmentActivity() {
                 finish()
             }
         }
+    private lateinit var binding: ActivityMainBinding
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -76,17 +86,42 @@ class MainActivity : FragmentActivity() {
         if (notificationRoute != null) {
             NotificationIntentManager.updateNavigationRoute(notificationRoute)
         }
-        window.setSoftInputMode(
-            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-        )
-        setContent {
-            val navController = rememberNavController()
-            MyAppTheme {
-                Surface {
-                    MainScreen(navController = navController)
+        val contactsRepository by lazy { ContactsRepository(contentResolver, this) }
+        val authViewModel: AuthViewModel by viewModels()
+        // Observe the authentication state
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        lifecycleScope.launch {
+            authViewModel.appState
+                .collect { state ->
+                    when (state) {
+                        AppState.Loading -> {
+                            // Optionally show a splash/loading indicator; default is no-op
+                        }
+                        AppState.LoggedOut -> {
+                            showLoginCompose()
+                        }
+                        AppState.LoggedIn -> {
+                            showLoggedInNavHost()
+                        }
+                    }
                 }
-            }
         }
+//        setContent {
+//            val contactViewModel: ContactsViewModel = viewModel(
+//                factory = ContactsViewModelFactory(contactsRepository)
+//            )
+//            CompositionLocalProvider(
+//                LocalContactsViewModel provides contactViewModel
+//            ) {
+//                val navController = rememberNavController()
+//                MyAppTheme {
+//                    Surface {
+//                        MainScreen(navController = navController)
+//                    }
+//                }
+//            }
+//        }
 
         Logger.d("Permissions", "Requesting permissions...")
         if (!allPermissionsGranted(requiredPermissions)) {
@@ -94,6 +129,43 @@ class MainActivity : FragmentActivity() {
             requestPermissionLauncher.launch(requiredPermissions)
         } else {
             Logger.d("Permissions", "Required permissions already granted")
+        }
+    }
+    private fun showLoginCompose() {
+        binding.loginComposeView.apply {
+            visibility = android.view.View.VISIBLE
+            supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
+            setContent {
+                Surface {
+                    RegistrationScreen()
+                }
+            }
+        }
+    }
+
+    /** Replace the ComposeView with a NavHostFragment that drives logged‐in navigation. */
+    private fun showLoggedInNavHost() {
+        binding.loginComposeView.apply {
+            visibility = android.view.View.GONE
+            setContent { /* clear content */ }
+        }
+        if (supportFragmentManager.findFragmentByTag(TabRoots.Home.tag) != null) {
+            return
+        }
+
+        supportFragmentManager.commit {
+            val homeRoot = TabRoots.Home.tag
+            add(R.id.fragmentContainer, HomeFrag(), homeRoot)
+        }
+        supportFragmentManager.commit {
+            val chatRoot = TabRoots.Chat.tag
+            add(R.id.fragmentContainer, ChatsFrag(), chatRoot)
+            hide(requireFragment(chatRoot))
+        }
+        supportFragmentManager.commit {
+            val bookShelfRoot = TabRoots.BookShelf.tag
+            add(R.id.fragmentContainer, BookShelfFrag(), bookShelfRoot)
+            hide(requireFragment(bookShelfRoot))
         }
     }
     override fun onResume() {
@@ -134,5 +206,19 @@ class MainActivity : FragmentActivity() {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
         Logger.d("Permissions", "$it granted: $granted")
         granted
+    }
+    private fun requireFragment(tag: String): Fragment =
+        supportFragmentManager.findFragmentByTag(tag)
+            ?: throw IllegalStateException("Fragment with tag $tag not found")
+}
+val LocalContactsViewModel = staticCompositionLocalOf<ContactsViewModel> {
+    error("No ContactsViewModel provided")
+}
+enum class TabRoots(val tag: String){
+    Home("Home"),
+    Chat("Chat"),
+    BookShelf("BookShelf");
+    companion object {
+        fun fromTag(tag: String): TabRoots? = TabRoots.entries.find { it.tag == tag }
     }
 }

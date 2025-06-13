@@ -48,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.google.i18n.phonenumbers.Phonenumber
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
+import com.justself.klique.Authentication.ui.viewModels.PhoneValidator
 import com.justself.klique.Authentication.ui.viewModels.RegistrationStep
 import com.justself.klique.CalendarBackgroundStyle
 import com.justself.klique.CalendarUI
@@ -100,12 +101,12 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
     var phoneNumber by remember { mutableStateOf("") }
     val defaultCountry = remember { SessionManager.getUserCountryCode() }
     var selectedCountry by remember { mutableStateOf(defaultCountry) }
-    val countryCode = remember(selectedCountry) { getCountryCodeForRegion(selectedCountry) }
     val phoneUtil = remember { PhoneNumberUtil.getInstance() }
     val errorMessage by authViewModel.errorMessage.collectAsState()
     var isLoading by remember {
         mutableStateOf(false)
     }
+    val isEnabled = PhoneValidator.isValid(phoneNumber, selectedCountry)
     DisposableEffect(Unit) {
         onDispose {
             isLoading = false
@@ -171,17 +172,12 @@ fun PhoneNumberScreen(authViewModel: AuthViewModel) {
 
         Button(
             onClick = {
-                val formattedNumber = formatPhoneNumber(phoneNumber, selectedCountry, phoneUtil)
-                if (formattedNumber != null) {
-                    isLoading = true
-                    authViewModel.verifyPhoneNumber(formattedNumber, selectedCountry)
-                }
+                PhoneValidator.formatE164(phoneNumber, selectedCountry)
+                    ?.let { formatted ->
+                        authViewModel.verifyPhoneNumber(formatted, selectedCountry)
+                    }
             },
-            enabled = isValidPhoneNumber(
-                "+$countryCode$phoneNumber",
-                selectedCountry,
-                phoneUtil
-            )
+            enabled = isEnabled
         ) {
             Text("Continue")
         }
@@ -212,9 +208,11 @@ fun CountryCodePicker(selectedCountry: String, onCountrySelected: (String) -> Un
     }.sortedBy { it.first }
 
     var expanded by remember { mutableStateOf(false) }
-    Box(Modifier
-        .wrapContentSize()
-        .background(MaterialTheme.colorScheme.onPrimary)) {
+    Box(
+        Modifier
+            .wrapContentSize()
+            .background(MaterialTheme.colorScheme.onPrimary)
+    ) {
         Text(
             text = "+${getCountryCodeForRegion(selectedCountry)}",
             modifier = Modifier

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ✅ Standalone res/layout/item_gist_message_preview.xml -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="6dp"
+    android:background="@drawable/gray_rounded_corner"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:padding="8dp"
+    android:textColor="@color/onPrimary"
+    android:textSize="16sp"
+    tools:text="Sample preview message rtrt tetr tret eyweg tht hh rwh wrtge hwg weger gewg erg erger gre" />

@@ -1,12 +1,13 @@
 package com.justself.klique.ContactsBlock.Contacts.ui
 
 import android.content.Context
-import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.Logger
+import com.justself.klique.MyKliqueApp.Companion.appContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +19,7 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
     val contacts: StateFlow<List<Contact>> = _contacts
 
     init {
-        loadContactsFromDatabase()
+        updateAndRefreshContacts(appContext)
     }
     private fun loadContactsFromDatabase(){
         viewModelScope.launch {
@@ -60,8 +61,14 @@ class ContactsViewModel(private val _contactsRepository: ContactsRepository) : V
             _contacts.value = _contactsRepository.getSortedContactsFromDatabase()
         }
     }
-    fun updateContactFromHomeScreen(appContext: Context) {
+    fun updateAndRefreshContacts(appContext: Context) {
         loadContactsFromDatabase()
         refreshContacts(appContext)
     }
+}
+class ContactsViewModelFactory(
+    private val repository: ContactsRepository
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+        ContactsViewModel(repository) as T
 }

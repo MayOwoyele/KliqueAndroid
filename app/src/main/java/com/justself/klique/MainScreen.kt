@@ -169,7 +169,6 @@ fun MyAppTheme(
     content: @Composable () -> Unit
 ) {
     val colors = if (darkTheme) DarkColorScheme else LightColorScheme
-
     MaterialTheme(
         colorScheme = colors,
         typography = AppTypography,
@@ -384,10 +383,6 @@ fun MainScreen(
         appState == AppState.LoggedOut -> {
             RegistrationScreen()
         }
-
-//        AppState.UpdateRequired -> {
-//            UpdateRequiredScreen(navController)
-//        }
     }
 }
 

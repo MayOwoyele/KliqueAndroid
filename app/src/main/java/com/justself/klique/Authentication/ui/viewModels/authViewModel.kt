@@ -2,6 +2,8 @@ package com.justself.klique.Authentication.ui.viewModels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.i18n.phonenumbers.NumberParseException
+import com.google.i18n.phonenumbers.PhoneNumberUtil
 import com.justself.klique.Authentication.ui.screens.Gender
 import com.justself.klique.DroidAppUpdateManager
 import com.justself.klique.JWTNetworkCaller
@@ -381,3 +383,37 @@ data class SignUpServerResponse(
     val accessToken: String? = null,
     val name: String? = null
 )
+object PhoneValidator {
+    private val util = PhoneNumberUtil.getInstance()
+
+    /**
+     * Returns the E.164‐formatted number if it’s valid for [regionCode], else null.
+     * Handles inputs like "8031234567", "08031234567" or full "+2348031234567".
+     */
+    fun formatE164(rawInput: String, regionCode: String): String? {
+        // 1️⃣ Strip everything except digits or leading '+'
+        val cleaned = rawInput.filter { it.isDigit() || it == '+' }
+
+        // 2️⃣ Parse: if we see a '+', let libphonenumber infer country;
+        //    otherwise parse as a national number in [regionCode].
+        val parsed = try {
+            if (cleaned.startsWith('+')) util.parse(cleaned, null)
+            else                      util.parse(cleaned, regionCode)
+        } catch (_: NumberParseException) {
+            return null
+        }
+
+        // 3️⃣ Strict check: number must both be valid and match [regionCode]
+        return if (util.isValidNumberForRegion(parsed, regionCode)) {
+            util.format(parsed, PhoneNumberUtil.PhoneNumberFormat.E164)
+        } else {
+            null
+        }
+    }
+
+    /**
+     * Just a boolean wrapper around [formatE164].
+     */
+    fun isValid(rawInput: String, regionCode: String): Boolean =
+        formatE164(rawInput, regionCode) != null
+}

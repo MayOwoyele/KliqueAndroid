@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="icon_size">33dp</dimen>
+    <dimen name="drawer_font_size">20sp</dimen>
+    <dimen name="bottom_bar_height">53dp</dimen>
+    <dimen name="gist_avatar_size">150dp</dimen>
+    <dimen name="avatar_margin">16dp</dimen>
+    <dimen name="post_rect_rect_padding">6dp</dimen>
+    <dimen name="search_background_padding">3dp</dimen>
+    <dimen name="news_feed_padding">12dp</dimen>
+    <dimen name="search_profile_image">40dp</dimen>
+    <dimen name="post_item_image">100dp</dimen>
+    <dimen name="chats_message_item_profile_image">60dp</dimen>
+    <dimen name="chat_message_curvature">8dp</dimen>
+    <dimen name="chat_message_padding">8dp</dimen>
+</resources>

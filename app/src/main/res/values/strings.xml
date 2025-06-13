@@ -1,4 +1,55 @@
 <resources>
     <string name="app_name">Klique Klique</string>
+    <!-- Preference Titles -->
+    <string name="messages_header">Messages</string>
+    <string name="sync_header">Sync</string>
+
+    <!-- Messages Preferences -->
+    <string name="signature_title">Your signature</string>
+    <string name="reply_title">Default reply action</string>
+
+    <!-- Sync Preferences -->
+    <string name="sync_title">Sync email periodically</string>
+    <string name="attachment_title">Download incoming attachments</string>
+    <string name="attachment_summary_on">Automatically download attachments for incoming emails
+    </string>
+    <string name="attachment_summary_off">Only download attachments when manually requested</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="drawer_toggle">drawer toggle</string>
+    <string name="network_connection">Network connection</string>
+    <string name="search_icon">Search Icon</string>
+    <string name="bookshelf">BookShelf</string>
+    <string name="chats">Chats</string>
+    <string name="home">Home</string>
+    <string name="_1">1</string>
+    <string name="me">Me</string>
+    <string name="me_icon">Me Icon</string>
+    <string name="top_gists">Top Gists</string>
+    <string name="shots">Shots</string>
+    <string name="profile_image">profile image</string>
+    <string name="shots_icon">shots icon</string>
+    <string name="top_gists_icon">top gists icon</string>
+    <string name="clique_icon">clique icon</string>
+    <string name="clique">Clique</string>
+    <string name="john_doe">John Doe</string>
+    <string name="_419kc">419KC</string>
+    <string name="_2348130000000">+2348130000000</string>
+    <string name="settings_icon">settings icon</string>
+    <string name="wallet_icon">wallet icon</string>
+    <string name="gist_avatar">gist avatar</string>
+    <string name="post">Post</string>
+    <string name="type_someone_s_name">Type someone\'s name</string>
+    <string name="type_a_name">type a name</string>
+    <string name="search_text_field">search text field</string>
+    <string name="verification_badge">verification badge</string>
+    <string name="post_avatar">post avatar</string>
+    <string name="comment_count_icon">comment count icon</string>
+    <string name="chat_avatar">chat avatar</string>
+    <string name="play_and_pause_audio">play and pause audio</string>
+    <string name="play_video">play video</string>
+    <string name="video_still_image">video still image</string>
+    <string name="start_gist">Start Gist</string>
+    <string name="double_tick">double tick</string>
+    <string name="single_tick">single tick</string>
 </resources>
-<!-- remember to also change base url inside network utils -->

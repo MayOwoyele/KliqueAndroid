@@ -7,6 +7,7 @@ import android.graphics.Paint
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import android.util.Log
 import android.widget.VideoView
@@ -28,21 +29,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.util.Clock
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSourceBitmapLoader
 import androidx.media3.effect.ScaleAndRotateTransformation
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.transformer.DefaultEncoderFactory
 import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.io.File
-import androidx.core.net.toUri
-import androidx.core.graphics.createBitmap
+import kotlin.coroutines.resumeWithException
+import androidx.media3.transformer.Composition
+import androidx.media3.transformer.DefaultAssetLoaderFactory
+import androidx.media3.transformer.DefaultDecoderFactory
+import kotlin.coroutines.resume
 
 object VideoUtils {
     private const val TAG = "VideoUtils"
@@ -72,59 +86,102 @@ object VideoUtils {
         }
     }
 
+    /**
+     * Down-scale a video so that its *longest* edge is `maxDimension` pixels
+     * and write H-264/AAC MP4 into cache.  Suspends until the export is
+     * **actually finished** or throws on failure.
+     *
+     * Requires:
+     *   implementation("androidx.media3:media3-transformer:1.3.1")  // or newer
+     *   implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.8.0")
+     */
     @OptIn(UnstableApi::class)
     suspend fun downscaleVideo(
         context: Context,
         inputUri: Uri,
         maxDimension: Int = 480
-    ): Uri? {
-
-        // 0) Grab input size safely
+    ): Uri = withContext(Dispatchers.Main) {
+        // 0️⃣ Probe the source
+        Logger.d("onTrim", "Downscaling video")
         val retriever = MediaMetadataRetriever()
-        val (srcW, srcH) = try {
+        val (srcW, srcH, rotation) = try {
             retriever.setDataSource(context, inputUri)
-            val w = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt() ?: return null
-            val h = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt() ?: return null
-            w to h
+            val w =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toInt()
+                    ?: error("No width")
+            val h =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toInt()
+                    ?: error("No height")
+            val rot = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                ?.toInt()
+                ?: 0
+            Triple(w, h, rot)
         } finally {
             retriever.release()
         }
+        Logger.d("onTrim", "Source video resolution: $srcW x $srcH, rotation: $rotation")
+        val (effectiveW, effectiveH) =
+            if (rotation == 90 || rotation == 270) srcH to srcW else srcW to srcH
+        if (maxOf(effectiveW, effectiveH) <= maxDimension) return@withContext inputUri
 
-        // If already small, skip work
-        if (maxOf(srcW, srcH) <= maxDimension) return inputUri
-
-        // 1) Compute scale factor & new dims
-        val scale = maxDimension.toFloat() / maxOf(srcW, srcH)
-
-        // 2) Build the GPU-accelerated effect
+        val scale = maxDimension.toFloat() / maxOf(effectiveW, effectiveH)
         val scaleEffect = ScaleAndRotateTransformation.Builder()
             .setScale(scale, scale)
             .build()
-
         val editedItem = EditedMediaItem.Builder(MediaItem.fromUri(inputUri))
-            .setEffects(Effects( emptyList(), listOf(scaleEffect)))
+            .setEffects(Effects(emptyList(), listOf(scaleEffect)))
             .build()
 
-        // 3) Encoder settings (bitrate + fps cap)
+        val outputFile = withContext(Dispatchers.IO) {
+            File.createTempFile("scaled_", ".mp4", context.cacheDir)
+        }
         val encoderFactory = DefaultEncoderFactory.Builder(context)
             .setRequestedVideoEncoderSettings(
-                VideoEncoderSettings.Builder()
-                    .setBitrate(3_000_000)
-                    .build()
+                VideoEncoderSettings.Builder().setBitrate(3_000_000).build()
             )
             .build()
+        Logger.d("onTrim", "Encoder factory: $encoderFactory")
 
-        // 4) Kick off transform
-        val outputFile = File(context.cacheDir, "scaled_video.mp4").apply { delete() }
+        suspendCancellableCoroutine { cont ->
+            val transformer = Transformer.Builder(context)
+                .setEncoderFactory(encoderFactory)
+                .setVideoMimeType(MimeTypes.VIDEO_H264)
+                .setAudioMimeType(MimeTypes.AUDIO_AAC)
+                .addListener(object : Transformer.Listener {
+                    override fun onCompleted(
+                        composition: Composition,
+                        result: ExportResult
+                    ) {
+                        Logger.d("onTrim", "Transformer completed")
+                        if (cont.isActive) cont.resume(Unit)
+                    }
 
-        Transformer.Builder(context)
-            .setVideoMimeType(MimeTypes.VIDEO_H264)
-            .setAudioMimeType(MimeTypes.AUDIO_AAC)
-            .setEncoderFactory(encoderFactory)
-            .build()
-            .start(editedItem, outputFile.absolutePath)
+                    override fun onError(
+                        composition: Composition,
+                        result: ExportResult,
+                        exception: ExportException
+                    ) {
+                        Logger.d("onTrim", "Transformer error codes: ${exception.errorCode}, ${exception.errorCodeName}")
+                        if (cont.isActive) cont.resumeWithException(exception)
+                    }
 
-        return outputFile.takeIf { it.exists() }?.let { Uri.fromFile(it) }
+                    override fun onFallbackApplied(
+                        composition: Composition,
+                        originalRequest: TransformationRequest,
+                        fallbackRequest: TransformationRequest
+                    ) {
+                        Logger.d("onTrim", "Transformer fallback applied")
+                        // you can log or ignore—doesn't affect resume
+                    }
+                })
+                .build()
+
+            transformer.start(editedItem, outputFile.absolutePath)
+            cont.invokeOnCancellation { transformer.cancel() }
+        }
+        Logger.d("onTrim", "Transformer finished")
+        // 5️⃣ Return the new Uri
+        Uri.fromFile(outputFile)
     }
 
     fun getVideoThumbnail(context: Context, videoUri: Uri): Bitmap? {
@@ -399,36 +456,100 @@ suspend fun performTrimmingAndDownscaling(
  */
 
 @OptIn(UnstableApi::class)
-fun performTrimming(
+suspend fun performTrimming(
     context: Context,
     inputUri: Uri,
     startMs: Long,
     endMs: Long
-): Uri? {
-    val inputPath = FileUtils.getPath(context, inputUri) ?: return null
-    if (!File(inputPath).exists()) return null
-    val clippedMediaItem = MediaItem.Builder()
-        .setUri(inputUri)
-        .setClippingConfiguration(
-            MediaItem.ClippingConfiguration.Builder()
-                .setStartPositionMs(startMs)
-                .setEndPositionMs(endMs)
-                .build()
-        )
+): Uri = withContext(Dispatchers.Main) {
+    require(endMs > startMs) { "endMs must be after startMs" }
+
+    // 1️⃣ Build a clipped MediaItem
+    val clippingConfig = MediaItem.ClippingConfiguration.Builder()
+        .setStartPositionMs(startMs)
+        .setEndPositionMs(endMs)
+        .build()
+    val raw = inputUri.toString()                               // "file%3A%2F%2F%2Fdata%2F…"
+    val decoded = Uri.decode(raw)                               // "file:///data/user/0/…"
+    val realUri = decoded.toUri()
+    val mediaItem = MediaItem.Builder()
+        .setUri(realUri)
+        .setClippingConfiguration(clippingConfig)
+        .build()
+    val editedItem = EditedMediaItem.Builder(mediaItem).build()
+    Logger.d("onTrim", "Input URI: $inputUri, scheme=${inputUri.scheme}, path=${inputUri.path}")
+
+    val outputFile = withContext(Dispatchers.IO) {
+        File.createTempFile("trimmed_", ".mp4", context.cacheDir)
+    }
+    val decoderFactory = DefaultDecoderFactory.Builder(context)
+        .setEnableDecoderFallback(true)
+        .setListener { codecName, codecInitializationExceptions ->
+            Log.d("DecoderFactory", "Codec initialized: $codecName")
+            if (codecInitializationExceptions.isNotEmpty()) {
+                Log.w("DecoderFactory", "Issues: ${codecInitializationExceptions.joinToString()}")
+            }
+        }
         .build()
 
-    val editedItem = EditedMediaItem.Builder(clippedMediaItem)
-        .build()
-    val outputFile = File(context.cacheDir, "trimmed_video.mp4").apply {
-        if (exists()) delete()
+    val mediaSourceFactory = DefaultMediaSourceFactory(context)
+    val assetLoaderFactory = DefaultAssetLoaderFactory(
+        context,
+        decoderFactory,
+        Clock.DEFAULT,
+        mediaSourceFactory,
+        DataSourceBitmapLoader(context)
+    )
+    val resultUri: Uri = suspendCancellableCoroutine { cont ->
+        val transformer = Transformer.Builder(context)
+            .setVideoMimeType(MimeTypes.VIDEO_H264)
+            .setAudioMimeType(MimeTypes.AUDIO_AAC)
+            .setAssetLoaderFactory(assetLoaderFactory)
+            .addListener(object : Transformer.Listener {
+                override fun onCompleted(
+                    composition: Composition,
+                    exportResult: ExportResult
+                ) {
+                    Logger.d("onTrim", "Transformer completed")
+                    if (cont.isActive) {
+                        cont.resume(Uri.fromFile(outputFile))
+                    }
+                }
+
+                override fun onError(
+                    composition: Composition,
+                    exportResult: ExportResult,
+                    exportException: ExportException
+                ) {
+                    val code = exportException.errorCode
+                    val codeName = exportException.errorCodeName
+                    Logger.d("onTrim", "Transformer error codes: $code, $codeName")
+                    if (cont.isActive) {
+                        Logger.d("onTrim", "Transformer error: ${exportException.message}")
+                        cont.resumeWithException(exportException)
+                    } else {
+                        Logger.d("onTrim", "Transformer error: Coroutine is not active")
+                    }
+                }
+
+                override fun onFallbackApplied(
+                    composition: Composition,
+                    originalRequest: TransformationRequest,
+                    fallbackRequest: TransformationRequest
+                ) {
+                    Logger.d("onTrim", "Transformer fallback applied")
+                    // no-op
+                }
+            })
+            .build()
+
+        // start on the Main thread (so it has a Looper to post callbacks into)
+        transformer.start(editedItem, outputFile.absolutePath)
+
+        // if the coroutine is cancelled, cancel the transform
+        cont.invokeOnCancellation { transformer.cancel() }
     }
-    Transformer.Builder(context)
-        .setVideoMimeType(MimeTypes.VIDEO_H264)
-        .setAudioMimeType(MimeTypes.AUDIO_AAC)
-        .build()
-        .start(
-            editedItem,
-            outputFile.absolutePath
-        )
-    return outputFile.takeIf { it.exists() }?.let { Uri.fromFile(it) }
+
+    // 4️⃣ Return the completed file’s Uri
+    resultUri
 }

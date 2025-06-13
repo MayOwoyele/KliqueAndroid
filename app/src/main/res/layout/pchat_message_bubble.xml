@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/text_message_constraint"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:background="@drawable/left_message_shape">
+
+    <FrameLayout
+        android:id="@+id/reusable"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@+id/one_tick"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <include
+            layout="@layout/pchat_text"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="visible"
+            tools:visibility="gone" />
+
+        <include
+            layout="@layout/p_chat_image"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/message_timestamp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/one_tick"
+        app:layout_constraintEnd_toStartOf="@id/one_tick"
+        app:layout_constraintTop_toBottomOf="@id/reusable"
+        tools:text="22:22 PM"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/one_tick"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/single_tick"
+        android:visibility="visible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reusable"
+        app:srcCompat="@drawable/check_24px"
+        tools:visibility="invisible" />
+
+    <ImageView
+        android:id="@+id/double_tick"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:contentDescription="@string/double_tick"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toEndOf="@id/message_timestamp"
+        app:layout_constraintTop_toTopOf="@id/message_timestamp"
+        app:srcCompat="@drawable/done_all_24px"
+        tools:visibility="visible" />
+</androidx.constraintlayout.widget.ConstraintLayout>

@@ -1068,7 +1068,9 @@ fun InputRow(
                 recordingDuration += 1000
             }
             if (recordingDuration >= maxRecordingDuration) {
-                val recordedFile = AudioRecorder.stopRecording(context)
+                val recordedFile = withContext(Dispatchers.IO) {
+                    AudioRecorder.stopRecording(context)
+                }
                 onStopRecording(recordedFile)
                 isRecording.value = false
             }

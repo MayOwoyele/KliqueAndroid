@@ -62,10 +62,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavController
-import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
-import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ContactsBlock.Contacts.ui.CheckContactsPermission
 import com.justself.klique.ContactsBlock.Contacts.ui.ContactsViewModel
 import com.justself.klique.MyKliqueApp.Companion.appContext
@@ -422,14 +420,7 @@ fun BackArrowButton(onBackToPresentScreen: () -> Unit, modifier: Modifier) {
 
 @Composable
 fun ContactSelector(onBackToPresentScreen: () -> Unit) {
-    val contactViewModel: ContactsViewModel = remember {
-        ContactsViewModel(
-            ContactsRepository(
-                appContext.contentResolver,
-                appContext
-            )
-        )
-    }
+    val contactViewModel: ContactsViewModel = LocalContactsViewModel.current
     var hasContactsPermission by remember { mutableStateOf(false) }
     var myClique by remember { mutableIntStateOf(0) }
     CheckContactsPermission(
@@ -437,7 +428,7 @@ fun ContactSelector(onBackToPresentScreen: () -> Unit) {
             hasContactsPermission = granted
         },
         onPermissionGranted = {
-            contactViewModel.updateContactFromHomeScreen(appContext)
+            contactViewModel.updateAndRefreshContacts(appContext)
         }
     )
     if (!hasContactsPermission) {

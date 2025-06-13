@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <corners android:bottomLeftRadius="@dimen/chat_message_curvature"
+        android:bottomRightRadius="@dimen/chat_message_curvature"
+        android:topRightRadius="@dimen/chat_message_curvature"/>
+    <solid android:color="@color/gray"/>
+    <padding android:left="@dimen/chat_message_padding"
+        android:right="@dimen/chat_message_padding"/>
+</shape>

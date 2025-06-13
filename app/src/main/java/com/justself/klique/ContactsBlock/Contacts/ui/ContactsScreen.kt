@@ -61,8 +61,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Size
 import com.justself.klique.ContactsBlock.Contacts.data.Contact
-import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
-import com.justself.klique.ChatScreenViewModel
+import com.justself.klique.LocalContactsViewModel
 import com.justself.klique.Logger
 import com.justself.klique.Screen
 import com.justself.klique.useful_extensions.initials
@@ -70,13 +69,10 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun ContactsScreen(
-    navController: NavController,
-    chatScreenViewModel: ChatScreenViewModel,
-    customerId: Int
+    navController: NavController
 ) {
     val context = LocalContext.current
-    val repository = remember { ContactsRepository(context.contentResolver, context) }
-    val viewModel = remember { ContactsViewModel(repository) }
+    val viewModel = LocalContactsViewModel.current
     val contactList by viewModel.contacts.collectAsState()
     val isLoading = remember { mutableStateOf(true) }
 
@@ -89,6 +85,7 @@ fun ContactsScreen(
     LaunchedEffect(Unit) {
         delay(5000)
         hasWaitedLongEnough.value = true
+        viewModel.updateAndRefreshContacts(context)
     }
 
     CheckContactsPermission(

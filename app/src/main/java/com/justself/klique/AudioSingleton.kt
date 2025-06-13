@@ -133,89 +133,127 @@ object AudioRecorder {
         }
     }
 
-    private fun convertPcmToM4a(pcmFilePath: String, m4aFilePath: String): Boolean {
-        val sampleRate = 44100
-        val channelCount = 1
-        val bitRate = 160_000
+    /**
+     * Convert a little-endian 16-bit PCM file to an .m4a (AAC-LC in MP4) file.
+     *
+     * @param pcmFilePath  absolute path to raw PCM (no WAV header!) – 44 100 Hz, mono, 16 bit
+     * @param m4aFilePath  absolute path for the resulting .m4a file
+     * @return true when the container finishes cleanly
+     */
+    fun convertPcmToM4a(
+        pcmFilePath: String,
+        m4aFilePath: String,
+        sampleRate: Int = 44_100,
+        channelCount: Int = 1,
+        bitRate: Int = 160_000
+    ): Boolean {
+
         val format = MediaFormat.createAudioFormat(
             MediaFormat.MIMETYPE_AUDIO_AAC,
             sampleRate,
             channelCount
         ).apply {
-            setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
+            setInteger(MediaFormat.KEY_AAC_PROFILE,
+                MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16384)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 16 * 1024)
         }
 
-        val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {
+        val encoder = MediaCodec.createEncoderByType(
+            MediaFormat.MIMETYPE_AUDIO_AAC
+        ).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             start()
         }
 
-        val muxer = MediaMuxer(m4aFilePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val muxer = MediaMuxer(
+            m4aFilePath,
+            MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
+        )
+
+        val bufferInfo = MediaCodec.BufferInfo()
         var trackIndex = -1
         var sawInputEOS = false
         var sawOutputEOS = false
 
-        val inputStream = FileInputStream(pcmFilePath)
-        val buffer = ByteArray(2048)
+        FileInputStream(pcmFilePath).use { input ->
+            val readBuffer = ByteArray(4 * 1024)
 
-        val bufferInfo = MediaCodec.BufferInfo()
+            /** how many *audio samples* we have fed so far (1 sample = 16-bit value per channel) */
+            var totalSamplesRead: Long = 0
 
-        while (!sawOutputEOS) {
-            // Feed PCM data into encoder
-            if (!sawInputEOS) {
-                val inIndex = encoder.dequeueInputBuffer(10000)
-                if (inIndex >= 0) {
-                    val inputBuffer = encoder.getInputBuffer(inIndex)!!
-                    inputBuffer.clear()
+            while (!sawOutputEOS) {
 
-                    val readBytes = inputStream.read(buffer)
-                    if (readBytes == -1) {
-                        // end of stream -- send EOS
-                        encoder.queueInputBuffer(
-                            inIndex, 0, 0,
-                            0L, MediaCodec.BUFFER_FLAG_END_OF_STREAM
-                        )
-                        sawInputEOS = true
-                    } else {
-                        inputBuffer.put(buffer, 0, readBytes)
-                        encoder.queueInputBuffer(
-                            inIndex, 0, readBytes,
-                            System.nanoTime() / 1000, 0
-                        )
+                /* ---------- 1. feed raw PCM into MediaCodec ---------- */
+                if (!sawInputEOS) {
+                    val inputIndex = encoder.dequeueInputBuffer(10_000)
+                    if (inputIndex >= 0) {
+                        val dstBuf = encoder.getInputBuffer(inputIndex)!!
+                        dstBuf.clear()
+
+                        val bytesRead = input.read(readBuffer)
+                        if (bytesRead == -1) {                // EOF  ➜  flag EOS
+                            encoder.queueInputBuffer(
+                                inputIndex,
+                                0,
+                                0,
+                                0,
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                            )
+                            sawInputEOS = true
+                        } else {
+                            dstBuf.put(readBuffer, 0, bytesRead)
+
+                            /* === correct monotonic PTS in micro-seconds === */
+                            val samplesInChunk = bytesRead / (2 * channelCount)
+                            val presentationTimeUs =
+                                (totalSamplesRead * 1_000_000L) / sampleRate
+                            totalSamplesRead += samplesInChunk
+
+                            encoder.queueInputBuffer(
+                                inputIndex,
+                                0,
+                                bytesRead,
+                                presentationTimeUs,
+                                0
+                            )
+                        }
                     }
                 }
-            }
 
-            // Retrieve encoded AAC packets and feed to muxer
-            val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10000)
-            when {
-                outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                    // once output format is available, add track to muxer
-                    val newFormat = encoder.outputFormat
-                    trackIndex = muxer.addTrack(newFormat)
-                    muxer.start()
-                }
-                outIndex >= 0 -> {
-                    val encodedData = encoder.getOutputBuffer(outIndex)!!
-                    if (bufferInfo.size > 0 && trackIndex >= 0) {
-                        encodedData.position(bufferInfo.offset)
-                        encodedData.limit(bufferInfo.offset + bufferInfo.size)
-                        muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
+                /* ---------- 2. pull encoded AAC frames ---------- */
+                val outIndex = encoder.dequeueOutputBuffer(bufferInfo, 10_000)
+                when {
+                    outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                        // first real output – add track & start muxer
+                        trackIndex = muxer.addTrack(encoder.outputFormat)
+                        muxer.start()
                     }
-                    encoder.releaseOutputBuffer(outIndex, false)
-                    if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                        sawOutputEOS = true
+
+                    outIndex >= 0 -> {
+                        val encodedData = encoder.getOutputBuffer(outIndex)!!
+                        if (bufferInfo.size > 0 && trackIndex >= 0) {
+                            encodedData.position(bufferInfo.offset)
+                            encodedData.limit(bufferInfo.offset + bufferInfo.size)
+                            muxer.writeSampleData(trackIndex, encodedData, bufferInfo)
+                        }
+
+                        encoder.releaseOutputBuffer(outIndex, false)
+
+                        if (bufferInfo.flags and
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        ) {
+                            sawOutputEOS = true
+                        }
                     }
                 }
             }
         }
 
-        // 3) Release everything
-        inputStream.close()
+        /* ---------- 3. clean-up ---------- */
         encoder.stop()
         encoder.release()
+
         muxer.stop()
         muxer.release()
 

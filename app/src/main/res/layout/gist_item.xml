@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RecyclerView item layout -->
+
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="@dimen/news_feed_padding"> <!-- This adds all-around margin -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/gist_item_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@drawable/gist_item_rounded_rectangle">
+
+        <ImageView
+            android:id="@+id/gist_avatar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/avatar_margin"
+            android:layout_marginTop="@dimen/avatar_margin"
+            android:contentDescription="@string/gist_avatar"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/circular_pink_background" />
+
+        <View
+            android:id="@+id/avatar_spacer"
+            android:layout_width="0dp"
+            android:layout_height="@dimen/avatar_margin"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/gist_avatar" />
+
+        <TextView
+            android:id="@+id/gist_description"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:ellipsize="end"
+            android:maxHeight="120dp"
+            android:maxLines="5"
+            android:textColor="@color/onPrimary"
+            android:textSize="20sp"
+            app:layout_constraintBottom_toBottomOf="@id/gist_avatar"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toEndOf="@id/gist_avatar"
+            app:layout_constraintTop_toTopOf="@id/gist_avatar"
+            app:layout_constraintVertical_bias="0.0"
+            tools:text="This is the gist description for test or whatever and ever sae ef e af e efa faew fef eafa faw f ef e tiy iyi tit iit iti tity iy y rw szgdsg dsgsg gdfgdgds h thf vvsssfd" />
+
+        <TextView
+            android:id="@+id/active_spectator_gist_item"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/primary"
+            app:layout_constraintStart_toEndOf="@id/gist_avatar"
+            app:layout_constraintTop_toBottomOf="@id/gist_description"
+            tools:text="Active Spectators: 2" />
+
+        <LinearLayout
+            android:id="@+id/messages_section"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/avatar_spacer">
+
+            <include layout="@layout/gist_messages_preview" />
+
+            <include layout="@layout/gist_messages_preview" />
+
+            <include layout="@layout/gist_messages_preview" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

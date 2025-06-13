@@ -14,8 +14,8 @@ android {
         applicationId = "com.justself.klique"
         minSdk = 28
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.0"
+        versionCode = 20
+        versionName = "2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         javaCompileOptions {
             annotationProcessorOptions {
@@ -32,8 +32,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            resValue("string", "base_url", "http://192.168.100.6:8080/")
-            resValue("string", "websocket_url", "ws://192.168.100.6:3030/")
+            resValue("string", "base_url", "http://10.0.2.2:8080/")
+            resValue("string", "websocket_url", "ws://10.0.2.2:3030/")
         }
         release {
             isMinifyEnabled = true
@@ -58,9 +58,13 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+        viewBinding = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "2.0.21"
+    }
+    lint {
+        disable += "ConfigurationScreenWidthHeight"
     }
 //    defaultConfig {
 //        ndk {
@@ -91,6 +95,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.app.update.ktx)
     implementation(libs.androidx.media3.transformer)
+    implementation(libs.androidx.navigation.fragment)
+    implementation(libs.androidx.preference)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
@@ -104,6 +110,8 @@ dependencies {
     implementation(libs.dexter)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.composeUi)
+    implementation(libs.coroutines.guava)
+    implementation(libs.guava)
 //    implementation(libs.composeMaterialIconsExtended)
 //    implementation(libs.composeMaterial3)
     implementation(libs.materialComponents)

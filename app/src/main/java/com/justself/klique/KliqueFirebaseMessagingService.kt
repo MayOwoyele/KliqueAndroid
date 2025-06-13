@@ -13,6 +13,7 @@ import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
+import androidx.core.net.toUri
 
 class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     companion object {
@@ -44,7 +45,7 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     private fun sendIndividualNotification(title: String, messageBody: String) {
-        val deepLinkUri = Uri.parse("kliqueklique://home")
+        val deepLinkUri = "kliqueklique://home".toUri()
         val intent = Intent(Intent.ACTION_VIEW, deepLinkUri).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -98,7 +99,7 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
         }
         val deepLinkUri = when (destination) {
             pChat -> {
-                Uri.parse("kliqueklique://messageScreen/$enemyId")
+                "kliqueklique://messageScreen/$enemyId".toUri()
             }
             "gist" -> {
                 val gistId = data["gistId"]
@@ -112,15 +113,15 @@ class KliqueFirebaseMessagingService : FirebaseMessagingService() {
                 } else {
                     "kliqueklique://home"
                 }
-                Uri.parse(uriString)
+                uriString.toUri()
             }
             "shot" -> {
                 val theEnemyId = data["enemyId"]?.toIntOrNull() ?: 0
                 val enemyName = data["enemyName"] ?: "No Name"
-                Uri.parse("kliqueklique://dmChatScreen/$theEnemyId/${Uri.encode(enemyName)}")
+                "kliqueklique://dmChatScreen/$theEnemyId/${Uri.encode(enemyName)}".toUri()
             }
             else -> {
-                Uri.parse("kliqueklique://$destination")
+                "kliqueklique://$destination".toUri()
             }
         }
 

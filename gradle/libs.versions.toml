@@ -23,7 +23,7 @@ compose = "1.8.1"  # Update to the latest stable version suitable for your proje
 material = "1.12.0"
 #navigationCompose = "2.9.0"
 lifecycle = "2.8.6"
-coroutines = "1.7.3"
+coroutines = "1.8.0"
 serialization = "1.5.1"
 mockk = "1.12.0"
 coroutinesTest = "1.7.3"
@@ -39,14 +39,17 @@ emoji2 = "1.5.0"
 libphonenumber = "8.12.38"
 exoplayer = "2.19.1"
 coreKtxVersion = "1.6.1"
-media3Exoplayer = "1.6.0"
-media3Ui = "1.6.0"
+media3Exoplayer = "1.7.1"
+media3Ui = "1.7.1"
 workRuntimeKtx = "2.10.0"
 biometric = "1.1.0"
 lifecycleProcess = "2.8.7"
 appUpdateKtx = "2.1.0"
 datastorePreferences = "1.1.0"
 media3Transformer = "1.7.1"
+guava = "33.1.0-android"
+navigationFragment = "2.9.0"
+preference = "1.2.0"
 
 [libraries]
 android-gradle-plugin = { module = "com.android.tools.build:gradle", version.ref = "android-gradle-plugin" }
@@ -117,6 +120,10 @@ app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", v
 androidx-navigation-compose = { group = "androidx.navigation", name  = "navigation-compose", version = "2.9.0" }
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastorePreferences" }
 androidx-media3-transformer = { group = "androidx.media3", name = "media3-transformer", version.ref = "media3Transformer" }
+coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+androidx-navigation-fragment = { group = "androidx.navigation", name = "navigation-fragment", version.ref = "navigationFragment" }
+androidx-preference = { group = "androidx.preference", name = "preference", version.ref = "preference" }
 
 
 [plugins]

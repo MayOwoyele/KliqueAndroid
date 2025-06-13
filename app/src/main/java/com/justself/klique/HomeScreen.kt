@@ -1,6 +1,5 @@
 package com.justself.klique
 
-import android.se.omapi.Session
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,13 +28,11 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -43,7 +40,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,7 +61,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
-import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
 import com.justself.klique.ContactsBlock.Contacts.ui.CheckContactsPermission
 import com.justself.klique.ContactsBlock.Contacts.ui.ContactsViewModel
 import com.justself.klique.MyKliqueApp.Companion.appContext
@@ -171,14 +166,7 @@ fun HomeScreen(
                 }
             }
             if (showForm) {
-                val contactViewModel: ContactsViewModel = remember {
-                    ContactsViewModel(
-                        ContactsRepository(
-                            appContext.contentResolver,
-                            appContext
-                        )
-                    )
-                }
+                val contactViewModel: ContactsViewModel = LocalContactsViewModel.current
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -215,7 +203,7 @@ fun StartGistDialog(
             hasContactsPermission = granted
         },
         onPermissionGranted = {
-            contactsVm.updateContactFromHomeScreen(appContext)
+            contactsVm.updateAndRefreshContacts(appContext)
         }
     )
     if (!hasContactsPermission) {
@@ -320,7 +308,7 @@ fun StartGistDialog(
                                     }
                                     tooShort = filteredValue.text.isEmpty()
                                 },
-                                placeholder = { Text("Gist us") },
+                                placeholder = { Text("What happened today?") },
                                 modifier = Modifier.fillMaxWidth(),
                                 maxLines = 1
                             )

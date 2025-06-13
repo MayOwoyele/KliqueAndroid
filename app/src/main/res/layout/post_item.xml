@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:padding="@dimen/news_feed_padding">
+
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/post_view_constraint"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <ImageView
+            android:id="@+id/imageView"
+            android:layout_width="@dimen/post_item_image"
+            android:layout_height="@dimen/post_item_image"
+            android:contentDescription="@string/post_avatar"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.0"
+            app:srcCompat="@drawable/circular_pink_background" />
+
+        <TextView
+            android:id="@+id/post_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:textColor="@color/onPrimary"
+            android:textSize="20sp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/imageView"
+            app:layout_constraintTop_toTopOf="parent"
+            tools:text="Quirky lanterns drift across woven constellations, humming invisible tunes while daydreams pirouette through emerald horizons under pastel umbrellas.!" />
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/comment_constraint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/post_text">
+
+            <TextView
+                android:id="@+id/newsfeed_comment_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/onPrimary"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:layout_constraintEnd_toEndOf="parent"
+                tools:text="2134" />
+
+            <ImageView
+                android:id="@+id/post_comment_news_feed_icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:contentDescription="@string/comment_count_icon"
+                app:layout_constraintBottom_toBottomOf="@id/newsfeed_comment_count"
+                app:layout_constraintEnd_toStartOf="@id/newsfeed_comment_count"
+                app:layout_constraintTop_toTopOf="@id/newsfeed_comment_count"
+                app:srcCompat="@drawable/chat_bubble_24px"
+                app:tint="@color/primary" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</FrameLayout>

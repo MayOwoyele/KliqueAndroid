@@ -2,7 +2,6 @@ package com.justself.klique
 
 import android.app.Application
 import android.net.Uri
-import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -305,9 +304,7 @@ fun NavigationHost(
             deepLinks = listOf(navDeepLink { uriPattern = Screen.ContactsScreen.deepLink })
         ) {
             ContactsScreen(
-                navController = navController,
-                chatScreenViewModel = chatScreenViewModel,
-                customerId = customerId
+                navController = navController
             )
         }
         composable(

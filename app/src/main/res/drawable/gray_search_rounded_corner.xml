@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <corners android:radius="8dp"/>
+    <size
+        android:width="@dimen/search_background_padding"
+        android:height="@dimen/search_background_padding"/>
+    <padding
+        android:bottom="@dimen/search_background_padding"
+        android:left="@dimen/search_background_padding"
+        android:right="@dimen/search_background_padding"
+        android:top="@dimen/search_background_padding"/>
+    <solid android:color="@color/surface"/>
+</shape>

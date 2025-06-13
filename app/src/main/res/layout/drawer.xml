@@ -1,0 +1,280 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:id="@+id/drawer_view"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:alpha="0.5"
+        android:background="@color/background"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/drawer_horizontal_guideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.8" />
+
+    <View
+        android:id="@+id/actual_drawer_content"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="@id/drawer_horizontal_guideline"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/drawer_vertical_guideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.12" />
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/profile_clickable_area"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="@id/drawer_vertical_guideline">
+
+        <ImageView
+            android:id="@+id/wallet_icon"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:contentDescription="@string/wallet_icon"
+            app:layout_constraintBottom_toBottomOf="@id/drawer_profile_image"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/drawer_profile_image"
+            app:layout_constraintTop_toTopOf="@id/drawer_profile_image"
+            app:layout_constraintVertical_bias="0.050000012"
+            app:srcCompat="@drawable/account_balance_wallet_24px" />
+
+        <TextView
+            android:id="@+id/wallet_amount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/_419kc"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/wallet_icon"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.22"
+            app:layout_constraintStart_toEndOf="@id/wallet_icon"
+            app:layout_constraintTop_toTopOf="@id/wallet_icon" />
+
+        <ImageView
+            android:id="@+id/drawer_profile_image"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:background="@drawable/circular_gray_background"
+            android:contentDescription="@string/profile_image"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/account_circle_24px"
+            app:tint="@color/onPrimary" />
+
+        <TextView
+            android:id="@+id/drawer_name_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="@string/john_doe"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/drawer_profile_image"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toEndOf="@id/drawer_profile_image"
+            app:layout_constraintTop_toTopOf="@id/drawer_profile_image" />
+
+        <TextView
+            android:id="@+id/drawer_phone_number"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/_2348130000000"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/drawer_profile_image"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/drawer_profile_image"
+            app:layout_constraintTop_toTopOf="@id/drawer_profile_image"
+            app:layout_constraintVertical_bias="0.85" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/me_block"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/profile_clickable_area">
+
+        <ImageView
+            android:id="@+id/me_icon"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@string/me_icon"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/person_24px"
+            app:tint="@color/onPrimary" />
+
+        <TextView
+            android:id="@+id/me_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/me"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/me_icon"
+            app:layout_constraintStart_toEndOf="@id/me_icon"
+            app:layout_constraintTop_toTopOf="@id/me_icon"
+            app:textSize="20sp" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/shots_block"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/me_block">
+
+        <TextView
+            android:id="@+id/shots_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/shots"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/shots_icon"
+            app:layout_constraintStart_toEndOf="@id/shots_icon"
+            app:layout_constraintTop_toTopOf="@id/shots_icon" />
+
+        <ImageView
+            android:id="@+id/shots_icon"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@string/shots_icon"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/chat_24px"
+            app:tint="@color/onPrimary"
+            tools:layout_constraintTop_toTopOf="parent" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/top_gist_block"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/shots_block">
+
+        <ImageView
+            android:id="@+id/top_gists_icon"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@string/top_gists_icon"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/star_24px"
+            app:tint="@color/onPrimary"
+            tools:layout_constraintStart_toStartOf="parent" />
+
+        <TextView
+            android:id="@+id/top_gists"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/top_gists"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/top_gists_icon"
+            app:layout_constraintStart_toEndOf="@id/top_gists_icon"
+            app:layout_constraintTop_toTopOf="@id/top_gists_icon"
+            app:textSize="20sp" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/clique_block"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/top_gist_block">
+
+        <ImageView
+            android:id="@+id/clique"
+            android:layout_width="@dimen/icon_size"
+            android:layout_height="@dimen/icon_size"
+            android:layout_marginStart="16dp"
+            android:contentDescription="@string/clique_icon"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:srcCompat="@drawable/group_24px"
+            app:tint="@color/onPrimary" />
+
+        <TextView
+            android:id="@+id/clique_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:text="@string/clique"
+            android:textColor="@color/onPrimary"
+            android:textSize="@dimen/drawer_font_size"
+            app:layout_constraintBottom_toBottomOf="@id/clique"
+            app:layout_constraintStart_toEndOf="@id/clique"
+            app:layout_constraintTop_toTopOf="@id/clique"
+            app:textSize="20sp" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <ImageView
+        android:id="@+id/settings_icon"
+        android:layout_width="@dimen/icon_size"
+        android:layout_height="@dimen/icon_size"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="@string/settings_icon"
+        app:layout_constraintBottom_toBottomOf="@id/bottom_bar_height_guideline"
+        app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:srcCompat="@drawable/settings_24px"
+        app:tint="@color/onPrimary" />
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/bottom_bar_height_guideline"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_end="@dimen/bottom_bar_height"/>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

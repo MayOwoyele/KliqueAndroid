@@ -115,18 +115,18 @@ object MediaVM {
         val result = withContext(Dispatchers.IO) {
             val trimmedUri = performTrimming(context, uri, startMs, endMs)
             Logger.d("onTrim", "Trimming result: $trimmedUri")
-            if (trimmedUri != null) {
-                val file = trimmedUri.path?.let { File(it) }
-                if (file != null) {
-                    if (!file.exists()) {
-                        return@withContext null
-                    }
+            val file = trimmedUri.path?.let { File(it) }
+            if (file != null) {
+                Logger.d("onTrim", "File exists: ${file.exists()}")
+                if (!file.exists()) {
+                    Logger.d("onTrim", "File does not exist")
+                    return@withContext null
                 }
             }
-            val downscaledUri = trimmedUri?.let {
-                val downscaled = VideoUtils.downscaleVideo(context, it)
-                downscaled
+            val downscaledUri = trimmedUri.let {
+                VideoUtils.downscaleVideo(context, it)
             }
+            Logger.d("onTrim", "Downscaling result: $downscaledUri")
             downscaledUri
         }
         if (result != null) {

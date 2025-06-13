@@ -1,11 +1,8 @@
 package com.justself.klique
-import android.content.Intent
-import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object NotificationIntentManager {
-    var currentIntent: Intent? = null
     private var _navigationRoute = MutableStateFlow<String?>(null)
     val navigationRoute = _navigationRoute.asStateFlow()
     fun updateNavigationRoute(route: String) {
