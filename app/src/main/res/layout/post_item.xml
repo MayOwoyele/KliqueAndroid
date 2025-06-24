@@ -28,6 +28,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
+            android:maxLines="5"
             android:textColor="@color/onPrimary"
             android:textSize="20sp"
             app:layout_constraintEnd_toEndOf="parent"

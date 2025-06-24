@@ -18,12 +18,14 @@
             android:layout_width="@dimen/chats_message_item_profile_image"
             android:layout_height="@dimen/chats_message_item_profile_image"
             android:contentDescription="@string/chat_avatar"
+            android:clipToOutline="true"
+            android:scaleType="centerCrop"
+            android:background="@drawable/circular_pink_background"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.0"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:srcCompat="@drawable/circular_pink_background" />
+            app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
             android:id="@+id/name_chats_item"

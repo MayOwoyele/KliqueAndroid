@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/background">
+
+    <EditText
+        android:id="@+id/text_box"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:background="@color/background"
+        android:ems="10"
+        android:hint="@string/type_your_message"
+        android:inputType="textMultiLine"
+        android:maxLines="5"
+        android:minLines="1"
+        android:scrollbars="vertical"
+        android:text="Back when my drivers license was baby facing traffic, I made my way through crisis, I made my tape and then recorded portraits in front of sirens. You can't escape the tyrant, you can't relate my problem. In 98 my problem, acting too grown and shit"
+        android:textSize="20sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/invisible_container_for_vn"
+        app:layout_constraintStart_toEndOf="@id/emoji"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <FrameLayout
+        android:id="@+id/invisible_container_for_vn"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+    </FrameLayout>
+
+    <ImageView
+        android:id="@+id/record_audio"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="@string/record_audio"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/mic_24px"
+        app:tint="@color/primary"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/emoji"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@string/emoji"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/sentiment_satisfied_24px"
+        app:tint="@color/primary" />
+
+    <ImageView
+        android:id="@+id/attach_file"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="@string/attach_file"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/invisible_container_for_vn"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/attach_file_24px"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/send_icon"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginEnd="16dp"
+        android:contentDescription="@string/send_icon"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/send_24px"
+        tools:visibility="gone" />
+</androidx.constraintlayout.widget.ConstraintLayout>

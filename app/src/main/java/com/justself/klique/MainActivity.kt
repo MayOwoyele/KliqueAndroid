@@ -4,8 +4,8 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -16,9 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
 import androidx.emoji2.text.EmojiCompat.Config
-import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
-import androidx.fragment.app.commit
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -38,9 +36,8 @@ import com.justself.klique.Authentication.ui.screens.RegistrationScreen
 import com.justself.klique.Authentication.ui.viewModels.AppState
 import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.databinding.ActivityMainBinding
-import com.justself.klique.fragments.BookShelfFrag
-import com.justself.klique.fragments.ChatsFrag
-import com.justself.klique.fragments.HomeFrag
+import com.justself.klique.nav.NavigationManager
+import com.justself.klique.nav.KliqueVMStore
 
 private const val REQ_IMMEDIATE_UPDATE = 1001
 private const val REQ_FLEX_UPDATE      = 1002
@@ -132,8 +129,9 @@ class MainActivity : FragmentActivity() {
         }
     }
     private fun showLoginCompose() {
+        binding.layoutContainer.visibility = View.GONE
         binding.loginComposeView.apply {
-            visibility = android.view.View.VISIBLE
+            visibility = View.VISIBLE
             supportFragmentManager.popBackStack(null, androidx.fragment.app.FragmentManager.POP_BACK_STACK_INCLUSIVE)
             setContent {
                 Surface {
@@ -146,27 +144,16 @@ class MainActivity : FragmentActivity() {
     /** Replace the ComposeView with a NavHostFragment that drives logged‐in navigation. */
     private fun showLoggedInNavHost() {
         binding.loginComposeView.apply {
-            visibility = android.view.View.GONE
+            visibility = View.GONE
             setContent { /* clear content */ }
         }
-        if (supportFragmentManager.findFragmentByTag(TabRoots.Home.tag) != null) {
-            return
+        binding.layoutContainer.apply {
+            visibility = View.VISIBLE
         }
-
-        supportFragmentManager.commit {
-            val homeRoot = TabRoots.Home.tag
-            add(R.id.fragmentContainer, HomeFrag(), homeRoot)
-        }
-        supportFragmentManager.commit {
-            val chatRoot = TabRoots.Chat.tag
-            add(R.id.fragmentContainer, ChatsFrag(), chatRoot)
-            hide(requireFragment(chatRoot))
-        }
-        supportFragmentManager.commit {
-            val bookShelfRoot = TabRoots.BookShelf.tag
-            add(R.id.fragmentContainer, BookShelfFrag(), bookShelfRoot)
-            hide(requireFragment(bookShelfRoot))
-        }
+        val navManager = NavigationManager(
+            theContainer = binding.layoutContainer,
+            viewModelStore = KliqueVMStore()
+        )
     }
     override fun onResume() {
         super.onResume()
@@ -207,9 +194,6 @@ class MainActivity : FragmentActivity() {
         Logger.d("Permissions", "$it granted: $granted")
         granted
     }
-    private fun requireFragment(tag: String): Fragment =
-        supportFragmentManager.findFragmentByTag(tag)
-            ?: throw IllegalStateException("Fragment with tag $tag not found")
 }
 val LocalContactsViewModel = staticCompositionLocalOf<ContactsViewModel> {
     error("No ContactsViewModel provided")

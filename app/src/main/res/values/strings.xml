@@ -52,4 +52,23 @@
     <string name="start_gist">Start Gist</string>
     <string name="double_tick">double tick</string>
     <string name="single_tick">single tick</string>
+    <string name="type_your_message">type your message</string>
+    <string name="attach_file">attach file</string>
+    <string name="send_icon">send icon</string>
+    <string name="emoji">emoji</string>
+    <string name="record_audio">record audio</string>
+    <string name="enter_gist">Enter Gist</string>
+    <string name="comments">Comments</string>
+    <string name="thumbs_up">👍</string>
+    <string name="take_a_seat">TAKE A SEAT</string>
+    <string name="leave_seat">LEAVE SEAT</string>
+    <string name="clickable_drawer_background">clickable drawer background</string>
+    <string name="create_gist_with_friends">Create gist with friends</string>
+    <string name="don_t_show_again">Don\'t show again</string>
+    <string name="you_have_admin_privileges_you_can_set_any_image_or_video_as_the_gist_background_that_users_will_see_on_their_timeline_it_will_improve_engagement_just_hold_any_image_or_video">You have admin privileges. You can set any image or video as the gist background that users will see on their timeline. It will improve engagement, just hold any image or video!</string>
+    <string name="welcome_owner">Welcome, Owner!</string>
+    <string name="got_it">Got it</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="do_you_want_to_perform_this_action">Do you want to perform this action?</string>
 </resources>

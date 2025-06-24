@@ -5,6 +5,24 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+
+    <EditText
+        android:id="@+id/search_chats"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@drawable/post_rounded_rect"
+        android:ems="10"
+        android:hint="type to search your contacts"
+        android:inputType="text"
+        android:maxLines="1"
+        android:textColorHint="@color/onPrimary"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="aida eif wiafe ifew fiw fwief wif wifiw fwi fw ufas ifi fief iewfw if wfw fiwf iewf wef ewf" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/test_chat_items"
         android:layout_width="0dp"
@@ -13,7 +31,34 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/search_chats"
         tools:listitem="@layout/chats_chat_item"
         tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/chat_list_search_icon"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginTop="32dp"
+        android:layout_marginEnd="32dp"
+        android:background="@drawable/curved_back_background"
+        android:backgroundTint="@color/primary"
+        android:padding="15dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/search_chats"
+        app:srcCompat="@drawable/search_24px" />
+
+    <ImageView
+        android:id="@+id/add_contacts"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="32dp"
+        android:background="@drawable/curved_back_background"
+        android:backgroundTint="@color/primary"
+        android:padding="15dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:srcCompat="@drawable/add_24px" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

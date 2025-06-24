@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/input_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="8dp"
+    android:paddingEnd="8dp">
+
+    <ImageView
+        android:id="@+id/emoji"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginEnd="8dp"
+        android:contentDescription="@string/emoji"
+        android:src="@drawable/sentiment_satisfied_24px"
+        app:tint="@color/primary" />
+
+    <EditText
+        android:id="@+id/text_box"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:background="@color/background"
+        android:hint="@string/type_your_message"
+        android:inputType="textMultiLine"
+        android:maxLines="5"
+        android:minLines="1"
+        android:scrollbars="vertical"
+        android:textSize="20sp" />
+
+    <ImageView
+        android:id="@+id/attach_file"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@string/attach_file"
+        android:src="@drawable/attach_file_24px" />
+
+    <ImageView
+        android:id="@+id/comments_icon"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/comment_24px"
+        android:visibility="gone" />
+
+
+    <ImageView
+        android:id="@+id/record_audio"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@string/record_audio"
+        android:src="@drawable/mic_24px"
+        app:tint="@color/primary"
+        tools:visibility="visible" />
+
+    <ImageView
+        android:id="@+id/send_icon"
+        android:layout_width="@dimen/personal_chat_icon_size"
+        android:layout_height="@dimen/personal_chat_icon_size"
+        android:layout_marginStart="8dp"
+        android:contentDescription="@string/send_icon"
+        android:src="@drawable/send_24px"
+        android:visibility="gone" />
+</LinearLayout>

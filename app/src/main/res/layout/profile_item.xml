@@ -13,7 +13,9 @@
         android:layout_width="@dimen/search_profile_image"
         android:layout_height="@dimen/search_profile_image"
         android:contentDescription="@string/profile_image"
-        android:src="@drawable/circular_pink_background"
+        android:background="@drawable/circular_pink_background"
+        android:clipToOutline="true"
+        android:scaleType="centerCrop"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -43,6 +45,7 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/verification_badge"
         android:src="@drawable/verified_24px"
+        android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="@id/search_profile_image"
         app:layout_constraintStart_toEndOf="@id/name_space"
         app:layout_constraintTop_toTopOf="@id/search_profile_image" />

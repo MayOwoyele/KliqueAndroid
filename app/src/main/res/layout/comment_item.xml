@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/comment_item"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <!-- Full Name -->
+
+    <TextView
+        android:id="@+id/comment_user_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:clickable="true"
+        android:textColor="@color/primary"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        tools:text="John Doe"
+        tools:ignore="TouchTargetSizeCheck"/>
+
+    <!-- Comment Text -->
+    <TextView
+        android:id="@+id/comment_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="@color/onPrimary"
+        android:textSize="20sp"
+        tools:text="This is a comment body." />
+
+    <!-- Upvote Row: count + emoji side by side -->
+    <LinearLayout
+        android:id="@+id/comment_upvote_row"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="8dp"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/comment_upvotes"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:clickable="true"
+            android:text="@string/thumbs_up"
+            android:textSize="20sp"
+            tools:ignore="TouchTargetSizeCheck" />
+
+        <TextView
+            android:id="@+id/comment_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/onPrimary"
+            android:textSize="16sp"
+            tools:text="3, upvoted by you" />
+    </LinearLayout>
+
+    <!-- Replies Text -->
+    <TextView
+        android:id="@+id/comment_replies"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:clickable="true"
+        android:textColor="@color/primary"
+        android:textSize="20sp"
+        tools:text="3 replies"
+        tools:ignore="TouchTargetSizeCheck"/>
+</LinearLayout>

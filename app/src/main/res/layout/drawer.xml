@@ -11,6 +11,8 @@
         android:layout_height="wrap_content"
         android:alpha="0.5"
         android:background="@color/background"
+        android:clickable="true"
+        android:contentDescription="@string/clickable_drawer_background"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -121,9 +123,11 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/me_block"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_marginTop="16dp"
+        android:clickable="true"
         app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
+        app:layout_constraintHorizontal_bias="0.0"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/profile_clickable_area">
 
@@ -155,8 +159,9 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/shots_block"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_marginTop="16dp"
+        android:clickable="true"
         app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/me_block">
@@ -190,8 +195,9 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/top_gist_block"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_marginTop="16dp"
+        android:clickable="true"
         app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/shots_block">
@@ -225,8 +231,9 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/clique_block"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="48dp"
         android:layout_marginTop="16dp"
+        android:clickable="true"
         app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/top_gist_block">
