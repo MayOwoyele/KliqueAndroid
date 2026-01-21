@@ -14,4 +14,6 @@
 .cxx
 local.properties
 .google-services.json
-*.aab
+*.aabKliqueKeyStore
+kliquekliquekeystore
+app/google-services.json
