@@ -9,12 +9,10 @@
     <!-- Outer “badge” shape -->
     <path
         android:fillColor="@color/primary"
-        app:fillType="nonZero"
         android:pathData="M233,840L298,559L80,370L368,345L480,80L592,345L880,370L662,559L727,840L480,691L233,840Z"/>
 
     <!-- Inner star -->
     <path
         android:fillColor="@color/primary"
-        app:fillType="nonZero"
         android:pathData="M354,673L480,597L606,674L573,530L684,434L538,421L480,285L422,420L276,433L387,530L354,673Z"/>
 </vector>

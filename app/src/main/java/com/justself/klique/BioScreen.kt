@@ -79,7 +79,6 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.ImageLoader
-import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -709,7 +708,7 @@ fun BioScreen(
 }
 
 @Composable
-fun PostItem(post: Post, navController: NavController, onViewAllComments: (String) -> Unit) {
+fun PostItem(post: NewGist, navController: NavController, onViewAllComments: (String) -> Unit) {
     val context = LocalContext.current
     val videoCacheDir = File(context.cacheDir, "video_cache")
     val audioCacheDir = File(context.cacheDir, "audio_cache")

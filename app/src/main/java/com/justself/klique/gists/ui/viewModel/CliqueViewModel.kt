@@ -80,6 +80,7 @@ import java.security.MessageDigest
 import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import androidx.core.graphics.scale
 
 class SharedCliqueViewModel(
     application: Application,
@@ -1562,7 +1563,7 @@ class SharedCliqueViewModel(
         val scaleFactor = minOf(targetWidth / width.toFloat(), targetHeight / height.toFloat())
         val newWidth = (width * scaleFactor).toInt()
         val newHeight = (height * scaleFactor).toInt()
-        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+        return bitmap.scale(newWidth, newHeight)
     }
 
     private fun cacheNewThumb(

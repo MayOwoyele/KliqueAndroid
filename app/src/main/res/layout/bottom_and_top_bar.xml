@@ -6,14 +6,6 @@
     android:layout_height="match_parent"
     android:background="@color/background">
 
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guideline_10_percent"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="@color/background"
-        android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.1" />
-
     <FrameLayout
         android:id="@+id/home_container"
         android:layout_width="0dp"
@@ -44,6 +36,17 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/topBarIconsContainer" />
 
+
+    <include
+        layout="@layout/enter_gist_pop_up"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav_bar"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/klique_users_search_recycler_view"
         android:layout_width="0dp"
@@ -54,38 +57,16 @@
         android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/guideline_10_percent"
-        tools:listitem="@layout/profile_item"
-        tools:visibility="gone" />
-
-
-    <include
-        layout="@layout/enter_gist_pop_up"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/bottom_nav_bar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/guideline_10_percent"
-        tools:visibility="gone" />
+        app:layout_constraintTop_toBottomOf="@id/topBarIconsContainer"
+        tools:listitem="@layout/profile_item" />
 
     <include
         android:id="@+id/included_drawer"
         layout="@layout/drawer"
-        android:visibility="visible"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="gone" />
-
-    <View
-        android:id="@+id/top_bar_background"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:background="@color/background"
-        app:layout_constraintBottom_toBottomOf="@id/guideline_10_percent"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottom_nav_bar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
@@ -93,13 +74,12 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/topBarIconsContainer"
         android:layout_width="0dp"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
+        android:background="@color/background"
         android:visibility="visible"
-        app:layout_constraintBottom_toBottomOf="@id/guideline_10_percent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:visibility="visible">
+        app:layout_constraintTop_toTopOf="parent">
 
         <ImageView
             android:id="@+id/drawerClick"
@@ -139,10 +119,13 @@
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/search_bar"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="visible"
-            tools:visibility="gone">
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
 
             <EditText
                 android:id="@+id/edit_text_for_search"
@@ -181,7 +164,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/bottom_nav_bar"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
+        android:layout_height="wrap_content"
         android:visibility="visible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -197,7 +180,7 @@
             app:layout_constraintStart_toStartOf="parent" />
 
         <ImageView
-            android:id="@+id/homeView"
+            android:id="@+id/gistsView"
             android:layout_width="47dp"
             android:layout_height="53dp"
             android:contentDescription="@string/home"
@@ -214,7 +197,7 @@
             android:contentDescription="@string/chats"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@id/bookShelf"
-            app:layout_constraintStart_toEndOf="@id/homeView"
+            app:layout_constraintStart_toEndOf="@id/gistsView"
             app:srcCompat="@drawable/chat_24px"
             app:tint="@color/gray" />
 

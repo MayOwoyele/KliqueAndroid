@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.core.content.ContextCompat
@@ -21,6 +22,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.InstallException
+import com.google.android.play.core.install.model.InstallErrorCode
 import com.google.android.play.core.ktx.AppUpdateResult
 import com.google.android.play.core.ktx.isFlexibleUpdateAllowed
 import com.google.android.play.core.ktx.requestUpdateFlow
@@ -38,10 +41,12 @@ import com.justself.klique.Authentication.ui.viewModels.AuthViewModel
 import com.justself.klique.databinding.ActivityMainBinding
 import com.justself.klique.nav.NavigationManager
 import com.justself.klique.nav.KliqueVMStore
+import com.justself.klique.screenControllers.BaseScreen
+import kotlinx.coroutines.flow.catch
 
 private const val REQ_IMMEDIATE_UPDATE = 1001
 private const val REQ_FLEX_UPDATE      = 1002
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     private val requiredPermissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         arrayOf(
             Manifest.permission.READ_MEDIA_IMAGES,
@@ -85,7 +90,6 @@ class MainActivity : FragmentActivity() {
         }
         val contactsRepository by lazy { ContactsRepository(contentResolver, this) }
         val authViewModel: AuthViewModel by viewModels()
-        // Observe the authentication state
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         lifecycleScope.launch {
@@ -142,18 +146,24 @@ class MainActivity : FragmentActivity() {
     }
 
     /** Replace the ComposeView with a NavHostFragment that drives logged‐in navigation. */
+    private lateinit var navManager: NavigationManager
+
     private fun showLoggedInNavHost() {
-        binding.loginComposeView.apply {
-            visibility = View.GONE
-            setContent { /* clear content */ }
-        }
-        binding.layoutContainer.apply {
-            visibility = View.VISIBLE
-        }
-        val navManager = NavigationManager(
-            theContainer = binding.layoutContainer,
+        binding.loginComposeView.visibility = View.GONE
+
+        binding.layoutContainer.visibility = View.VISIBLE
+
+        navManager = NavigationManager(
+            theContainer  = binding.layoutContainer,
             viewModelStore = KliqueVMStore()
         )
+
+        val base = BaseScreen(
+            context        = this,
+            nav            = navManager
+        )
+        Logger.d("NavManager", "is running")
+        navManager.goTo(base)
     }
     override fun onResume() {
         super.onResume()
@@ -166,24 +176,54 @@ class MainActivity : FragmentActivity() {
                 AppUpdateManagerFactory
                     .create(this@MainActivity)
                     .requestUpdateFlow()
+                    .catch { e ->
+                        // This will catch InstallException(-6) and any other errors from the flow
+                        if (e is InstallException &&
+                            e.errorCode == InstallErrorCode.ERROR_INSTALL_NOT_ALLOWED
+                        ) {
+                            Logger.e("UpdateManager", "🚫 Update not allowed by device state")
+                        } else {
+                            Logger.e("UpdateManager", "🔥 Unexpected update error")
+                        }
+                        // swallow it so it doesn't crash
+                    }
                     .collect { result ->
                         if (result is AppUpdateResult.Available) {
-                            val info      = result.updateInfo
-                            val elapsed   = System.currentTimeMillis() - DroidAppUpdateManager.getFirstSeen()
-                            val needForce = elapsed >= FORCE_AFTER
-                            val needAsk   = elapsed in ASK_AFTER until FORCE_AFTER
+                            val elapsed = System.currentTimeMillis() - DroidAppUpdateManager.getFirstSeen()
+                            val force   = elapsed >= FORCE_AFTER
+                            val ask     = elapsed in ASK_AFTER until FORCE_AFTER
 
-                            when {
-                                needForce && info.isImmediateUpdateAllowed -> {
-                                    result.startImmediateUpdate(this@MainActivity, REQ_IMMEDIATE_UPDATE)
-                                }
-                                needAsk && info.isFlexibleUpdateAllowed &&
-                                        !DroidAppUpdateManager.updateDismissedFlow.value -> {
-                                    result.startFlexibleUpdate(this@MainActivity, REQ_FLEX_UPDATE)
-                                }
-                            }
+                            // Now your previous runCatching is a nice extra guard,
+                            // but the flow.catch will already have intercepted the crash.
+                            result.tryStartUpdate(this@MainActivity, force)
                         }
                     }
+            }
+        }
+    }
+    private fun AppUpdateResult.Available.tryStartUpdate(
+        activity: MainActivity,
+        force: Boolean
+    ) {
+        runCatching {
+            if (force && updateInfo.isImmediateUpdateAllowed) {
+                startImmediateUpdate(activity, REQ_IMMEDIATE_UPDATE)
+            } else if (!force &&
+                updateInfo.isFlexibleUpdateAllowed &&
+                !DroidAppUpdateManager.updateDismissedFlow.value
+            ) {
+                startFlexibleUpdate(activity, REQ_FLEX_UPDATE)
+            } else {
+
+            }
+        }.onFailure { e ->
+            if (e is InstallException &&
+                e.errorCode == InstallErrorCode.ERROR_INSTALL_NOT_ALLOWED
+            ) {
+                Logger.e("UpdateManager", "🚫 Update blocked by device state – battery, storage, etc.")
+                // optional: Toast.makeText(activity, "...", LENGTH_LONG).show()
+            } else {
+                Logger.e("UpdateManager", "❌ startUpdate failed: ${e.message}")
             }
         }
     }

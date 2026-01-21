@@ -71,4 +71,9 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="do_you_want_to_perform_this_action">Do you want to perform this action?</string>
+    <string name="views">Views</string>
+    <string name="gist_type_unsupported_by_this_app_version">Gist type unsupported by this app version</string>
+    <string name="challenge_views">%1$s views</string>
+    <string name="challenge_with_type">%1$s: %2$s</string>
+    <string name="comment_on">Comment on %1$s\'s gist</string>
 </resources>

@@ -15,9 +15,7 @@ import com.justself.klique.SessionManager.fullName
 class MyKliqueApp : Application() {
     override fun onCreate() {
         super.onCreate()
-
         appContext = applicationContext
-
         FirebaseApp.initializeApp(this)
         NetworkUtils.initialize(this)
         AppUpdateManager.initialize()
@@ -32,7 +30,6 @@ class MyKliqueApp : Application() {
                 🔍 Stacktrace:
                 ${Log.getStackTraceString(throwable)}
             """.trimIndent()
-
             Log.e("CrashLogger", crashLog)
             sendCrashReportByEmail(crashLog)
         }

@@ -1,8 +1,6 @@
 package com.justself.klique
 
-import androidx.compose.ui.graphics.Color
-
-data class Post(
+data class NewGist(
     val id: String,
     val type: String,
     val content: String,
@@ -17,7 +15,7 @@ data class Profile(
     val bioImage: String,
     val fullName: String,
     val bioText: String,
-    val posts: List<Post>,
+    val posts: List<NewGist>,
     val classSection: String,
     val isSpectator: Boolean,
     val seatedCount: Int,

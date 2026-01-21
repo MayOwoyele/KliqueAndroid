@@ -9,7 +9,7 @@
     <dimen name="search_background_padding">3dp</dimen>
     <dimen name="news_feed_padding">12dp</dimen>
     <dimen name="search_profile_image">40dp</dimen>
-    <dimen name="post_item_image">50dp</dimen>
+    <dimen name="post_item_image">25dp</dimen>
     <dimen name="chats_message_item_profile_image">60dp</dimen>
     <dimen name="chat_message_curvature">8dp</dimen>
     <dimen name="chat_message_padding">8dp</dimen>
@@ -18,4 +18,5 @@
     <dimen name="video_plus_image">60dp</dimen>
     <dimen name="profile_thumbnail_gist">30dp</dimen>
     <dimen name="comment_modal_curve">20dp</dimen>
+    <dimen name="verified_size">24dp</dimen>
 </resources>

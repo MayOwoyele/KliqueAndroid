@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.json.JSONObject
+import androidx.core.content.edit
 
 object SessionManager {
     private val _customerId = MutableStateFlow(0)
@@ -32,7 +33,7 @@ object SessionManager {
     val contactsOffloadedFlow = MutableStateFlow(prefs.getBoolean(KEY_CONTACTS_OFFLOADED, false))
 
     fun markContactsOffloaded() {
-        prefs.edit().putBoolean(KEY_CONTACTS_OFFLOADED, true).apply()
+        prefs.edit { putBoolean(KEY_CONTACTS_OFFLOADED, true) }
         contactsOffloadedFlow.value = true
     }
     fun fetchCustomerDataFromSharedPreferences() {
@@ -40,7 +41,7 @@ object SessionManager {
         val savedCustomerId = sharedPreferences.getInt(CUSTOMER_ID, -1)
         val savedFullName = sharedPreferences.getString(FULL_NAME_KEY, "") ?: ""
 
-        _customerId.value =  savedCustomerId
+        _customerId.value = 1//savedCustomerId
         _fullName.value = savedFullName
     }
 

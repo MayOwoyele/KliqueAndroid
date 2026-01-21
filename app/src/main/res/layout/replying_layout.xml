@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/reply_container"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:padding="10dp"
+        android:visibility="visible"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <LinearLayout
+            android:id="@+id/reply_quote_container"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="64dp"
+            android:background="@drawable/post_rounded_rect"
+            android:orientation="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
+
+            <TextView
+                android:id="@+id/reply_type"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:textColor="@color/onPrimary"
+                android:textStyle="italic"
+                tools:text="Quoted Message" />
+
+            <TextView
+                android:id="@+id/reply_body"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="3"
+                android:textColor="@color/onPrimary"
+                android:textStyle="italic"
+                tools:text="a dfiad fia difa ifawei fiawf awif i eiewr feihiq2ef ewugqf ew fewf wfi ewf ewfew fiew fewif fawf idfiw fwif ewfiew fiwf ifaewifiwef weufuew fuewyfew fuewyfuew ufewyuwe fewuf ewufwe ufe" />
+        </LinearLayout>
+
+        <com.justself.klique.sharedUi.ReplyCurveView
+            android:id="@+id/reply_curve_view"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_marginTop="16dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/reply_quote_container"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@id/reply_quote_container" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+    <!-- Barrier that will be either at bottom of reply_container or top of parent -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/reply_or_top"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:barrierAllowsGoneWidgets="true"
+        app:barrierDirection="bottom"
+        app:layout_constraintTop_toBottomOf="@id/reply_container" />
+
+    <!-- Actual message -->
+
+    <include
+        android:id="@+id/included_post"
+        layout="@layout/post_item"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/reply_or_top" />
+</androidx.constraintlayout.widget.ConstraintLayout>

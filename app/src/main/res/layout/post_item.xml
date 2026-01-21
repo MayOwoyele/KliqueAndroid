@@ -6,65 +6,148 @@
     android:layout_height="wrap_content"
     android:padding="@dimen/news_feed_padding">
 
-
     <androidx.constraintlayout.widget.ConstraintLayout
-        android:id="@+id/post_view_constraint"
+        android:id="@+id/post_item_constraint"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="wrap_content">
 
-        <ImageView
-            android:id="@+id/imageView"
-            android:layout_width="@dimen/post_item_image"
-            android:layout_height="@dimen/post_item_image"
-            android:contentDescription="@string/post_avatar"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintVertical_bias="0.0"
-            app:srcCompat="@drawable/circular_pink_background" />
-
-        <TextView
-            android:id="@+id/post_text"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:maxLines="5"
-            android:textColor="@color/onPrimary"
-            android:textSize="20sp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@id/imageView"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:text="Quirky lanterns drift across woven constellations, humming invisible tunes while daydreams pirouette through emerald horizons under pastel umbrellas.!" />
+        <!-- Profile row: image + name -->
 
         <androidx.constraintlayout.widget.ConstraintLayout
-            android:id="@+id/comment_constraint"
-            android:layout_width="wrap_content"
+            android:id="@+id/profileRow"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            app:layout_constraintBottom_toBottomOf="parent"
+            android:orientation="horizontal"
+            android:paddingVertical="5dp"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/post_text">
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
 
-            <TextView
-                android:id="@+id/newsfeed_comment_count"
-                android:layout_width="wrap_content"
+            <androidx.constraintlayout.widget.ConstraintLayout
+                android:id="@+id/name_plus_image"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textColor="@color/onPrimary"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintTop_toTopOf="parent"
-                tools:layout_constraintEnd_toEndOf="parent"
-                tools:text="2134" />
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent">
+
+                <ImageView
+                    android:id="@+id/profileImage"
+                    android:layout_width="@dimen/post_item_image"
+                    android:layout_height="@dimen/post_item_image"
+                    android:layout_gravity="center_vertical"
+                    android:background="@drawable/circular_pink_background"
+                    android:clipToOutline="true"
+                    android:contentDescription="@string/profile_image"
+                    android:scaleType="centerCrop"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent" />
+
+                <TextView
+                    android:id="@+id/userName"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:ellipsize="end"
+                    android:gravity="center_vertical"
+                    android:maxLines="1"
+                    android:paddingVertical="2dp"
+                    android:textColor="@color/onPrimary"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    app:layout_constrainedWidth="true"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintStart_toEndOf="@+id/profileImage"
+                    app:layout_constraintTop_toTopOf="parent"
+                    tools:text="May" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
             <ImageView
-                android:id="@+id/post_comment_news_feed_icon"
+                android:id="@+id/verifiedBadge"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:contentDescription="@string/comment_count_icon"
-                app:layout_constraintBottom_toBottomOf="@id/newsfeed_comment_count"
-                app:layout_constraintEnd_toStartOf="@id/newsfeed_comment_count"
-                app:layout_constraintTop_toTopOf="@id/newsfeed_comment_count"
-                app:srcCompat="@drawable/chat_bubble_24px"
-                app:tint="@color/primary" />
+                android:layout_gravity="center_vertical"
+                android:contentDescription="@string/verification_badge"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@id/name_plus_image"
+                app:layout_constraintStart_toEndOf="@id/name_plus_image"
+                app:layout_constraintTop_toTopOf="@id/name_plus_image"
+                app:srcCompat="@drawable/verified_24px" />
+
         </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <View
+            android:id="@+id/profileUnderline"
+            android:layout_width="20dp"
+            android:layout_height="1dp"
+            android:background="@color/primary"
+            app:layout_constraintEnd_toEndOf="@id/profileRow"
+            app:layout_constraintHorizontal_bias="0.0"
+            app:layout_constraintStart_toStartOf="@id/profileRow"
+            app:layout_constraintTop_toBottomOf="@id/profileRow" />
+
+        <!-- Message content container -->
+        <FrameLayout
+            android:id="@+id/gistContentContainer"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="@id/profileRow"
+            app:layout_constraintTop_toBottomOf="@id/profileRow">
+
+            <!-- Default text message -->
+            <TextView
+                android:id="@+id/postText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="start"
+                android:textAlignment="viewStart"
+                android:padding="4dp"
+                android:textColor="@color/onPrimary"
+                android:textSize="20sp"
+                tools:text="A carousel" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/views_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/onPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@id/super_views"
+            app:layout_constraintTop_toBottomOf="@id/gistContentContainer"
+            tools:text="40K views" />
+
+        <TextView
+            android:id="@+id/super_views"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/onPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/views_count"
+            app:layout_constraintEnd_toStartOf="@id/views_count"
+            app:layout_constraintStart_toEndOf="@id/comment_counts"
+            app:layout_constraintTop_toTopOf="@id/views_count"
+            tools:text="30K SV" />
+
+        <TextView
+            android:id="@+id/comment_counts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@color/onPrimary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toBottomOf="@id/super_views"
+            app:layout_constraintEnd_toStartOf="@id/super_views"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="@id/super_views"
+            tools:text="30 comments" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

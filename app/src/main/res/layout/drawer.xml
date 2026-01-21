@@ -152,8 +152,7 @@
             android:textSize="@dimen/drawer_font_size"
             app:layout_constraintBottom_toBottomOf="@id/me_icon"
             app:layout_constraintStart_toEndOf="@id/me_icon"
-            app:layout_constraintTop_toTopOf="@id/me_icon"
-            app:textSize="20sp" />
+            app:layout_constraintTop_toTopOf="@id/me_icon" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -224,8 +223,7 @@
             android:textSize="@dimen/drawer_font_size"
             app:layout_constraintBottom_toBottomOf="@id/top_gists_icon"
             app:layout_constraintStart_toEndOf="@id/top_gists_icon"
-            app:layout_constraintTop_toTopOf="@id/top_gists_icon"
-            app:textSize="20sp" />
+            app:layout_constraintTop_toTopOf="@id/top_gists_icon" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -259,8 +257,7 @@
             android:textSize="@dimen/drawer_font_size"
             app:layout_constraintBottom_toBottomOf="@id/clique"
             app:layout_constraintStart_toEndOf="@id/clique"
-            app:layout_constraintTop_toTopOf="@id/clique"
-            app:textSize="20sp" />
+            app:layout_constraintTop_toTopOf="@id/clique" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <ImageView
@@ -270,7 +267,7 @@
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
         android:contentDescription="@string/settings_icon"
-        app:layout_constraintBottom_toBottomOf="@id/bottom_bar_height_guideline"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="@id/actual_drawer_content"
         app:layout_constraintHorizontal_bias="1.0"
         app:layout_constraintStart_toStartOf="parent"

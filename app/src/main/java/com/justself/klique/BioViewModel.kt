@@ -7,7 +7,6 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.justself.klique.ContactsBlock.Contacts.repository.ContactsRepository
-import com.justself.klique.JWTNetworkCaller.performReusableNetworkCalls
 import com.justself.klique.gists.data.models.GistModel
 import com.justself.klique.gists.ui.viewModel.parseGistsFromResponse
 import kotlinx.coroutines.CoroutineScope
@@ -93,11 +92,11 @@ class BioViewModel(private val contactsRepository: ContactsRepository) : ViewMod
         }
     }
 
-    private fun parsePosts(postsArray: JSONArray): List<Post> {
-        val posts = mutableListOf<Post>()
+    private fun parsePosts(postsArray: JSONArray): List<NewGist> {
+        val posts = mutableListOf<NewGist>()
         for (i in 0 until postsArray.length()) {
             val postJson = postsArray.getJSONObject(i)
-            val post = Post(
+            val post = NewGist(
                 id = postJson.getString("id"),
                 type = postJson.getString("type"),
                 content = NetworkUtils.fixLocalHostUrl(postJson.getString("content")),

@@ -6,10 +6,13 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-
+object UserDetails {
+    val userDetails = MutableStateFlow<TinyProfileDetails?>(null)
+}
 class LeftDrawerViewModel : ViewModel() {
     private val _tinyProfileDetails = MutableStateFlow(TinyProfileDetails("", "", "", 0, ""))
     val tinyProfileDetails: StateFlow<TinyProfileDetails> = _tinyProfileDetails
@@ -36,6 +39,7 @@ class LeftDrawerViewModel : ViewModel() {
                     )
                     withContext(Dispatchers.Main) {
                         _tinyProfileDetails.value = tinyDetails
+                        UserDetails.userDetails.value = tinyDetails
                     }
                     Logger.d("LeftViewModel", _tinyProfileDetails.value.toString())
                 }
@@ -48,7 +52,7 @@ class LeftDrawerViewModel : ViewModel() {
                     errorAction = error
                 )
             } catch (e: Exception) {
-                Logger.d("LeftViewModel", "${e}")
+                Logger.d("LeftViewModel", "$e")
             }
         }
     }

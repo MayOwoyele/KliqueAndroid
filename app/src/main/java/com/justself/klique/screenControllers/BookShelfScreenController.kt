@@ -1,30 +1,20 @@
 package com.justself.klique.screenControllers
 
 import android.content.Context
+import android.view.LayoutInflater
 import android.view.View
 import android.widget.FrameLayout
-import com.justself.klique.nav.KliqueVMStore
-import com.justself.klique.nav.ScreenController
-import androidx.core.view.isNotEmpty
+import com.justself.klique.databinding.BioViewBinding
+import com.justself.klique.nav.NavigationManager
+import com.justself.klique.nav.TabChild
 
 class BookShelfScreenController(
-    private val context: Context,
-    private val viewModelStore: KliqueVMStore,
-    private val container: FrameLayout
-) : ScreenController {
-
-    override fun returnView(): View {
-        if (container.isNotEmpty()) return container
-
-//        val binding = BookshelfContainerBinding.inflate(LayoutInflater.from(context), container, false)
-//        container.addView(binding.root)
-//
-//        val viewModel = viewModelStore.get(this) { BookShelfViewModel(this) }
-//
-//        binding.refreshLibraryButton.setOnClickListener {
-//            viewModel.loadBooks()
-//        }
-
-        return container
+    override val container: FrameLayout,
+    override val nav: NavigationManager,
+    override val vm: BookShelfScreenVm
+) : TabChild<BookShelfScreenVm> {
+    override fun createContentView(context: Context): View {
+        val binding = BioViewBinding.inflate(LayoutInflater.from(context))
+        return binding.root
     }
 }

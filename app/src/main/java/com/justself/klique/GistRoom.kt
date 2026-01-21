@@ -938,8 +938,6 @@ fun MessageContent(
             }
         }
     }
-
-    // Options Dialog for message actions
     if (showOptionsDialog && selectedMessage != null) {
         AlertDialog(
             onDismissRequest = { showOptionsDialog = false },
@@ -947,7 +945,6 @@ fun MessageContent(
             text = {
                 Column {
                     if (selectedMessage?.senderId == customerId) {
-                        // For current user's messages: show delete option
                         TextButton(onClick = {
                             showOptionsDialog = false
                             showDeleteConfirmation = true
@@ -955,7 +952,6 @@ fun MessageContent(
                             Text("Delete Message", color = MaterialTheme.colorScheme.error)
                         }
                     } else {
-                        // For messages not from current user: show report option
                         TextButton(onClick = {
                             showOptionsDialog = false
                             showReportConfirmation = true
